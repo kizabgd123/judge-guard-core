@@ -97,12 +97,12 @@ Ali: Moguće je koristiti ovaj pattern za **hijerarhijsku verifikaciju** (npr. j
 
 ### Faza B: Core Improvements (3-5 dana)
 
-3. **Self-Healing Loop:** Implementirati `retry_with_context()` mehanizam.
-4. **Test Suite:** Kreirati test case-ove za drift detection.
+1. **Self-Healing Loop:** Implementirati `retry_with_context()` mehanizam.
+2. **Test Suite:** Kreirati test case-ove za drift detection.
 
 ### Faza C: Advanced Features (Opciono, 1-2 nedelje)
 
-5. **CoVe Layer:** Dodati Layer 4 za chain-of-verification na deployment akcije.
+1. **CoVe Layer:** Dodati Layer 4 za chain-of-verification na deployment akcije.
 
 ---
 
