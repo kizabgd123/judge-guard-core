@@ -9,15 +9,15 @@
 
 ## Phase 1: Cognitive Hardening (In Progress)
 
-- [ ] **Dependency Fix:** Resolve `gemini_client` bug ('NoneType' error) <!-- id: 4 -->
-- [ ] **Context Upgrade:** Optimize `judge_guard.py` prompt context window <!-- id: 5 -->
-- [ ] **Unit Tests:** Create `tests/test_judge_guard.py` <!-- id: 6 -->
+- [x] **Dependency Fix:** Resolve `gemini_client` bug ('NoneType' error) <!-- id: 4 -->
+- [x] **Context Upgrade:** Optimize `judge_guard.py` prompt context window <!-- id: 5 -->
+- [x] **Unit Tests:** Create `tests/test_judge_guard.py` <!-- id: 6 -->
 
 ## Phase 2: Mobile Interface Integration
 
-- [ ] **Bridge Upgrade:** Update `mobile_bridge.py` to stream Verdicts <!-- id: 7 -->
-- [ ] **PWA UI:** Create "Judge Console" view in React <!-- id: 8 -->
-- [ ] **Notification:** Display "Action Blocked" alerts in PWA <!-- id: 9 -->
+- [x] **Bridge Upgrade:** Update `mobile_bridge.py` to stream Verdicts <!-- id: 7 -->
+- [x] **PWA UI:** Create "Judge Console" view in React <!-- id: 8 -->
+- [x] **Notification:** Display "Action Blocked" alerts in PWA <!-- id: 9 -->
 
 ## Phase 3: Validation Loop
 

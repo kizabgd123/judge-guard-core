@@ -1,0 +1,7 @@
+prefix=/home/kizabgd/Desktop/33333333333333333333/.conda
+includedir=${prefix}/include
+ 
+Name: DRI2Proto
+Description: DRI2 extension headers
+Version: 2.8
+Cflags: -I${includedir}

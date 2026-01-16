@@ -1,0 +1,73 @@
+<root>
+    <project_essence>
+        <goal>Build an autonomous, self-improving AI agent system (Antigravity) with a premium Mobile PWA interface.</goal>
+        <core_values>
+            <value>User Control: The user is the ultimate authority.</value>
+            <value>Safety: No destructive actions without verification.</value>
+            <value>Quality: High standards for code (Vibe Coding) and documentation.</value>
+            <value>Transparency: Streaming thoughts and actions to the user.</value>
+            <value>Research First: Always validate assumptions with browser research before coding.</value>
+        </core_values>
+    </project_essence>
+
+    <architecture_rules>
+        <rule id="A1" name="Mobile First">
+            <description>All UI components must be designed for touch interaction first.</description>
+            <requirements>
+                <req>Min touch target: 44px</req>
+                <req>Use `useHaptic` hook for feedback on all interactive elements.</req>
+                <req>Use `framer-motion` for fluid transitions (swipe, spring).</req>
+            </requirements>
+        </rule>
+        <rule id="A2" name="Component Structure">
+            <description>Strict separation of concerns.</description>
+            <structure>
+                <dir path="src/components/ui">Reusable 'Vibe' atoms (Buttons, Cards).</dir>
+                <dir path="src/components/views">Full page layouts.</dir>
+                <dir path="src/hooks">Custom logic (e.g., useHaptic).</dir>
+                <dir path="src/lib">Utilities and constants.</dir>
+            </structure>
+        </rule>
+        <rule id="A3" name="Modern Stack">
+            <must_use>React 19, Vite, TailwindCSS, Framer Motion</must_use>
+            <forbidden>Class components, jQuery, Redux (use Context/Zustand)</forbidden>
+        </rule>
+    </architecture_rules>
+
+    <tool_discipline>
+        <phase name="0_RESEARCH">
+            <allowed_tools>
+                <tool>browser_subagent</tool>
+                <tool>read_url_content</tool>
+                <tool>mcp:sequential-thinking</tool>
+            </allowed_tools>
+            <forbidden_tools>
+                <tool>run_command</tool>
+                <tool>write_to_file</tool>
+            </forbidden_tools>
+        </phase>
+        <phase name="1_EXECUTION">
+            <allowed_tools>ALL</allowed_tools>
+            <constraint>Must verify architectural integrity before writing.</constraint>
+        </phase>
+    </tool_discipline>
+
+    <vibe_dictionary>
+        <snippet name="Glassmorphism">
+            <css>bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl</css>
+        </snippet>
+        <snippet name="Neo-Brutalism">
+            <css>border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:shadow-none transition-all</css>
+        </snippet>
+        <snippet name="HapticHook">
+            <code>
+                export const useHaptic = () => {
+                    const trigger = () => {
+                        if (navigator.vibrate) navigator.vibrate(10);
+                    };
+                    return trigger;
+                };
+            </code>
+        </snippet>
+    </vibe_dictionary>
+</root>

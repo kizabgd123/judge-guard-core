@@ -1,6 +1,10 @@
 """
-JudgeGuard - The Permanent Guardian of the Antigravity System.
+JudgeGuard v2.0 - The 3-Layer Guardian of the Antigravity System.
 Verifies every critical step against the 'Standard of Truth'.
+
+Layer 1: Tool Enforcement (Hard Rules)
+Layer 2: Live Thought Streaming (Visibility)
+Layer 3: Essence Check (Semantic Drift)
 
 Environment Variables:
     BRAIN_PATH: Path to the brain directory (optional, auto-discovers if not set)
@@ -11,7 +15,6 @@ import os
 import sys
 import glob
 import logging
-from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -19,15 +22,39 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Graceful import with fallback
+# --- DEPENDENCY INJECTION ---
 try:
-    from src.antigravity_core.judge_flow import BlockJudge, JudgeFlowBlock
+    from src.antigravity_core.judge_flow import BlockJudge
+    from src.antigravity_core.gemini_client import GeminiClient
     JUDGE_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"⚠️ BlockJudge not available: {e}")
+    logger.warning(f"⚠️ Judge/Gemini modules not available: {e}")
     JUDGE_AVAILABLE = False
-    BlockJudge = None
 
+try:
+    from src.antigravity_core.mobile_bridge import bridge
+    BRIDGE_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"⚠️ MobileBridge not available: {e}")
+    BRIDGE_AVAILABLE = False
+# ----------------------------
+
+# --- LAYER 3 CONSTANT ---
+PROJECT_ESSENCE = """
+PROJECT ESSENCE (Golden Snapshot):
+The goal is to build an autonomous, self-improving AI agent system (Antigravity).
+Core Values:
+1. User Control: The user is the ultimate authority.
+2. Safety: No destructive actions without verification.
+3. Quality: High standards for code and documentation.
+4. Transparency: Streaming thoughts and actions to the user.
+5. Modularity: A clean, plugin-based architecture for Agents.
+6. Research First: Always validate assumptions with browser research before coding.
+
+SKILL MANIFEST:
+- mobile-vibe-coding: Enforce '.cursorrules' for PWA development (XML Architecture + Vibe Snippets).
+"""
+# ------------------------
 
 class JudgeGuard:
     """
@@ -36,159 +63,177 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        """
-        Initialize JudgeGuard with configurable paths.
-        
-        Args:
-            brain_path: Override for brain directory path
-            work_log_path: Override for work log file path
-        """
-        # Priority: argument > env var > auto-discovery
         self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
         self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        
-        # Rules file path
-        # Fallback to global MASTER_ORCHESTRATION if local brain rules missing
         self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        
-        # Load the immutable laws
         self.immutable_laws = self._load_rules()
         
-        logger.info(f"JudgeGuard initialized. Brain: {self.brain_path}, WorkLog: {self.work_log_path}")
+        if JUDGE_AVAILABLE:
+            self.gemini = GeminiClient()
+        
+        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
 
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
         try:
             base_path = os.path.expanduser("~/.gemini/antigravity/brain")
             if not os.path.exists(base_path):
-                logger.warning(f"Brain base path not found: {base_path}")
                 return None
-            
-            # Find the most recently modified brain directory (UUID format)
             brain_dirs = glob.glob(os.path.join(base_path, "*-*-*-*-*"))
             if not brain_dirs:
-                logger.warning("No brain directories found")
                 return None
-            
-            # Return most recently modified
-            latest = max(brain_dirs, key=os.path.getmtime)
-            logger.info(f"Auto-discovered brain path: {latest}")
-            return latest
-            
-        except Exception as e:
-            logger.error(f"Error discovering brain path: {e}")
+            return max(brain_dirs, key=os.path.getmtime)
+        except Exception:
             return None
 
     def _find_work_log(self) -> str:
         """Find WORK_LOG.md in current directory or parent directories."""
-        search_paths = [
-            os.getcwd(),
-            os.path.dirname(os.path.abspath(__file__)),
-            os.path.expanduser("~/Desktop/JEDNOOOOOOOOOOOOOOOOOOM"),
-        ]
-        
-        for path in search_paths:
-            work_log = os.path.join(path, "WORK_LOG.md")
-            if os.path.exists(work_log):
-                return work_log
-        
-        # Default fallback
+        current = os.getcwd()
+        # Simple search up
+        for _ in range(3):
+            path = os.path.join(current, "WORK_LOG.md")
+            if os.path.exists(path):
+                return path
+            current = os.path.dirname(current)
         return os.path.join(os.getcwd(), "WORK_LOG.md")
 
     def _load_rules(self) -> str:
-        """Safely load the immutable rules."""
-        if not self.rules_path:
-            return "⚠️ BRAIN_PATH not configured. Rules not loaded."
-        
+        if not os.path.exists(self.rules_path):
+            return "⚠️ MASTER_ORCHESTRATION.md not found."
         try:
-            if os.path.exists(self.rules_path):
-                with open(self.rules_path, "r", encoding="utf-8") as f:
-                    return f.read()
-            else:
-                logger.warning(f"Rules file not found: {self.rules_path}")
-                return "⚠️ GOAL_SETTING_RULES.md not found. Operating without rules."
-        except IOError as e:
-            logger.error(f"Error reading rules: {e}")
-            return f"❌ ERROR loading rules: {e}"
+            with open(self.rules_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            return f"Error loading rules: {e}"
 
-    def _load_context(self, max_chars: int = 2000) -> str:
-        """Safely load recent work log context."""
-        try:
-            if self.work_log_path and os.path.exists(self.work_log_path):
+    def _load_context(self, max_chars: int = 15000) -> str:
+        if self.work_log_path and os.path.exists(self.work_log_path):
+            try:
                 with open(self.work_log_path, "r", encoding="utf-8") as f:
                     content = f.read()
-                    return content[-max_chars:] if len(content) > max_chars else content
-            return "(No work log found)"
-        except IOError as e:
-            logger.error(f"Error reading work log: {e}")
-            return f"(Error reading work log: {e})"
+                    return content[-max_chars:]
+            except Exception:
+                pass
+        return "(No work log context)"
+
+    def _detect_phase(self, context: str) -> str:
+        """
+        Heuristic to detect Project Phase from context.
+        Returns '0', '1', '2', etc., or 'unknown'.
+        """
+        # Simple heuristic: scan last 2000 chars for explicit Phase declarations
+        recent = context[-2000:].lower()
+        if "phase 0" in recent or "scoping" in recent:
+            return "0"
+        if "phase 1" in recent or "discovery" in recent:
+            return "1"
+        if "phase 2" in recent or "execution" in recent:
+            return "2"
+        return "unknown"
+
+    def _is_write_operation(self, action: str) -> bool:
+        """Detect if action involves writing/modifying code."""
+        keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
+        return any(k in action.lower() for k in keywords)
 
     def verify_action(self, current_action: str) -> bool:
         """
-        Verifies if the CURRENT ACTION is compliant with the GOLDEN RULES and WORKFLOW.
-        
-        Args:
-            current_action: Description of the action to verify
-            
-        Returns:
-            True if action passes verification, False otherwise
+        Execute the 3-Layer Verification Model.
         """
         if not JUDGE_AVAILABLE:
-            logger.error("❌ BlockJudge not available. Cannot verify action.")
-            print("🛑 JudgeGuard: BlockJudge module not available. Install dependencies.")
+            print("🛑 JudgeGuard: Dependencies missing (GeminiClient/JudgeFlow).")
             return False
 
-        log_context = self._load_context()
+        # --- LAYER 2: Live Thought Streaming ---
+        if BRIDGE_AVAILABLE:
+            bridge.push_verdict("Thinking...", "PENDING", "Analyzing against Phase rules...")
 
+        context = self._load_context()
+        phase = self._detect_phase(context)
+        
+        # --- LAYER 1: Tool Enforcement ---
+        # Rule: Phase 0/1 (Research) must NOT use run_command for research, must use browser.
+        # We assume 'run_command' is part of the action description if that tool is being used.
+        # Or if the user explicitely typed "run_command" or represents a shell command.
+        is_research_phase = phase in ["0", "1"]
+        is_shell_command = "run_command" in current_action or "shell" in current_action.lower()
+        
+        if is_research_phase and is_shell_command:
+            msg = "Violation: You must use the Browser Agent for research tasks (Phase 0-1)."
+            logger.warning(f"Layer 1 Block: {msg}")
+            if BRIDGE_AVAILABLE:
+                bridge.push_verdict(current_action, "BLOCKED", msg)
+            print(f"🛑 JudgeGuard: {msg}")
+            return False
+
+        # --- LAYER 3: Essence Check (Semantic Drift) ---
+        if self._is_write_operation(current_action):
+            logger.info("Layer 3: Verifying Semantic Drift...")
+            if BRIDGE_AVAILABLE:
+                bridge.push_verdict("Checking Essence...", "PENDING", "Verifying against Project Essence...")
+            
+            # Use Gemini to check drift
+            drift_prompt = f"""
+            PROJECT ESSENCE (Golden Snapshot):
+            {PROJECT_ESSENCE}
+            
+            PROPOSED ACTION:
+            "{current_action}"
+            
+            TASK:
+            Does this action deviate significantly (>20%) from the Project Essence definitions?
+            Is it introducing features or changes that contradict the Core Values?
+            
+            reply PASSED if it aligns or is neutral.
+            reply FAILED if it causes significant drift.
+            """
+            
+            is_valid_essence = self.gemini.judge_content(drift_prompt, "The action must not deviate significantly from the Project Essence.")
+            
+            if not is_valid_essence:
+                msg = "Violation: Significant Semantic Drift (>20%) detected against Project Essence."
+                if BRIDGE_AVAILABLE:
+                    bridge.push_verdict(current_action, "BLOCKED", msg)
+                print(f"🛑 JudgeGuard: {msg}")
+                return False
+
+        # --- STANDARD VERIFICATION (Existing Logic) ---
+        # Combine everything for final sanity check
         criteria = f"""
         You are the PERMANENT JUDGE GUARD.
         
-        1. THE IMMUTABLE LAWS (Expert Wisdom):
+        1. IMMUTABLE LAWS:
         {self.immutable_laws}
         
-        2. CONTEXT (Recent Work Log):
-        {log_context}
+        2. CONTEXT:
+        {context[-5000:]}
         
-        3. THE ACTION TO JUDGE:
+        3. ACTION:
         "{current_action}"
         
         VERDICT REQUIRED:
-        - Does this action violate any Rule (e.g., 10/90, 48h, Written Inscription)?
-        - Is it a logical next step?
-        - Is the 'Definition of Done' met if this action claims completion?
-        - **SAFETY CHECK:** Does this action overwrite a Master Plan (like implementation_plan.md) with a specific sub-plan? If so, BLOCK IT unless the user explicitly requested a replacement. Plans must EVOLVE, not restart.
-        
-        CRITICAL: Check if the Work Log shows readiness for this action.
-        If proposing "Phase X", the Log must show "Phase X-1 Complete" or "Starting Phase X".
-        
-        Output 'PASSED' only if strict compliance is observed.
-        Output 'FAILED' and the reason if not.
+        - Check for any other logic violations.
+        - Ensure strict adherence to Master Orchestration.
         """
         
-        try:
-            judge = BlockJudge(criteria)
-            verdict = judge.evaluate(f"ACTION: {current_action}")
-            
-            if verdict:
-                print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
-                return True
-            else:
-                print(f"🛑 JudgeGuard: Action '{current_action}' BLOCKED.")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error during verification: {e}")
-            print(f"❌ JudgeGuard Error: {e}")
+        judge = BlockJudge(criteria)
+        verdict = judge.evaluate(f"ACTION: {current_action}")
+        
+        if verdict:
+            print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
+            if BRIDGE_AVAILABLE:
+                bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
+            return True
+        else:
+            msg = "Blocked by Standard Rules (Master Orchestration Violation)."
+            print(f"🛑 JudgeGuard: {msg}")
+            if BRIDGE_AVAILABLE:
+                bridge.push_verdict(current_action, "BLOCKED", msg)
             return False
 
-
 def main():
-    """CLI entry point for JudgeGuard."""
     if len(sys.argv) < 2:
         print("Usage: python3 judge_guard.py '<action_description>'")
-        print("\nEnvironment Variables:")
-        print("  BRAIN_PATH     - Path to brain directory")
-        print("  WORK_LOG_PATH  - Path to WORK_LOG.md")
         sys.exit(1)
         
     action = sys.argv[1]
@@ -196,7 +241,6 @@ def main():
     
     if not guard.verify_action(action):
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

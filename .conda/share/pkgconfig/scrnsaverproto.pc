@@ -1,0 +1,7 @@
+prefix=/home/kizabgd/Desktop/33333333333333333333/.conda
+includedir=${prefix}/include
+ 
+Name: ScrnSaverProto
+Description: ScrnSaver extension headers
+Version: 1.2.3
+Cflags: -I${includedir}

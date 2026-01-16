@@ -46,6 +46,20 @@ class MobileBridge:
         """Get current state."""
         return self.app_state
 
+    def push_verdict(self, action: str, status: str, reason: str):
+        """
+        Push a Judge Verdict to the PWA.
+        status: "PASSED" | "BLOCKED"
+        """
+        verdict_data = {
+            "action": action,
+            "status": status,
+            "reason": reason,
+            "timestamp": "Now" # In real app use time.time()
+        }
+        print(f"📡 Bridge: Pushing Verdict -> {status}")
+        self.update_state({"last_verdict": verdict_data})
+
 # Singleton instance
 bridge = MobileBridge()
 

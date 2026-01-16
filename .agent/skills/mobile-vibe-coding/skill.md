@@ -45,6 +45,7 @@ Use the `browser_subagent` to check `http://localhost:5173` and confirm the chan
 
 - **Iterate Fast:** Make small changes and verify.
 - **Use Components:** Inject dynamic components using the `components` list in the state.
+
   ```json
   "components": [
     {"type": "alert", "payload": "System Normal"},

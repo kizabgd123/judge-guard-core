@@ -78,6 +78,8 @@ class GeminiClient:
                 
                 logger.error(f"Gemini API Error: {e}")
                 raise
+        
+        raise Exception("Max retries exceeded for Gemini API")
 
     def judge_content(self, content: str, criteria: str) -> bool:
         """
@@ -100,7 +102,11 @@ class GeminiClient:
         """
         
         try:
-            result = self.generate_content(prompt).strip().upper()
+            raw_result = self.generate_content(prompt)
+            if not raw_result:
+                raise ValueError("Empty response from Gemini")
+            
+            result = raw_result.strip().upper()
             logger.info(f"Gemini Verdict: {result}")
             return "PASSED" in result
         except Exception as e:

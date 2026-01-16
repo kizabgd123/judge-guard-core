@@ -1,0 +1,52 @@
+{
+  "name": "ld_impl_linux-64",
+  "version": "2.44",
+  "build": "h153f514_2",
+  "build_number": 2,
+  "channel": "https://repo.anaconda.com/pkgs/main/linux-64",
+  "subdir": "linux-64",
+  "fn": "ld_impl_linux-64-2.44-h153f514_2.conda",
+  "md5": "dffdc9a0e09d04051d4bd758e104f4b3",
+  "url": "https://repo.anaconda.com/pkgs/main/linux-64/ld_impl_linux-64-2.44-h153f514_2.conda",
+  "sha256": "89bc181d3d5976e5d7a763329c8877031e36ae5a3e9eabe7475e3cb1f55f5822",
+  "depends": [
+    "__glibc >=2.28,<3.0.a0"
+  ],
+  "constrains": [
+    "binutils_impl_linux-64 2.44"
+  ],
+  "license": "GPL-3.0-only",
+  "timestamp": 1759940114000,
+  "size": 688236,
+  "requested_spec": "None",
+  "package_tarball_full_path": "/home/kizabgd/miniconda3/pkgs/ld_impl_linux-64-2.44-h153f514_2.conda",
+  "extracted_package_dir": "/home/kizabgd/miniconda3/pkgs/ld_impl_linux-64-2.44-h153f514_2",
+  "files": [
+    "bin/x86_64-conda-linux-gnu-ld",
+    "x86_64-conda-linux-gnu/bin/ld"
+  ],
+  "paths_data": {
+    "paths_version": 1,
+    "paths": [
+      {
+        "_path": "bin/x86_64-conda-linux-gnu-ld",
+        "prefix_placeholder": "/home/task_175993962606213/conda-bld/binutils_split_1759940008676/_h_env_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_pl",
+        "file_mode": "binary",
+        "path_type": "hardlink",
+        "sha256": "90dfaa28b5712e535a19d6f3ce561762556229c454c777708ccd158b169240ff",
+        "size_in_bytes": 2673304,
+        "sha256_in_prefix": "7211de8371aaa9fad9a5ca308c7b413e69f60d4355a088228eaab39fd5508b9c"
+      },
+      {
+        "_path": "x86_64-conda-linux-gnu/bin/ld",
+        "path_type": "softlink",
+        "sha256": "90dfaa28b5712e535a19d6f3ce561762556229c454c777708ccd158b169240ff",
+        "size_in_bytes": 2673304
+      }
+    ]
+  },
+  "link": {
+    "source": "/home/kizabgd/miniconda3/pkgs/ld_impl_linux-64-2.44-h153f514_2",
+    "type": 1
+  }
+}
