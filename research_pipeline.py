@@ -278,8 +278,16 @@ class ResearchPipeline:
 
     def sync_to_notion(self):
         """Sync audit log to Notion (requires NOTION_TOKEN)."""
-        if not NOTION_TOKEN:
-            print("⚠️  NOTION_TOKEN not set. Saving queue to file.")
+        # Reload env vars
+        from dotenv import load_dotenv
+        load_dotenv()
+        
+        token = os.getenv("NOTION_TOKEN")
+        db_id = os.getenv("NOTION_DATABASE_ID")
+        
+        if not token or not db_id:
+            print(f"⚠️  NOTION_TOKEN={'✓' if token else '✗'} NOTION_DATABASE_ID={'✓' if db_id else '✗'}")
+            print("Saving queue to file instead.")
             NOTION_LOG.parent.mkdir(exist_ok=True)
             
             existing = []
@@ -295,30 +303,40 @@ class ResearchPipeline:
         try:
             import requests
             headers = {
-                "Authorization": f"Bearer {NOTION_TOKEN}",
+                "Authorization": f"Bearer {token}",
                 "Notion-Version": "2022-06-28",
                 "Content-Type": "application/json"
             }
             
             for entry in self.notion_queue:
                 data = {
-                    "parent": {"database_id": NOTION_DB_ID},
+                    "parent": {"database_id": db_id},
                     "properties": {
                         "Action": {"title": [{"text": {"content": entry["action"]}}]},
                         "Details": {"rich_text": [{"text": {"content": entry["details"]}}]},
-                        "Timestamp": {"date": {"start": entry["timestamp"]}}
+                        "Timestamp": {"date": {"start": entry["timestamp"]}},
+                        "Status": {"select": {"name": "Done"}}
                     }
                 }
-                requests.post(
+                resp = requests.post(
                     "https://api.notion.com/v1/pages",
                     headers=headers,
                     json=data
                 )
+                if resp.status_code != 200:
+                    print(f"⚠️  Entry failed: {resp.text}")
             
             self.log_audit("NOTION_SYNCED", f"{len(self.notion_queue)} entries pushed")
+            self.notion_queue = []  # Clear after sync
         except Exception as e:
             print(f"❌ Notion sync failed: {e}")
-            self.sync_to_notion()  # Fallback to file
+            # Fallback to file
+            NOTION_LOG.parent.mkdir(exist_ok=True)
+            existing = []
+            if NOTION_LOG.exists():
+                existing = json.loads(NOTION_LOG.read_text())
+            existing.extend(self.notion_queue)
+            NOTION_LOG.write_text(json.dumps(existing, indent=2))
 
     def get_stats(self) -> Dict:
         """Get database statistics."""
