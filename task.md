@@ -1,26 +1,51 @@
-# 🛡️ Project JudgeGuard: Tasks & Roadmap
+# Task: Agent Taming Research Project
 
-## Phase 0: Baseline & Pivot (Complete)
+## Current Focus
 
-- [x] Create `judge_guard.py` mechanism <!-- id: 0 -->
-- [x] Pivot Project: Define JudgeGuard as Core Product <!-- id: 1 -->
-- [x] Create `master_research_plan.md` (Research) <!-- id: 2 -->
-- [x] Create `implementation_plan.md` (Roadmap) <!-- id: 3 -->
+🎯 **Project:** Ukroćenje AI Agenata (Agent Taming)
+📄 **Plan:** [MASTER_RESEARCH_PLAN.md](file:///home/kizabgd/Desktop/33333333333333333333/MASTER_RESEARCH_PLAN.md)
 
-## Phase 1: Cognitive Hardening (In Progress)
+---
 
-- [x] **Dependency Fix:** Resolve `gemini_client` bug ('NoneType' error) <!-- id: 4 -->
-- [x] **Context Upgrade:** Optimize `judge_guard.py` prompt context window <!-- id: 5 -->
-- [x] **Unit Tests:** Create `tests/test_judge_guard.py` <!-- id: 6 -->
+## Phase 0: Scoping
 
-## Phase 2: Mobile Interface Integration
+- [ ] Define research scope
+- [ ] Create `research/phase0_scoping/scope_definition.md`
+- [ ] List key terms and definitions
+- [ ] Set evaluation criteria
 
-- [x] **Bridge Upgrade:** Update `mobile_bridge.py` to stream Verdicts <!-- id: 7 -->
-- [x] **PWA UI:** Create "Judge Console" view in React <!-- id: 8 -->
-- [x] **Notification:** Display "Action Blocked" alerts in PWA <!-- id: 9 -->
+## Phase 1: Discovery (Deep Research)
 
-## Phase 3: Validation Loop
+- [ ] Control Patterns research
+- [ ] Guardrails & Constraints
+- [ ] Verification Systems (Judge patterns)
+- [ ] Memory Management solutions
+- [ ] Safety Frameworks (RLHF, Constitutional AI)
 
-- [ ] **Simulate Attack:** Attempt to delete logic via Agent <!-- id: 10 -->
-- [ ] **Verify Block:** Confirm JudgeGuard stops it <!-- id: 11 -->
-- [ ] **Verify UI:** Confirm PWA shows the alert <!-- id: 12 -->
+## Phase 2: Analysis
+
+- [ ] Create patterns catalog
+- [ ] Build comparison matrix
+- [ ] Generate JudgeGuard recommendations
+
+## Phase 3: Validation
+
+- [ ] Test patterns against JudgeGuard
+- [ ] Implement improvements
+- [ ] Run benchmarks
+
+## Phase 4: Documentation
+
+- [ ] Create AGENT_TAMING_GUIDE.md
+- [ ] Update implementation_plan.md
+- [ ] Package as reusable skills
+
+---
+
+## Verification Checkpoints
+
+- [ ] Phase 0 complete → JudgeGuard verify
+- [ ] Phase 1 complete → JudgeGuard verify
+- [ ] Phase 2 complete → JudgeGuard verify
+- [ ] Phase 3 complete → JudgeGuard verify
+- [ ] Phase 4 complete → Final commit
