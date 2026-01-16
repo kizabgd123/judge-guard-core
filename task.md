@@ -14,13 +14,13 @@
 - [x] List key terms and definitions (Vocabulary identified)
 - [x] Set evaluation criteria (Success criteria defined)
 
-## Phase 1: Discovery (Deep Research) 🟡
+## Phase 1: Discovery (Deep Research) ✅
 
-- [ ] **Workflow Patterns:** Chaining, Routing, Parallelization
-- [ ] **Refinement Techniques:** Self-Correction, Critique-Revision loops
-- [ ] **Verification Systems:** CoVe (Chain of Verification), Recursive CAI
-- [ ] **Framework Audit:** LangGraph, Nemo Guardrails, Guardrails AI
-- [ ] **Safety & Drift:** Detecting Agentic Drift & Chaos Engineering for Agents
+- [x] **Workflow Patterns:** Chaining, Routing, Parallelization (Documented)
+- [x] **Refinement Techniques:** Self-Correction, Critique-Revision loops (Documented)
+- [x] **Verification Systems:** CoVe (Chain of Verification), Recursive CAI (Documented)
+- [x] **Framework Audit:** LangGraph, Nemo Guardrails, Guardrails AI (Documented)
+- [x] **Safety & Drift:** Detecting Agentic Drift & Chaos Engineering for Agents (Logic identified)
 
 ## Phase 2: Analysis
 
