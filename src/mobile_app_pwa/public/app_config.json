@@ -4,7 +4,7 @@
   "content": "Welcome to the Agent-Controlled PWA!",
   "components": [],
   "last_verdict": {
-    "action": "Verify Renewed Investigation Complete",
+    "action": "Verify Agent Taming Research Complete",
     "status": "PASSED",
     "reason": "Approved by JudgeGuard v2.0",
     "timestamp": "Now"

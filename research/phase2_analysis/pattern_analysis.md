@@ -75,6 +75,36 @@ JudgeGuard radi "single-pass" proveru. CoVe zahteva **4-step process**:
 Supervisor pattern je za **orkestraciju taskova**, a JudgeGuard je **validator**.  
 Ali: Moguće je koristiti ovaj pattern za **hijerarhijsku verifikaciju** (npr. jedna proveravska instanca za sintaksu, druga za semantiku).
 
+### 6. Browser Chain of Truth (CoT) Loop
+
+**Status:** ❌ **NIJE IMPLEMENTIRANO**
+
+Trenutno: Agenti rade u browseru sa bazičnim "reasoning" ciklusom. JudgeGuard ne proverava visual/DOM truth između koraka.
+
+**Gap:** Nedostatak determinističkog "anchoring" mehanizma koji sprečava agenta da "misli" da je kliknuo na element koji je zapravo blokiran ili nevidljiv.
+
+**Predlog:** Uvesti `Stage 5: Verification` u browser workflow koji radi DOM diffing.
+
+---
+
+### 7. State Anchoring (Semantic Anchoring)
+
+**Status:** ❌ **NIJE IMPLEMENTIRANO**
+
+**Gap:** Brittle CSS selectors.
+
+**Predlog:** Mehanizam koji identifikuje stabilne atribute (h1 text, URL, data-attributes) pre izvršavanja akcije.
+
+---
+
+### 8. Ground Truth Manifest (Context Memento)
+
+**Status:** ❌ **NIJE IMPLEMENTIRANO**
+
+**Gap:** Agent "zaboravlja" restrikcije tokom dugih sesija (context rot).
+
+**Predlog:** `memento` fajl (read-only) koji se re-injectuje u svaki prompt, osiguravajući da su "rules of engagement" uvek prisutna.
+
 ---
 
 ## 📋 Decision Matrix
@@ -83,6 +113,8 @@ Ali: Moguće je koristiti ovaj pattern za **hijerarhijsku verifikaciju** (npr. j
 | :------------------------ | :-------- | :---------------- | :------------ | :------------------------------------------- |
 | Drift Score Metric        | 🔥 HIGH   | ⭐️⭐️⭐️⭐️⭐️        | 9/10          | Jednostavno, odmah korisno                   |
 | Self-Healing Loop         | 🔥 HIGH   | ⭐️⭐️⭐️⭐️          | 8/10          | Zahteva pažljivu implementaciju retry logike |
+| Browser CoT Verification  | 🔥 HIGH   | ⭐️⭐️⭐️            | 10/10         | Kritično za pouzdano korišćenje alata        |
+| Ground Truth Manifest     | 🟡 MEDIUM | ⭐️⭐️⭐️⭐️⭐️        | 7/10          | Lako za implementaciju, visok security gain  |
 | CoVe (Multi-Step Verify)  | 🟡 MEDIUM | ⭐️⭐️⭐️            | 7/10          | Kompleksno, ali moćno za kritične akcije     |
 | Hierarchical Verification | 🟢 LOW    | ⭐️⭐️              | 5/10          | Overkill za trenutni scope                   |
 
