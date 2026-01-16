@@ -32,3 +32,10 @@
 - [x] Setup Development Environment (PWA Project Init) <!-- id: 15 -->
 - [x] Generate "Hello World" App using Agents <!-- id: 16 -->
 - [x] Verify Build and Run on Emulator/Device (Localhost Verified) <!-- id: 17 -->
+
+## Phase 5: Agent-Driven UI (Vibe Coding) <!-- id: 18 -->
+
+- [x] Implement File-Based Bridge (Python -> `public/app_config.json`) <!-- id: 19 -->
+- [x] Update React App to Render from Config <!-- id: 20 -->
+- [x] Create "Mobile Vibe" Skill (`.agent/skills/mobile-vibe-coding/skill.md`) <!-- id: 21 -->
+- [x] Verify End-to-End Dynamic Update (Bridge Verified) <!-- id: 22 -->
