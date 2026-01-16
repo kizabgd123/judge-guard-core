@@ -160,12 +160,48 @@ class JudgeGuard:
         except Exception as e:
             print(f"⚠️  Notion sync failed (non-critical): {e}")
 
+    def _check_work_log(self, action: str) -> bool:
+        """Check if WORK_LOG.md was recently updated (within last 60 seconds)."""
+        if not self.work_log_path or not os.path.exists(self.work_log_path):
+            print("🛑 WORK_LOG.md not found. Update required before action.")
+            return False
+        
+        import time
+        import datetime
+        
+        # Check last modification time
+        mtime = os.path.getmtime(self.work_log_path)
+        now = time.time()
+        age_seconds = now - mtime
+        
+        # Read last few lines to check if action was logged
+        try:
+            with open(self.work_log_path, 'r') as f:
+                lines = f.readlines()
+                last_lines = ''.join(lines[-10:]).lower()
+                
+                # Check if this action or 'starting' is in recent log
+                if '🟡' in last_lines or 'starting' in last_lines:
+                    if age_seconds < 60:  # Updated within last minute
+                        return True
+        except Exception as e:
+            print(f"⚠️  Error reading WORK_LOG.md: {e}")
+            return False
+        
+        print("🛑 WORK_LOG.md not updated. Required format:")
+        print('   echo "🟡 Starting [ACTION]" >> WORK_LOG.md')
+        return False
+
     def verify_action(self, current_action: str) -> bool:
         """
         Execute the 3-Layer Verification Model.
         """
         if not JUDGE_AVAILABLE:
             print("🛑 JudgeGuard: Dependencies missing (GeminiClient/JudgeFlow).")
+            return False
+        
+        # --- LAYER 0: Work Log Enforcement (NEW) ---
+        if not self._check_work_log(current_action):
             return False
 
         # --- LAYER 2: Live Thought Streaming ---

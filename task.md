@@ -29,11 +29,13 @@
 - [x] Map patterns to JudgeGuard architecture
 - [x] Identify implementation gaps (KEY: Already have Recursive CAI!)
 
-## Phase 3: Validation
+## Phase 1.1: Renewed Investigation (Advanced Browser CoT) 🟡
 
-- [ ] Test patterns against JudgeGuard
-- [ ] Implement improvements
-- [ ] Run benchmarks
+- [ ] Define advanced research questions
+- [ ] Research state-of-the-art browser agents (Browser-use, LaVague)
+- [ ] Analyze 'Chain of Truth' implementation patterns
+- [ ] Document findings in `research/phase1_discovery/browser_cot_investigation.md`
+- [ ] Synthesize insights for JudgeGuard Layer 3 upgrade
 
 ## Phase 4: Documentation
 
