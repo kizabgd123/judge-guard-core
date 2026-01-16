@@ -1,46 +1,46 @@
-# 🛡️ Implementation Plan: Project JudgeGuard
+# Phase 4: Agent Taming Documentation
 
-> **Goal:** Develop `judge_guard.py` into a robust, autonomous verification system ("The Guardian") that protects the workspace from agent error and drift.
+## Goal Description
 
----
+To transition the "Agent Taming" research from active investigation to a consolidated, reusable knowledge base. This phase focuses on creating clear entry points and high-level summaries.
 
-## 🏗️ Phase 1: Core Logic (Existing) ✅
+## User Review Required
 
-**Objective:** Basic "Block Judge" functionality.
+> [!NOTE]
+> This plan focuses purely on documentation artifacts. No code changes to `judge_guard.py` or `research_pipeline.py` are proposed.
 
-- [x] **Script:** `judge_guard.py` implementation.
-- [x] **Logic:** Compare Action vs Rules (`MASTER_ORCHESTRATION.md`) vs Log (`WORK_LOG.md`).
-- [x] **Safety Check:** Explicit rule against overwriting Master Plans.
+## Proposed Changes
 
-## 🧠 Phase 2: Cognitive Hardening
+### Project Root
 
-**Objective:** Prevent "Context Drift" and "hallucinations".
+#### [NEW] [README.md](file:///home/kizabgd/Desktop/33333333333333333333/README.md)
 
-- [ ] **Context Window Optimization:** Ensure `_load_context` reads enough history to understand long-running arcs.
-- [ ] **Dependency Fixes:** Resolve `Gemini Judge Error: 'NoneType' object has no attribute 'strip'` (Bugfix).
-- [ ] **Self-Preservation:** Add rules that prevent agents from deleting/modifying `judge_guard.py` without specific override codes.
+- **Purpose:** Central entry point for the workspace.
+- **Content:**
+  - Project Overview (Agent Taming).
+  - Quick Start (How to run `judge_guard`, `research_pipeline`).
+  - Links to `AGENT_TAMING_GUIDE` and `WORK_LOG`.
 
-## 🔌 Phase 3: Integration Layer
+#### [NEW] [RESEARCH_SUMMARY.md](file:///home/kizabgd/Desktop/33333333333333333333/RESEARCH_SUMMARY.md)
 
-**Objective:** Connect JudgeGuard to external systems.
+- **Purpose:** Executive summary of Phases 0-3.
+- **Content:**
+  - Key Findings (Drift, CoT, Healing).
+  - Validation Metrics.
+  - Future Recommendations.
 
-### [MODIFY] [mobile_bridge.py](file:///home/kizabgd/Desktop/33333333333333333333/src/antigravity_core/mobile_bridge.py)
+### Documentation
 
-- **Add Method:** `push_verdict(action: str, status: str, reason: str)`
-- **State Update:** Injects `last_verdict` object into `app_config.json`.
+#### [MODIFY] [AGENT_TAMING_GUIDE.md](file:///home/kizabgd/Desktop/33333333333333333333/AGENT_TAMING_GUIDE.md)
 
-### [MODIFY] [judge_guard.py](file:///home/kizabgd/Desktop/33333333333333333333/judge_guard.py)
+- **Changes:**
+  - Minor semantic polish.
+  - Ensure all links are absolute/correct.
+  - Add "Final Status" badge.
 
-- **Integration:** Import `bridge` from `mobile_bridge`.
-- **Logic Hook:** Call `bridge.push_verdict` inside `verify_action` (both for PASS and BLOCK).
-
-## 🧪 Verification Plan
-
-### Automated Tests
-
-- **Unit Test:** Create `tests/test_judge_guard.py` to mock inputs and verify "PASSED"/"FAILED" outputs.
-- **Drift Test:** Feed the Judge a "poisoned" prompt (e.g., "Delete everything") and verify it BLOCKS it.
+## Verification Plan
 
 ### Manual Verification
 
-- **Scenario:** Propose a violation (e.g., "Delete judge_guard.py"). Run `python3 judge_guard.py "Delete judge_guard.py"`. Confirm BLOCK.
+- **Link Check:** Verify all links in `README.md` work.
+- **Content Review:** Ensure `RESEARCH_SUMMARY.md` accurately reflects the SQLite database and `test_results.md`.

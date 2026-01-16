@@ -1,45 +1,51 @@
 # 🎯 Agent Taming: Advanced Control & Verification Guide
 
 > **Project Authority:** Antigravity Research Division
+> **Status:** ✅ Verified & Released (Phase 4)
 > **Focus:** Reliable, deterministic, and safe AI agent behavior.
 
 ## 📂 Overview
 
-Ovaj vodič predstavlja vrhunac istraživanja o kontroli agenata, fokusirajući se na eliminaciju "agentic drift-a" i obezbeđivanje determinističkih interakcija u browser okruženjima.
+This guide represents the culmination of research into agent control, focusing on eliminating **"Agentic Drift"** and ensuring deterministic interactions in browser environments.
+
+**See Also:**
+
+- [README.md](./README.md) - Project Entry Point
+- [RESEARCH_SUMMARY.md](./RESEARCH_SUMMARY.md) - Key Findings & Metrics
 
 ---
 
 ## 🏛️ The Verification Architecture (JudgeGuard v2.1)
 
-JudgeGuard v2.1 koristi troslojni model verifikacije koji osigurava da agenti nikada ne izlaze iz okvira zadate "Esencije Projekta".
+JudgeGuard v2.1 uses a 3-Layer Verification Model to ensure agents never deviate from the `PROJECT_ESSENCE`.
 
 ### Layer 1: Tool & Context Enforcement
 
-- **Svrha:** Blokiranje opasnih komandi i osiguranje da se koristi ispravan alat za fazu istraživanja.
-- **Rule:** U fazama 0 i 1 (Research), `run_command` je zabranjen; browser agent je obavezan.
+- **Purpose:** Blocking dangerous commands and ensuring the correct tool is used for the current phase.
+- **Rule:** In Phases 0 and 1 (Research), `run_command` is **FORBIDDEN**; the Browser Agent is mandatory.
 
 ### Layer 2: Live Thought Streaming
 
-- **Svrha:** Transparentnost. Svaka odluka sudije se strimuje na mobilni most pre izvršenja.
-- **Implementacija:** `bridge.push_verdict()` pre svakog PASSED/FAILED signala.
+- **Purpose:** Observability. Every verdict is streamed to the Mobile Bridge before execution.
+- **Implementation:** `bridge.push_verdict()` sends a signal before every PASSED/FAILED decision.
 
 ### Layer 3: Semantic Drift Scoring 🚀
 
-- **Svrha:** Merenje semantičkog odstupanja svake akcije od "Zlatnog Snimka" (Golden Snapshot).
+- **Purpose:** Measuring the semantic deviation of every action against the "Golden Snapshot".
 - **Metric:** `drift_score` (0.0 - 1.0). Limit: **0.4**.
-- **Self-Healing:** Ako akcija padne na drift testu, sudija šalje feedback, a Actor-Judge loop omogućava automatsku korekciju.
+- **Self-Healing:** If an action fails the drift test, the Judge sends feedback, and the Actor-Judge loop allows for automatic correction.
 
 ---
 
 ## 🌐 Browser "Chain of Truth" (CoT) Loop
 
-Za pouzdanu automatizaciju browsera, agent mora pratiti 5-stepeni ciklus:
+For reliable browser automation, the agent must follow a 5-step cycle:
 
-1. **Observe & Anchor:** Pre klika, pronađi stabilne elemente (ne samo selektore).
-2. **Predict:** Šta se očekuje nakon akcije? (npr. URL promena, novi modal).
-3. **Act:** Izvrši interaction.
-4. **Verify State:** Da li je predikcija tačna? Ako ne -> Error State.
-5. **Visual Confirmation:** Koristi screenshot za finalnu validaciju (Multimodal CoT).
+1. **Observe & Anchor:** Before clicking, find stable elements (not just selectors).
+2. **Predict:** What is expected after the action? (e.g., URL change, new modal).
+3. **Act:** Execute the interaction.
+4. **Verify State:** Is the prediction correct? If not -> Error State.
+5. **Visual Confirmation:** Use a screenshot for final validation (Multimodal CoT).
 
 ---
 
@@ -56,7 +62,7 @@ def check_drift(action, essence):
 ### 2. Self-Healing Loop
 
 ```python
-while attempt < max:
+while attempt < max_attempts:
     result = actor.act(context)
     if judge.verify(result):
        return result
@@ -67,6 +73,6 @@ while attempt < max:
 
 ## 🏁 Conclusion
 
-Agent Taming nije restrikcija, već **osnaživanje**. Davanjem jasnih granica agentima, omogućavamo im da operišu punom snagom u sigurnom i predvidljivom okviru.
+Agent Taming is not about restriction, but **empowerment**. By providing clear boundaries, we enable agents to operate at full power within a safe and predictable framework.
 
 > **Final Verdict:** Verified & Documented.
