@@ -1,0 +1,9 @@
+[
+  {
+    "name": "SmartCmd Example: Git Status & Log",
+    "cmd": "git status && echo '====================' && git log --oneline -5",
+    "description": "Show current git status and last 5 commits in a single view",
+    "execDir": "<workspace>",
+    "id": "283a2970-1e7e-4ac8-b22f-bf1e6c036783"
+  }
+]
