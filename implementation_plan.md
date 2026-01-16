@@ -44,3 +44,33 @@ To transition the "Agent Taming" research from active investigation to a consoli
 
 - **Link Check:** Verify all links in `README.md` work.
 - **Content Review:** Ensure `RESEARCH_SUMMARY.md` accurately reflects the SQLite database and `test_results.md`.
+
+---
+
+# Phase 5: Mobile Bridge Integration (Current)
+
+## Goal
+
+Re-integrate the PWA Mobile Bridge to visualize "Judge's Pulse" validation events in real-time.
+
+## Proposed Changes
+
+### Mobile App (React/Vite)
+
+#### [NEW] src/mobile_app_pwa/
+
+- **App.jsx**: Main dashboard.
+- **components/VerdictCard.jsx**: Displays Pass/Fail animation.
+- **components/StatusPulse.jsx**: Visualizes "Thinking" state.
+
+### Backend Bridge
+
+#### [MODIFY] src/antigravity_core/mobile_bridge.py
+
+- Ensure `/events` endpoint is ready for long-polling or WebSocket.
+- Confirm integration with `judge_guard.py`.
+
+## Verification Plan
+
+1. **Local Test**: Run `python3 judge_guard.py "Test"` and watch the localized PWA update.
+2. **Network Test**: Access PWA from actual mobile device (via `host='0.0.0.0'`).
