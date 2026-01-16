@@ -7,20 +7,20 @@
 
 ---
 
-## Phase 0: Scoping
+## Phase 0: Scoping ✅
 
-- [ ] Define research scope
-- [ ] Create `research/phase0_scoping/scope_definition.md`
-- [ ] List key terms and definitions
-- [ ] Set evaluation criteria
+- [x] Define research scope
+- [x] Create `research/phase0_scoping/scope_definition.md`
+- [x] List key terms and definitions (Vocabulary identified)
+- [x] Set evaluation criteria (Success criteria defined)
 
-## Phase 1: Discovery (Deep Research)
+## Phase 1: Discovery (Deep Research) 🟡
 
-- [ ] Control Patterns research
-- [ ] Guardrails & Constraints
-- [ ] Verification Systems (Judge patterns)
-- [ ] Memory Management solutions
-- [ ] Safety Frameworks (RLHF, Constitutional AI)
+- [ ] **Workflow Patterns:** Chaining, Routing, Parallelization
+- [ ] **Refinement Techniques:** Self-Correction, Critique-Revision loops
+- [ ] **Verification Systems:** CoVe (Chain of Verification), Recursive CAI
+- [ ] **Framework Audit:** LangGraph, Nemo Guardrails, Guardrails AI
+- [ ] **Safety & Drift:** Detecting Agentic Drift & Chaos Engineering for Agents
 
 ## Phase 2: Analysis
 

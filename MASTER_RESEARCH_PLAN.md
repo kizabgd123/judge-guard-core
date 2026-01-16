@@ -39,13 +39,13 @@
 
 **Research Topics:**
 
-| Tema | Izvori | Status |
-|:-----|:-------|:-------|
-| Agent Control Patterns | GitHub, arXiv | [ ] |
-| Guardrails & Constraints | LangChain, AutoGen | [ ] |
-| Verification Systems | Judge patterns, validators | [ ] |
-| Memory Management | Context windows, RAG | [ ] |
-| Safety Frameworks | RLHF, Constitutional AI | [ ] |
+| Tema                     | Izvori                     | Status |
+| :----------------------- | :------------------------- | :----- |
+| Agent Control Patterns   | GitHub, arXiv              | [ ]    |
+| Guardrails & Constraints | LangChain, AutoGen         | [ ]    |
+| Verification Systems     | Judge patterns, validators | [ ]    |
+| Memory Management        | Context windows, RAG       | [ ]    |
+| Safety Frameworks        | RLHF, Constitutional AI    | [ ]    |
 
 **Deliverables:**
 

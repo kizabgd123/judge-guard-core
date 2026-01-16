@@ -4,7 +4,7 @@
   "content": "Welcome to the Agent-Controlled PWA!",
   "components": [],
   "last_verdict": {
-    "action": "Verify Rules and Script Integrity Complete",
+    "action": "Verify Phase 0: Scoping Complete",
     "status": "PASSED",
     "reason": "Approved by JudgeGuard v2.0",
     "timestamp": "Now"

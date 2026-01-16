@@ -101,3 +101,5 @@
 ✅ Completed Create Master Research Plan for Agent Taming
 🟡 Starting Verification of Rules and Script
 ✅ Completed Verification of Rules and Script
+🟡 Starting Phase 0: Scoping
+✅ Phase 0 Scoping Complete. Deliverable: research/phase0_scoping/scope_definition.md
