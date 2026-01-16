@@ -156,6 +156,7 @@ class JudgeGuard:
         - Does this action violate any Rule (e.g., 10/90, 48h, Written Inscription)?
         - Is it a logical next step?
         - Is the 'Definition of Done' met if this action claims completion?
+        - **SAFETY CHECK:** Does this action overwrite a Master Plan (like implementation_plan.md) with a specific sub-plan? If so, BLOCK IT unless the user explicitly requested a replacement. Plans must EVOLVE, not restart.
         
         CRITICAL: Check if the Work Log shows readiness for this action.
         If proposing "Phase X", the Log must show "Phase X-1 Complete" or "Starting Phase X".

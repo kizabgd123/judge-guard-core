@@ -1,4 +1,4 @@
-# 📱 Mobile App Research & Implementation Tasks
+# 🔬 Master Research & Implementation Plan: Mobile Agentic PWA
 
 ## Phase 0: Scoping & Definition
 
@@ -39,3 +39,8 @@
 - [x] Update React App to Render from Config <!-- id: 20 -->
 - [x] Create "Mobile Vibe" Skill (`.agent/skills/mobile-vibe-coding/skill.md`) <!-- id: 21 -->
 - [x] Verify End-to-End Dynamic Update (Bridge Verified) <!-- id: 22 -->
+
+## Phase 6: Production Hardening (Next Steps) <!-- id: 23 -->
+
+- [ ] UI Polish & Theming <!-- id: 24 -->
+- [ ] Deployment Strategy <!-- id: 25 -->
