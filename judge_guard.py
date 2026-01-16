@@ -136,6 +136,30 @@ class JudgeGuard:
         keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
         return any(k in action.lower() for k in keywords)
 
+    def _is_research_action(self, action: str) -> bool:
+        """Detect if action is research-related and should sync to Notion."""
+        keywords = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
+        action_lower = action.lower()
+        return any(k in action_lower for k in keywords)
+    
+    def _sync_to_notion(self, action: str):
+        """Trigger Notion sync via research_pipeline.py."""
+        try:
+            import subprocess
+            print("📝 Syncing to Notion...")
+            result = subprocess.run(
+                ["python3", "research_pipeline.py", "--sync-notion"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                print("✅ Notion sync completed")
+            else:
+                print(f"⚠️  Notion sync warning: {result.stderr}")
+        except Exception as e:
+            print(f"⚠️  Notion sync failed (non-critical): {e}")
+
     def verify_action(self, current_action: str) -> bool:
         """
         Execute the 3-Layer Verification Model.
@@ -223,6 +247,11 @@ class JudgeGuard:
             print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
             if BRIDGE_AVAILABLE:
                 bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
+            
+            # Auto-sync to Notion if this is a research action
+            if self._is_research_action(current_action):
+                self._sync_to_notion(current_action)
+            
             return True
         else:
             msg = "Blocked by Standard Rules (Master Orchestration Violation)."

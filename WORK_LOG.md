@@ -110,3 +110,5 @@
 🟡 Starting Create Python Research Pipeline
 ✅ Completed Create Python Research Pipeline
 ✅ Completed Notion Integration
+🟡 Starting JudgeGuard Notion Integration
+✅ Completed JudgeGuard Notion Integration
