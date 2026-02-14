@@ -1,0 +1,50 @@
+# 🛡️ Trinity: Global Ignore Protocol
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Data & Models (Kaggle)
+data/
+nlp_data/
+cv_data/
+outputs_nlp/
+*.zip
+*.csv
+*.pth
+*.h5
+*.joblib
+debates.db
+trinity_debates.db
+
+# Environment & Credentials
+.env
+.kaggle/
+kaggle.json
+secrets.json
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.log
+DEBATE_LOG.md

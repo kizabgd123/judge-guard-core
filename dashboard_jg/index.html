@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Trinity | Grandmaster Boardroom</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-dark: #020408;
+        --glass: rgba(10, 15, 25, 0.8);
+        --glass-border: rgba(255, 255, 255, 0.1);
+        --critical: #ff2d55;
+        --stable: #00f2ff;
+        --warning: #ffcc00;
+        --accent: #bf5af2;
+        --text-main: #f5f5f7;
+        --text-muted: #86868b;
+        --neon-glow: 0 0 15px rgba(0, 242, 255, 0.3);
+      }
+
+      body {
+        background: radial-gradient(
+          circle at 50% 50%,
+          #0d1117 0%,
+          var(--bg-dark) 100%
+        );
+        color: var(--text-main);
+        font-family: "Outfit", sans-serif;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .app-container {
+        display: grid;
+        grid-template-areas: "header header header" "sidebar main debate";
+        grid-template-columns: 350px 1fr 380px;
+        grid-template-rows: 80px 1fr;
+        height: 100vh;
+      }
+
+      .header {
+        grid-area: header;
+        background: var(--glass);
+        backdrop-filter: blur(20px);
+        border-bottom: 1px solid var(--glass-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 40px;
+        z-index: 100;
+      }
+
+      .sidebar {
+        grid-area: sidebar;
+        border-right: 1px solid var(--glass-border);
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .main-content {
+        grid-area: main;
+        padding: 30px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+      }
+
+      .debate-panel {
+        grid-area: debate;
+        border-left: 1px solid var(--glass-border);
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .card {
+        background: var(--glass);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .card-title {
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      /* AIMO Tab List */
+      .aimo-item {
+        padding: 16px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        border-left: 4px solid transparent;
+        cursor: pointer;
+        transition: 0.2s;
+        margin-bottom: 10px;
+      }
+
+      .aimo-item:hover {
+        background: rgba(255, 255, 255, 0.06);
+        transform: scale(1.02);
+      }
+
+      .aimo-success {
+        border-left-color: var(--stable);
+      }
+      .aimo-fail {
+        border-left-color: var(--critical);
+      }
+      .aimo-veto {
+        border-left-color: var(--warning);
+      }
+
+      /* Debate Messages */
+      .debate-msg {
+        padding: 12px 16px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        margin-bottom: 8px;
+        animation: fadeIn 0.3s ease-in;
+      }
+
+      .debate-msg .role {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 4px;
+      }
+
+      .debate-msg .msg-content {
+        font-size: 0.8rem;
+        line-height: 1.4;
+        opacity: 0.85;
+        max-height: 120px;
+        overflow-y: auto;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Health Stats Grid */
+      .health-stat {
+        text-align: center;
+        padding: 20px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--glass-border);
+      }
+
+      .health-stat .value {
+        font-size: 2rem;
+        font-weight: 600;
+      }
+
+      .health-stat .label {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 8px;
+      }
+
+      /* Details Modal */
+      #modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.9);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+
+      .modal {
+        width: 90%;
+        height: 90%;
+        background: var(--bg-dark);
+        border: 1px solid var(--accent);
+        border-radius: 24px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        overflow: hidden;
+      }
+
+      .modal-panel {
+        padding: 40px;
+        overflow-y: auto;
+        border-right: 1px solid var(--glass-border);
+      }
+
+      pre {
+        background: #000;
+        padding: 15px;
+        border-radius: 8px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.85rem;
+        color: #00ff99;
+        white-space: pre-wrap;
+      }
+
+      .badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: bold;
+      }
+
+      .badge-success {
+        background: rgba(0, 242, 255, 0.2);
+        color: var(--stable);
+      }
+      .badge-fail {
+        background: rgba(255, 45, 85, 0.2);
+        color: var(--critical);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 6px;
+        animation: pulse 2s infinite;
+      }
+
+      .dot-ok {
+        background: var(--stable);
+      }
+      .dot-warn {
+        background: var(--warning);
+      }
+      .dot-fail {
+        background: var(--critical);
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.4;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-container">
+      <header class="header">
+        <h2 style="letter-spacing: 5px; font-weight: 300">
+          TRINITY
+          <span style="font-weight: 600; color: var(--stable)">V3.14</span>
+        </h2>
+        <div style="display: flex; gap: 16px; align-items: center">
+          <div id="health-dot">
+            <span class="status-dot dot-warn"></span>Checking...
+          </div>
+          <div id="aimo-stats" class="badge badge-success">0/0 SUCCESS</div>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div
+          style="padding: 20px; border-bottom: 1px solid var(--glass-border)"
+        >
+          <div class="card-title">Live AIMO Feed</div>
+        </div>
+        <div
+          id="aimo-list"
+          style="padding: 20px; overflow-y: auto; flex-grow: 1"
+        >
+          <!-- AIMO Attempts populated by JS -->
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div class="card">
+          <div class="card-title">System Health & Logic Trust</div>
+          <div
+            id="health-grid"
+            style="
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 20px;
+            "
+          >
+            <!-- Health Stats populated by JS -->
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Institutional Memory (RAG)</div>
+          <div
+            id="rag-status"
+            style="
+              font-family: &quot;JetBrains Mono&quot;;
+              font-size: 0.8rem;
+              opacity: 0.7;
+            "
+          >
+            Scanning trinity_kb.db...
+          </div>
+        </div>
+      </main>
+
+      <aside class="debate-panel">
+        <div
+          style="padding: 20px; border-bottom: 1px solid var(--glass-border)"
+        >
+          <div class="card-title">
+            Live Debate Transcript
+            <span id="debate-count" style="color: var(--accent)">0</span>
+          </div>
+        </div>
+        <div
+          id="debate-list"
+          style="padding: 16px; overflow-y: auto; flex-grow: 1"
+        >
+          <div
+            style="
+              opacity: 0.4;
+              font-size: 0.8rem;
+              text-align: center;
+              padding-top: 40px;
+            "
+          >
+            Waiting for debate messages...
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Details Modal -->
+    <div id="modal-overlay" onclick="closeModal()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-panel" id="modal-left">
+          <h3>Problem & Raw AI Response</h3>
+          <div id="m-problem" style="margin-bottom: 20px; opacity: 0.8"></div>
+          <pre id="m-raw"></pre>
+        </div>
+        <div class="modal-panel" id="modal-right">
+          <h3>Extracted Code & Execution</h3>
+          <pre id="m-code" style="color: #bf5af2"></pre>
+          <hr style="opacity: 0.1" />
+          <h4>Stdout:</h4>
+          <pre id="m-stdout" style="color: #fff"></pre>
+          <h4>Stderr / Error:</h4>
+          <pre id="m-stderr" style="color: var(--critical)"></pre>
+          <div
+            id="m-veto"
+            style="color: var(--warning); font-weight: bold"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ============ AIMO FEED ============
+      async function fetchAIMO() {
+        try {
+          const res = await fetch("/api/aimo/latest");
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const list = document.getElementById("aimo-list");
+            list.innerHTML = data
+              .map(
+                (a) => `
+              <div class="aimo-item ${a.success ? "aimo-success" : a.security_veto ? "aimo-veto" : "aimo-fail"}" onclick="showDetail(${a.id})">
+                  <div style="font-weight: 600;">#${a.id} | Problem ${a.problem_id}</div>
+                  <div style="font-size: 0.7rem; opacity: 0.6;">${(a.timestamp || "").split("T")[1]?.split(".")[0] || ""} via ${a.provider || "unknown"}</div>
+                  <div style="font-size: 0.75rem; margin-top: 5px;">${a.success ? "✅ PASSED" : a.security_veto ? "⚠️ VETOED" : "❌ FAILED"}</div>
+              </div>
+            `,
+              )
+              .join("");
+          }
+
+          const sRes = await fetch("/api/aimo/stats");
+          const stats = await sRes.json();
+          if (!stats.error) {
+            document.getElementById("aimo-stats").innerText =
+              `${stats.wins}/${stats.total} SUCCESS (${stats.syntax_fails} Syntax Fails)`;
+          }
+        } catch (e) {
+          console.error("AIMO fetch error:", e);
+        }
+      }
+
+      // ============ HEALTH CHECK ============
+      async function fetchHealth() {
+        try {
+          const res = await fetch("/api/health");
+          const h = await res.json();
+          const dot = document.getElementById("health-dot");
+          if (h.guard_ready) {
+            dot.innerHTML = '<span class="status-dot dot-ok"></span>Guard OK';
+          } else {
+            dot.innerHTML =
+              '<span class="status-dot dot-warn"></span>Guard Pending';
+          }
+
+          const grid = document.getElementById("health-grid");
+          grid.innerHTML = `
+            <div class="health-stat">
+              <div class="value" style="color: ${h.guard_ready ? "var(--stable)" : "var(--warning)"}">${h.guard_ready ? "●" : "○"}</div>
+              <div class="label">Guard Status</div>
+            </div>
+            <div class="health-stat">
+              <div class="value" style="color: var(--stable)">${h.service || "N/A"}</div>
+              <div class="label">Service Version</div>
+            </div>
+            <div class="health-stat">
+              <div class="value" id="h-total">-</div>
+              <div class="label">Total AIMO Runs</div>
+            </div>
+            <div class="health-stat">
+              <div class="value" id="h-rate" style="color: var(--accent)">-</div>
+              <div class="label">Success Rate</div>
+            </div>
+          `;
+
+          // Fetch AIMO stats for the grid
+          const sRes = await fetch("/api/aimo/stats");
+          const stats = await sRes.json();
+          if (!stats.error) {
+            document.getElementById("h-total").innerText = stats.total || 0;
+            document.getElementById("h-rate").innerText =
+              ((stats.success_rate || 0) * 100).toFixed(1) + "%";
+          }
+        } catch (e) {
+          const dot = document.getElementById("health-dot");
+          dot.innerHTML = '<span class="status-dot dot-fail"></span>API Down';
+        }
+      }
+
+      // ============ DEBATE TRANSCRIPT ============
+      async function fetchDebate() {
+        try {
+          const res = await fetch("/api/debate/latest?limit=50");
+          const msgs = await res.json();
+          if (Array.isArray(msgs) && msgs.length > 0) {
+            const list = document.getElementById("debate-list");
+            document.getElementById("debate-count").innerText = msgs.length;
+            list.innerHTML = msgs
+              .map(
+                (m) => `
+              <div class="debate-msg">
+                <div class="role">${m.role} <span style="opacity: 0.4; font-size: 0.6rem;">${(m.timestamp || "").split("T")[1]?.split(".")[0] || ""}</span></div>
+                <div class="msg-content">${(m.content || "").substring(0, 500)}</div>
+              </div>
+            `,
+              )
+              .join("");
+            list.scrollTop = list.scrollHeight;
+          }
+        } catch (e) {
+          console.error("Debate fetch error:", e);
+        }
+      }
+
+      // ============ DETAIL MODAL ============
+      async function showDetail(id) {
+        const res = await fetch(`/api/aimo/detail/${id}`);
+        const d = await res.json();
+
+        document.getElementById("m-problem").innerText =
+          d.problem_text || "N/A";
+        document.getElementById("m-raw").innerText = d.raw_response || "N/A";
+        document.getElementById("m-code").innerText =
+          d.code || "No code extracted";
+        document.getElementById("m-stdout").innerText = d.stdout || "No output";
+        document.getElementById("m-stderr").innerText =
+          d.stderr || d.error_log || "No errors";
+        document.getElementById("m-veto").innerText = d.security_veto
+          ? `⚠️ VETO: ${d.security_veto}`
+          : "";
+
+        document.getElementById("modal-overlay").style.display = "flex";
+      }
+
+      function closeModal() {
+        document.getElementById("modal-overlay").style.display = "none";
+      }
+
+      // ============ POLLING ============
+      setInterval(fetchAIMO, 3000);
+      setInterval(fetchHealth, 5000);
+      setInterval(fetchDebate, 4000);
+      fetchAIMO();
+      fetchHealth();
+      fetchDebate();
+    </script>
+  </body>
+</html>
