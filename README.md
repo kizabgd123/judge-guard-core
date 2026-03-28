@@ -48,6 +48,25 @@ python3 research_pipeline.py --query "Drift"
 - **`src/antigravity_core/`**: Core libraries (Gemini client, Bridge).
 - **`research/`**: Raw data, scripts, and phase-specific docs.
 
+## 📁 Project Structure
+
+```text
+.
+├── research/               # Phase-specific research documents and raw data.
+│   ├── phase0_scoping/     # Initial discovery and project boundaries.
+│   ├── phase1_discovery/   # Identification of agent behaviors.
+│   ├── phase2_analysis/    # Pattern analysis and semantic integrity checks.
+│   └── phase3_validation/  # Final validation reports and test cases.
+├── src/                    # Primary source code for the Antigravity system.
+│   ├── antigravity_core/   # Logic for JudgeGuard, Gemini integration, and Bridge.
+│   └── mobile_app_pwa/     # Frontend interface for the research tool.
+├── tests/                  # Automated test suites for core functionality.
+├── judge_guard.py          # Command-line entry point for action verification.
+├── research_pipeline.py    # Main script for querying the research database.
+├── AGENT_TAMING_GUIDE.md   # Detailed manual for safety protocols.
+└── research.db             # SQLite database containing research findings.
+```
+
 ---
 
 > **Note:** This project adheres to the **Antigravity Master Orchestration** rules.
