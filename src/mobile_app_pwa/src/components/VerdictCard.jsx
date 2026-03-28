@@ -5,7 +5,6 @@ export default function VerdictCard({ verdict }) {
 
   const { status, action, reason, timestamp } = verdict;
   const isPassed = status === "PASSED";
-  const isBlocked = status === "BLOCKED";
   const isPending = status === "PENDING";
 
   if (isPending) {
