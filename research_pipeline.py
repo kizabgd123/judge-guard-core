@@ -170,7 +170,7 @@ class ResearchPipeline:
         
         for doc in docs:
             # Find pattern-like structures (headings with status indicators)
-            pattern_regex = r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$"
+            pattern_regex = r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?\s*$"
             matches = re.findall(pattern_regex, doc["content"], re.MULTILINE)
             
             for match in matches:
