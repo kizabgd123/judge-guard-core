@@ -131,6 +131,12 @@ class JudgeGuard:
             return "2"
         return "unknown"
 
+    def _is_dangerous_command(self, action: str) -> bool:
+        """Detect if action involves dangerous system commands."""
+        dangerous_keywords = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
+        action_lower = action.lower()
+        return any(k in action_lower for k in dangerous_keywords)
+
     def _is_write_operation(self, action: str) -> bool:
         """Detect if action involves writing/modifying code."""
         keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
@@ -196,6 +202,15 @@ class JudgeGuard:
         """
         Execute the 3-Layer Verification Model.
         """
+        # --- LAYER 00: Security Enforcement (Emergency Fix) ---
+        if self._is_dangerous_command(current_action):
+            msg = "Security Violation: Action contains forbidden dangerous commands (sudo/root deletion)."
+            logger.error(f"Layer 00 Block: {msg}")
+            if BRIDGE_AVAILABLE:
+                bridge.push_verdict(current_action, "BLOCKED", msg)
+            print(f"🛑 JudgeGuard: {msg}")
+            return False
+
         if not JUDGE_AVAILABLE:
             print("🛑 JudgeGuard: Dependencies missing (GeminiClient/JudgeFlow).")
             return False

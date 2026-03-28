@@ -286,17 +286,20 @@ class ResearchPipeline:
         db_id = os.getenv("NOTION_DATABASE_ID")
         
         if not token or not db_id:
-            print(f"⚠️  NOTION_TOKEN={'✓' if token else '✗'} NOTION_DATABASE_ID={'✓' if db_id else '✗'}")
-            print("Saving queue to file instead.")
-            NOTION_LOG.parent.mkdir(exist_ok=True)
+            logger.warning(f"NOTION_TOKEN={'✓' if token else '✗'} NOTION_DATABASE_ID={'✓' if db_id else '✗'}")
+            logger.info("Saving queue to local cache instead of Notion.")
+            NOTION_LOG.parent.mkdir(parents=True, exist_ok=True)
             
             existing = []
             if NOTION_LOG.exists():
-                existing = json.loads(NOTION_LOG.read_text())
+                try:
+                    existing = json.loads(NOTION_LOG.read_text())
+                except json.JSONDecodeError:
+                    existing = []
             
             existing.extend(self.notion_queue)
             NOTION_LOG.write_text(json.dumps(existing, indent=2))
-            self.log_audit("NOTION_QUEUED", f"{len(self.notion_queue)} entries saved")
+            self.log_audit("NOTION_MOCKED", f"{len(self.notion_queue)} entries saved to {NOTION_LOG}")
             return
         
         # If token exists, push to Notion
