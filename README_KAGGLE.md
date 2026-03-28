@@ -1,6 +1,6 @@
-# 🦅 Kaggle AI Live Multi-Agent Stream: Setup & Deployment
+# 🦅 Kaggle AI Live Multi-Agent Stream: Advanced Dashboard
 
-This project creates a "Live Stream" of multiple AI agents (Eagle-Alpha and Falcon-Beta) tackling Kaggle challenges together with real-time audio, unique mascot images, and Notion logging.
+This project creates an AI Live Stream of multiple agents (Eagle-Alpha and Falcon-Beta) collaborating on Kaggle, with real-time audio, mascots, and an advanced Notion dashboard.
 
 ## 🚀 Setup Environment
 
@@ -12,7 +12,7 @@ pip install gradio requests python-dotenv google-generativeai kaggle
 
 ### 2. Kaggle API Key
 - Download your `kaggle.json` from your Kaggle account settings.
-- Place it in `~/.kaggle/kaggle.json` (on Linux/Mac) or set environment variables `KAGGLE_USERNAME` and `KAGGLE_KEY`.
+- Place it in `~/.kaggle/kaggle.json` or set environment variables `KAGGLE_USERNAME` and `KAGGLE_KEY`.
 
 ### 3. Environment Variables (.env)
 Create a `.env` file in the root directory:
@@ -23,29 +23,28 @@ NOTION_KAGGLE_DB_ID=your_database_id
 HF_TOKEN=your_huggingface_token
 ```
 
-### 4. Notion Database Template
-Your Notion database must have the following columns:
+### 4. Advanced Notion Dashboard Template 📊
+Configure your Notion database with these columns for the best experience:
 - **Agent** (Title)
 - **Status** (Select: success, fail, checkpoint)
 - **Message** (Rich Text)
 - **Mood** (Rich Text)
+- **Accuracy** (Number: set format to Percentage or Number)
+- **Progress** (Number: set format to Bar, min 0, max 1)
 
 ## 🛠️ Components
-
-1.  **`src/kaggle_stream/multimedia.py`**: Handles Text-to-Speech and Mascot Image generation via Hugging Face.
-2.  **`src/kaggle_stream/kaggle_agent.py`**: The "brains" using Gemini and real Kaggle API to reason and progress.
+1.  **`src/kaggle_stream/multimedia.py`**: Handles TTS and Mascot Image generation.
+2.  **`src/kaggle_stream/kaggle_agent.py`**: The "brains" that track Accuracy and Progress metrics.
 3.  **`src/kaggle_stream/app.py`**: The multi-agent Gradio dashboard.
 
-## 📦 Deployment to Hugging Face Spaces
-
-1.  Create a new **Space** on Hugging Face (choose Gradio).
-2.  Upload the `src/` directory and `README_KAGGLE.md`.
-3.  Add all `.env` and `KAGGLE_` variables as **Secrets** in the Space settings.
-4.  The app will build and launch automatically.
-
 ## 🎭 The Collaborative Experience
-- **Step 1**: **Eagle-Alpha** analyzes the Kaggle challenge and proposes a strategy.
-- **Step 2**: **Falcon-Beta** listens to Alpha and refines the plan or proposes improvements.
-- **Visuals**: Each agent has a unique Mascot that changes mood.
-- **Voice**: Agents "speak" their updates to the audience.
-- **Persistence**: Every step is logged to Notion as a permanent "checkpoint".
+- **Mode 1**: **Kaggle Challenge** - Real-time competition strategy and coding.
+- **Mode 2**: **Project Log Stream** - Agents audit the `WORK_LOG.md` files of this project.
+- **Visuals**: Mascot images reflect agent "mood".
+- **Voice**: Agents "speak" their status updates.
+- **Persistence**: Milestones are logged to Notion with **Progress Bars** and **Accuracy Scores**.
+
+## 📦 Deployment to Hugging Face Spaces
+1.  Create a new **Space** on Hugging Face (choose Gradio).
+2.  Upload `src/`, `WORK_LOG.md`, and `README_KAGGLE.md`.
+3.  Add all variables as **Secrets** in Space settings.
