@@ -101,6 +101,7 @@ class ResearchPipeline:
     def init_db(self):
         """Initialize SQLite database."""
         self.conn = sqlite3.connect(DB_PATH)
+        self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -169,19 +170,22 @@ class ResearchPipeline:
         
         for doc in docs:
             # Find pattern-like structures (headings with status indicators)
-            pattern_regex = r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?"
-            matches = re.findall(pattern_regex, doc["content"])
+            pattern_regex = r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$"
+            matches = re.findall(pattern_regex, doc["content"], re.MULTILINE)
             
             for match in matches:
-                name = match[0].strip()
+                raw_name = match[0].strip()
+                # Clean up priority icons from name
+                name = raw_name.replace("🔥", "").replace("🟢", "").strip()
+
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
                 # Determine priority from content
                 priority = "MEDIUM"
-                if "🔥" in name or "HIGH" in name.upper():
+                if "🔥" in raw_name or "HIGH" in raw_name.upper():
                     priority = "HIGH"
-                elif "🟢" in name or "LOW" in name.upper():
+                elif "🟢" in raw_name or "LOW" in raw_name.upper():
                     priority = "LOW"
                 
                 # Check if pattern already exists
