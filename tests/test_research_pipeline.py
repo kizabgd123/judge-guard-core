@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 import sqlite3
 import os
 from pathlib import Path
@@ -65,5 +66,3 @@ def test_verdict_caching(temp_db):
     pipeline.cache_verdict("Action 1", "PASSED")
     verdict = pipeline.get_cached_verdict("Action 1")
     assert verdict == "PASSED"
-
-from unittest.mock import patch

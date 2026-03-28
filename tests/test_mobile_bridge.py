@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch
 import os
 import json
 import shutil
@@ -54,5 +55,3 @@ def test_push_verdict(temp_pwa_dir):
         with open(config_file, "r") as f:
             data = json.load(f)
             assert data["last_verdict"]["status"] == "PASSED"
-
-from unittest.mock import patch
