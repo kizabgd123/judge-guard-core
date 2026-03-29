@@ -11,11 +11,32 @@ logger = logging.getLogger("DeploymentPipeline")
 LOG_FILE = "deployment_log.md"
 
 def log_step(step, status, details=""):
+    """
+    Append a formatted deployment step entry to the Markdown log file and emit the same message to the configured logger.
+    
+    Parameters:
+    	step (int): Numeric identifier for the deployment step.
+    	status (str): Human-readable status or status indicator (e.g., "🟡 Starting", "✅ COMPLETE").
+    	details (str): Optional additional context or output to include with the step entry.
+    """
     with open(LOG_FILE, "a") as f:
         f.write(f"- **Step {step}:** {status} - {details}\n")
     logger.info(f"Step {step}: {status} - {details}")
 
 def run_step(step, name, command):
+    """
+    Execute a deployment step by logging its start, running a shell command (or simulating specific commands), and logging the outcome.
+    
+    This function writes a "Starting" entry for the step, treats the commands "deploy_to_prod" and "monitor_health" as simulated successes, otherwise executes the provided shell command using subprocess.run, and logs a success entry (including a truncated portion of stdout) or a failure entry (including stderr). On exceptions it logs an error entry and returns failure.
+    
+    Parameters:
+        step (int): Numeric identifier for the step used in logs.
+        name (str): Human-readable name of the step.
+        command (str): Shell command to execute or a special simulation keyword ("deploy_to_prod" or "monitor_health").
+    
+    Returns:
+        bool: `True` if the step completed successfully, `False` if it failed or an exception occurred.
+    """
     log_step(step, "🟡 Starting", f"{name}: {command}")
 
     try:
@@ -38,6 +59,11 @@ def run_step(step, name, command):
         return False
 
 def main():
+    """
+    Run the deployment pipeline steps in order, logging each step and aborting with a rollback if any step fails.
+    
+    Initializes (or recreates) the deployment log file with a timestamped header, defines the ordered deployment steps, and executes them sequentially via run_step. On the first failing step it records a rollback entry and an incident report, prints a failure message, and exits the process with status code 1. If all steps succeed it records a completion entry and prints a success message.
+    """
     if os.path.exists(LOG_FILE):
         os.remove(LOG_FILE)
 

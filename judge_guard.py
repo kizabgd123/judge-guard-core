@@ -118,8 +118,13 @@ class JudgeGuard:
 
     def _detect_phase(self, context: str) -> str:
         """
-        Heuristic to detect Project Phase from context.
-        Returns '0', '1', '2', etc., or 'unknown'.
+        Detects the project phase from the provided context using simple keyword heuristics.
+        
+        Parameters:
+            context (str): Textual context (e.g., recent work log contents) to analyze.
+        
+        Returns:
+            str: `"0"`, `"1"`, or `"2"` when a matching phase is found; `"unknown"` otherwise.
         """
         # Simple heuristic: scan last 2000 chars for explicit Phase declarations
         recent = context[-2000:].lower()
@@ -132,13 +137,29 @@ class JudgeGuard:
         return "unknown"
 
     def _is_dangerous_command(self, action: str) -> bool:
-        """Detect if action involves dangerous system commands."""
+        """
+        Determine whether an action string contains high-risk shell commands.
+        
+        Parameters:
+            action (str): Text of the action to inspect; matching is performed case-insensitively and looks for known dangerous patterns (e.g. "sudo", "rm -rf /", "rm -rf /*", "chmod -R 777").
+        
+        Returns:
+            bool: `True` if any dangerous pattern is present in `action`, `False` otherwise.
+        """
         dangerous_keywords = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
         action_lower = action.lower()
         return any(k in action_lower for k in dangerous_keywords)
 
     def _is_write_operation(self, action: str) -> bool:
-        """Detect if action involves writing/modifying code."""
+        """
+        Determine whether an action description represents a write or modification operation.
+        
+        Parameters:
+        	action (str): Freeform action description to inspect for write/edit-related keywords.
+        
+        Returns:
+        	True if the description contains keywords indicating creation, modification, or deletion, False otherwise.
+        """
         keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
         return any(k in action.lower() for k in keywords)
 
@@ -200,7 +221,16 @@ class JudgeGuard:
 
     def verify_action(self, current_action: str) -> bool:
         """
-        Execute the 3-Layer Verification Model.
+        Validate an action description through the JudgeGuard layered verification pipeline.
+        
+        Parameters:
+            current_action (str): The proposed action description to evaluate.
+        
+        Returns:
+            True if the action passes all verification layers and is approved, False otherwise.
+        
+        Notes:
+            May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
         """
         # --- LAYER 00: Security Enforcement (Emergency Fix) ---
         if self._is_dangerous_command(current_action):
