@@ -101,7 +101,6 @@ class ResearchPipeline:
     def init_db(self):
         """Initialize SQLite database."""
         self.conn = sqlite3.connect(DB_PATH)
-        self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -170,22 +169,19 @@ class ResearchPipeline:
         
         for doc in docs:
             # Find pattern-like structures (headings with status indicators)
-            pattern_regex = r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?\s*$"
-            matches = re.findall(pattern_regex, doc["content"], re.MULTILINE)
+            pattern_regex = r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?"
+            matches = re.findall(pattern_regex, doc["content"])
             
             for match in matches:
-                raw_name = match[0].strip()
-                # Clean up priority icons from name
-                name = raw_name.replace("🔥", "").replace("🟢", "").strip()
-
+                name = match[0].strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
                 # Determine priority from content
                 priority = "MEDIUM"
-                if "🔥" in raw_name or "HIGH" in raw_name.upper():
+                if "🔥" in name or "HIGH" in name.upper():
                     priority = "HIGH"
-                elif "🟢" in raw_name or "LOW" in raw_name.upper():
+                elif "🟢" in name or "LOW" in name.upper():
                     priority = "LOW"
                 
                 # Check if pattern already exists
@@ -281,7 +277,11 @@ class ResearchPipeline:
         return None
 
     def sync_to_notion(self):
-        """Sync audit log to Notion (requires NOTION_TOKEN)."""
+        """
+        Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
+        
+        Reloads environment variables, reads NOTION_TOKEN and NOTION_DATABASE_ID, and if both are present attempts to create pages in the configured Notion database for each entry in self.notion_queue. On successful push the queue is cleared and an audit entry "NOTION_SYNCED" is recorded. If credentials are missing or a network/processing error occurs, entries are appended to the local NOTION_LOG JSON file and an audit entry "NOTION_MOCKED" is recorded for the credential-missing path (or a fallback write occurs on error).
+        """
         # Reload env vars
         from dotenv import load_dotenv
         load_dotenv()

@@ -15,6 +15,11 @@ with patch.dict('sys.modules', {
 
 class TestJudgeGuardSecurity(unittest.TestCase):
     def setUp(self):
+        """
+        Prepare the test environment for JudgeGuard security tests.
+        
+        Creates a temporary work log file at /tmp/test_work_log_security.md and writes an initial log entry, resets the shared Gemini and bridge mocks, and patches judge_guard.JUDGE_AVAILABLE and judge_guard.BRIDGE_AVAILABLE to True while instantiating a JudgeGuard configured to use the temporary work log.
+        """
         self.work_log_path = "/tmp/test_work_log_security.md"
         with open(self.work_log_path, "w") as f:
             f.write("🟡 Starting test action\n")
@@ -27,6 +32,11 @@ class TestJudgeGuardSecurity(unittest.TestCase):
             self.judge = JudgeGuard(work_log_path=self.work_log_path)
 
     def tearDown(self):
+        """
+        Remove the temporary work log file created for the test.
+        
+        If a file exists at self.work_log_path, it is deleted to ensure test-side effects are cleaned up.
+        """
         if os.path.exists(self.work_log_path):
             os.remove(self.work_log_path)
 

@@ -10,6 +10,20 @@ class GeminiClient:
     Client for interacting with Google's Gemini models.
     """
     def __init__(self, model_name: str = "models/gemini-flash-latest", api_keys: Optional[str] = None):
+        """
+        Initialize a GeminiClient, loading API keys, configuring mock mode when no keys are found, and preparing the client.
+        
+        Parameters:
+            model_name (str): The Gemini model identifier to use (default: "models/gemini-flash-latest").
+            api_keys (Optional[str]): Comma-separated API keys string; if omitted, the environment variables
+                `GEMINI_API_KEYS` or `GEMINI_API_KEY` will be used. When no keys are available, the client
+                enters mock mode and uses a placeholder key.
+        
+        Notes:
+            - Sets `self.api_keys` to a list of keys, `self.current_key_index` to 0, `self.model_name`
+              to the provided model_name, and `self.mock_mode` to True when falling back to mock mode.
+            - Calls `_configure_client()` to finalize client setup.
+        """
         keys_env = api_keys or os.getenv("GEMINI_API_KEYS")
         if not keys_env:
             # Fallback for backward compatibility
@@ -29,7 +43,11 @@ class GeminiClient:
         self._configure_client()
 
     def _configure_client(self):
-        """Configures the client with the current key."""
+        """
+        Configure the Gemini client to use the currently selected API key or initialize mock mode.
+        
+        If mock mode is enabled, set self.model to None and log mock initialization. Otherwise, select the API key at self.current_key_index, configure the genai client and create the GenerativeModel assigned to self.model, then log a masked version of the key with its index and the total number of keys.
+        """
         if getattr(self, "mock_mode", False):
             self.model = None
             logger.info("GeminiClient: Initialized in MOCK MODE")
@@ -55,7 +73,19 @@ class GeminiClient:
 
     def generate_content(self, prompt: str) -> str:
         """
-        Generates content from the LLM with retry logic and KEY ROTATION.
+        Produce model-generated text for the given prompt, using API-key rotation and retry/backoff on quota or rate-limit errors.
+        
+        When the instance is in mock mode, returns deterministic mock responses ("PASSED" for judge-style prompts, otherwise "Mock response from Gemini Client"). Otherwise, attempts up to (max_retries * number_of_keys) tries: on quota/rate-limit errors it will try to rotate to the next API key and retry immediately if rotation succeeds, or apply exponential backoff and retry if rotation is not possible. Non-quota errors are re-raised.
+        
+        Parameters:
+            prompt (str): The text prompt to send to the model.
+        
+        Returns:
+            str: The text produced by the model (or a deterministic mock string in mock mode).
+        
+        Raises:
+            Exception: Re-raises model errors that are not quota/rate-limit related.
+            Exception: Raises Exception("Max retries exceeded for Gemini API") if all retry attempts fail.
         """
         if getattr(self, "mock_mode", False):
             # Deterministic mock responses
