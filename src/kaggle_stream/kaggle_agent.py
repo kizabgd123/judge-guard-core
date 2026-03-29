@@ -19,7 +19,6 @@ class KaggleAgent:
         self.progress = 0
         self.demo_mode = False
 
-        # Try to initialize Gemini, but catch ALL exceptions to enable Demo Mode
         try:
             self.gemini = GeminiClient()
         except Exception as e:
@@ -33,9 +32,8 @@ class KaggleAgent:
             self.notion = None
 
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
-        # If Gemini is present but API key is dummy/invalid, it might still fail at runtime
         if self.demo_mode or not self.gemini:
-            return self._get_demo_data()
+            return self._get_demo_data(task)
 
         prompt = f"You are agent {self.name}. Task: {task}. Context: {context}. Return JSON: thought, message, mood, status, accuracy, progress_increment."
         try:
@@ -44,25 +42,42 @@ class KaggleAgent:
             data = json.loads(response_raw)
         except Exception as e:
             logger.warning(f"Gemini API call failed: {e}. Falling back to Demo Data.")
-            return self._get_demo_data()
+            return self._get_demo_data(task)
 
         self._update_state(data)
         self._log_to_notion(data)
         return data
 
-    def _get_demo_data(self) -> Dict[str, Any]:
-        thoughts = [
-            f"{self.name} is checking for null values in the dataset.",
-            f"{self.name} is applying a Random Forest regressor with cross-validation.",
-            f"{self.name} is engineering new features from the timestamp column.",
-            f"{self.name} is analyzing the correlation matrix."
-        ]
-        messages = [
-            "I just found a massive correlation between X and Y! This is huge.",
-            "The validation score is rising. We're on the right track.",
-            "Let's try one more tuning of the hyperparameters.",
-            "I'm feeling good about this submission!"
-        ]
+    def _get_demo_data(self, task: str) -> Dict[str, Any]:
+        if "WORK_LOG.md" in task or "Project Log" in task:
+            # Log Audit Demo
+            thoughts = [
+                f"{self.name} is reviewing the recent security fix in Layer 00.",
+                f"{self.name} is validating the completion of Phase 5.",
+                f"{self.name} is checking for any semantic drift in the latest entries.",
+                f"{self.name} is making sure JudgeGuard enforcement is active."
+            ]
+            messages = [
+                "The logs show that Phase 5 is finally complete! Great job team.",
+                "I see a minor security fix was pushed. Always good to stay safe.",
+                "Looking at the audit trail, everything seems to be in order.",
+                "The project is reaching its final stage according to these logs."
+            ]
+        else:
+            # Kaggle Demo
+            thoughts = [
+                f"{self.name} is checking for null values in the dataset.",
+                f"{self.name} is applying a Random Forest regressor.",
+                f"{self.name} is engineering new features.",
+                f"{self.name} is analyzing the correlation matrix."
+            ]
+            messages = [
+                "I just found a massive correlation between X and Y! This is huge.",
+                "The validation score is rising. We're on the right track.",
+                "Let's try one more tuning of the hyperparameters.",
+                "I'm feeling good about this submission!"
+            ]
+
         moods = ["happy", "thinking", "excited", "focused"]
 
         data = {
