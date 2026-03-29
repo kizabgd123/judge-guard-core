@@ -1,11 +1,11 @@
+import { memo } from "react";
 import { Activity, ShieldAlert, ShieldCheck } from "lucide-react";
 
-export default function VerdictCard({ verdict }) {
+const VerdictCard = memo(({ verdict }) => {
   if (!verdict) return null;
 
   const { status, action, reason, timestamp } = verdict;
   const isPassed = status === "PASSED";
-  const isBlocked = status === "BLOCKED";
   const isPending = status === "PENDING";
 
   if (isPending) {
@@ -43,4 +43,7 @@ export default function VerdictCard({ verdict }) {
       <p className="mt-8 text-xs opacity-50 font-mono">{timestamp}</p>
     </div>
   );
-}
+});
+
+VerdictCard.displayName = "VerdictCard";
+export default VerdictCard;

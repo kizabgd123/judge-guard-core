@@ -1,5 +1,6 @@
+import { memo } from "react";
 
-export default function StatusPulse({ active }) {
+const StatusPulse = memo(({ active }) => {
   return (
     <div className={`fixed top-4 right-4 flex items-center gap-2 `}>
       <div
@@ -10,4 +11,7 @@ export default function StatusPulse({ active }) {
       </span>
     </div>
   );
-}
+});
+
+StatusPulse.displayName = "StatusPulse";
+export default StatusPulse;
