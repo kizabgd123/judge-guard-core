@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import random
+import threading
 from typing import List, Dict, Any, Optional
 from src.antigravity_core.gemini_client import GeminiClient
 from src.antigravity_core.notion_client import NotionClient
@@ -83,16 +84,20 @@ class KaggleAgent:
         data["total_progress"] = self.progress
 
     def _log_to_notion(self, data: Dict[str, Any]):
+        # ⚡ Bolt: Offload slow Notion API calls to a background thread to prevent blocking agent turns
         if self.notion and os.getenv("NOTION_KAGGLE_DB_ID") and os.getenv("NOTION_KAGGLE_DB_ID") != "demo":
-            try:
-                properties = {
-                    "Agent": {"title": [{"text": {"content": self.name}}]},
-                    "Status": {"select": {"name": data.get("status", "checkpoint")}},
-                    "Message": {"rich_text": [{"text": {"content": data.get("message", "")[:2000]}}]},
-                    "Mood": {"rich_text": [{"text": {"content": data.get("mood", "thinking")}}]},
-                    "Accuracy": {"number": data.get("accuracy", 0.0)},
-                    "Progress": {"number": data.get("total_progress", 0) / 100.0}
-                }
-                self.notion.append_to_database(os.getenv("NOTION_KAGGLE_DB_ID"), properties)
-            except Exception:
-                pass
+            def _async_log():
+                try:
+                    properties = {
+                        "Agent": {"title": [{"text": {"content": self.name}}]},
+                        "Status": {"select": {"name": data.get("status", "checkpoint")}},
+                        "Message": {"rich_text": [{"text": {"content": data.get("message", "")[:2000]}}]},
+                        "Mood": {"rich_text": [{"text": {"content": data.get("mood", "thinking")}}]},
+                        "Accuracy": {"number": data.get("accuracy", 0.0)},
+                        "Progress": {"number": data.get("total_progress", 0) / 100.0}
+                    }
+                    self.notion.append_to_database(os.getenv("NOTION_KAGGLE_DB_ID"), properties)
+                except Exception as e:
+                    logger.warning(f"Async Notion logging failed: {e}")
+
+            threading.Thread(target=_async_log, daemon=True).start()

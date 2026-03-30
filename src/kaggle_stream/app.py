@@ -1,6 +1,7 @@
 import gradio as gr
 import os
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from src.kaggle_stream.kaggle_agent import KaggleAgent
 from src.kaggle_stream.multimedia import MultimediaManager
 from src.kaggle_stream.log_streamer import LogStreamer
@@ -19,8 +20,13 @@ def run_agent_turn(agent, task, context=""):
     message = data.get("message", "Working...")
     mood = data.get("mood", "thinking")
 
-    audio_path = multimedia.generate_audio(message, f"{agent.name}_speech.mp3")
-    image_path = multimedia.generate_mood_image(f"{mood} mascot", f"{agent.name}_mood.png")
+    # ⚡ Bolt: Parallelize API calls for Audio and Image generation to reduce latency
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_audio = executor.submit(multimedia.generate_audio, message, f"{agent.name}_speech.mp3")
+        future_image = executor.submit(multimedia.generate_mood_image, f"{mood} mascot", f"{agent.name}_mood.png")
+
+        audio_path = future_audio.result()
+        image_path = future_image.result()
 
     return message, image_path, audio_path, data.get("thought", "")
 
