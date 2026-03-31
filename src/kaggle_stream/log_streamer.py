@@ -11,9 +11,12 @@ class LogStreamer:
             return "No project logs found."
 
         try:
-            with open(log_path, "r") as f:
-                content = f.read()
-                # Get the last 1500 characters to stay within context window and focus on recent work
-                return content[-1500:]
+            # ⚡ Bolt: Use seek-to-tail for O(1) performance regardless of log file size
+            with open(log_path, "rb") as f:
+                f.seek(0, 2)
+                file_size = f.tell()
+                f.seek(max(0, file_size - 1500))
+                # Decode with ignore to safely handle split multi-byte characters at the start
+                return f.read().decode("utf-8", errors="ignore")
         except Exception as e:
             return f"Error reading logs: {e}"
