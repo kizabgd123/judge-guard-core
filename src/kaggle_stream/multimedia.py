@@ -21,7 +21,7 @@ class MultimediaManager:
             logger.info("MOCK: Skipping real Audio generation (HF_TOKEN missing).")
             return None
 
-        API_URL = f"https://api-inference.huggingface.co/models/{self.tts_model}"
+        API_URL = f"https://router.huggingface.co/hf-inference/models/{self.tts_model}"
         try:
             response = requests.post(API_URL, headers=self.headers, json={"inputs": text})
             if response.status_code == 200:
@@ -39,7 +39,7 @@ class MultimediaManager:
             return None
 
         prompt = f"A high-quality 3D glossy icon of a {mood}, cute character, white background."
-        API_URL = f"https://api-inference.huggingface.co/models/{self.img_model}"
+        API_URL = f"https://router.huggingface.co/hf-inference/models/{self.img_model}"
 
         try:
             response = requests.post(API_URL, headers=self.headers, json={"inputs": prompt})
