@@ -18,9 +18,14 @@ import hashlib
 import json
 import glob
 import re
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
 
 # === CONFIG ===
 DB_PATH = Path("./research.db")
@@ -96,11 +101,12 @@ class ResearchPipeline:
                 (action, details)
             )
             self.conn.commit()
-        print(f"📝 {action}: {details}")
+        logger.info(f"📝 {action}: {details}")
 
     def init_db(self):
         """Initialize SQLite database."""
         self.conn = sqlite3.connect(DB_PATH)
+        self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -169,20 +175,27 @@ class ResearchPipeline:
         
         for doc in docs:
             # Find pattern-like structures (headings with status indicators)
-            pattern_regex = r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?"
-            matches = re.findall(pattern_regex, doc["content"])
+            # Find all matching lines first
+            lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
             
-            for match in matches:
-                name = match[0].strip()
+            for line in lines:
+                # Extract the title part before any dash
+                match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
+                if not match:
+                    continue
+
+                name = match.group(1).strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
-                # Determine priority from content
+                # Determine priority and strip icons from name for consistent storage
                 priority = "MEDIUM"
                 if "🔥" in name or "HIGH" in name.upper():
                     priority = "HIGH"
+                    name = name.replace("🔥", "").strip()
                 elif "🟢" in name or "LOW" in name.upper():
                     priority = "LOW"
+                    name = name.replace("🟢", "").strip()
                 
                 # Check if pattern already exists
                 existing = self.conn.execute(
@@ -279,8 +292,6 @@ class ResearchPipeline:
     def sync_to_notion(self):
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
-        
-        Reloads environment variables, reads NOTION_TOKEN and NOTION_DATABASE_ID, and if both are present attempts to create pages in the configured Notion database for each entry in self.notion_queue. On successful push the queue is cleared and an audit entry "NOTION_SYNCED" is recorded. If credentials are missing or a network/processing error occurs, entries are appended to the local NOTION_LOG JSON file and an audit entry "NOTION_MOCKED" is recorded for the credential-missing path (or a fallback write occurs on error).
         """
         # Reload env vars
         from dotenv import load_dotenv
@@ -331,17 +342,20 @@ class ResearchPipeline:
                     json=data
                 )
                 if resp.status_code != 200:
-                    print(f"⚠️  Entry failed: {resp.text}")
+                    logger.warning(f"⚠️  Entry failed: {resp.text}")
             
             self.log_audit("NOTION_SYNCED", f"{len(self.notion_queue)} entries pushed")
             self.notion_queue = []  # Clear after sync
         except Exception as e:
-            print(f"❌ Notion sync failed: {e}")
+            logger.error(f"❌ Notion sync failed: {e}")
             # Fallback to file
             NOTION_LOG.parent.mkdir(exist_ok=True)
             existing = []
             if NOTION_LOG.exists():
-                existing = json.loads(NOTION_LOG.read_text())
+                try:
+                    existing = json.loads(NOTION_LOG.read_text())
+                except json.JSONDecodeError:
+                    existing = []
             existing.extend(self.notion_queue)
             NOTION_LOG.write_text(json.dumps(existing, indent=2))
 
@@ -374,20 +388,20 @@ def main():
     
     if args.init:
         pipeline.init_db()
-        print(f"✅ Database initialized: {DB_PATH}")
+        logger.info(f"✅ Database initialized: {DB_PATH}")
     
     elif args.parse:
         pipeline.connect()
         parsed = pipeline.parse_markdown_files()
         patterns = pipeline.extract_patterns()
-        print(f"✅ Parsed {parsed} documents, extracted {patterns} patterns")
+        logger.info(f"✅ Parsed {parsed} documents, extracted {patterns} patterns")
         pipeline.sync_to_notion()
     
     elif args.query:
         pipeline.connect()
         results = pipeline.query(args.query)
         for r in results:
-            print(f"  [{r['type'].upper()}] {r['name']} ({r['phase']})")
+            logger.info(f"  [{r['type'].upper()}] {r['name']} ({r['phase']})")
         pipeline.sync_to_notion()
     
     elif args.sync_notion:
@@ -397,9 +411,9 @@ def main():
     elif args.stats:
         pipeline.connect()
         stats = pipeline.get_stats()
-        print("📊 Database Stats:")
+        logger.info("📊 Database Stats:")
         for k, v in stats.items():
-            print(f"  {k}: {v}")
+            logger.info(f"  {k}: {v}")
     
     else:
         parser.print_help()
