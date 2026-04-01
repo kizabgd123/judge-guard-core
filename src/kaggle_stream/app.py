@@ -69,4 +69,4 @@ with gr.Blocks(title="🦅 Antigravity AI Live Stream") as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share=True)
