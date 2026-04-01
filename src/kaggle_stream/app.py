@@ -1,6 +1,7 @@
 import gradio as gr
 import os
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from src.kaggle_stream.kaggle_agent import KaggleAgent
 from src.kaggle_stream.multimedia import MultimediaManager
 from src.kaggle_stream.log_streamer import LogStreamer
@@ -19,8 +20,14 @@ def run_agent_turn(agent, task, context=""):
     message = data.get("message", "Working...")
     mood = data.get("mood", "thinking")
 
-    audio_path = multimedia.generate_audio(message, f"{agent.name}_speech.mp3")
-    image_path = multimedia.generate_mood_image(f"{mood} mascot", f"{agent.name}_mood.png")
+    # ⚡ Bolt: Parallelize audio and image generation to reduce per-turn latency
+    # This reduces waiting time from sum(TTS_time, Image_time) to max(TTS_time, Image_time)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        audio_future = executor.submit(multimedia.generate_audio, message, f"{agent.name}_speech.mp3")
+        image_future = executor.submit(multimedia.generate_mood_image, f"{mood} mascot", f"{agent.name}_mood.png")
+
+        audio_path = audio_future.result()
+        image_path = image_future.result()
 
     return message, image_path, audio_path, data.get("thought", "")
 
