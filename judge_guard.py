@@ -188,13 +188,13 @@ class JudgeGuard:
             print(f"⚠️  Notion sync failed (non-critical): {e}")
 
     def _check_work_log(self, action: str) -> bool:
-        """Check if WORK_LOG.md was recently updated (within last 60 seconds)."""
+        """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
         if not self.work_log_path or not os.path.exists(self.work_log_path):
+            logger.error("🛑 WORK_LOG.md not found. Required for action verification.")
             print("🛑 WORK_LOG.md not found. Update required before action.")
             return False
         
         import time
-        import datetime
         
         # Check last modification time
         mtime = os.path.getmtime(self.work_log_path)
@@ -203,19 +203,25 @@ class JudgeGuard:
         
         # Read last few lines to check if action was logged
         try:
-            with open(self.work_log_path, 'r') as f:
-                lines = f.readlines()
-                last_lines = ''.join(lines[-10:]).lower()
+            with open(self.work_log_path, 'r', encoding="utf-8") as f:
+                content = f.read()
+                last_lines = content[-1000:].lower()
                 
                 # Check if this action or 'starting' is in recent log
+                # We allow up to 120 seconds for slower API calls or manual logging
                 if '🟡' in last_lines or 'starting' in last_lines:
-                    if age_seconds < 60:  # Updated within last minute
+                    if age_seconds < 120:
                         return True
+                    else:
+                        logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
+                else:
+                    logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
+
         except Exception as e:
-            print(f"⚠️  Error reading WORK_LOG.md: {e}")
+            logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
             return False
         
-        print("🛑 WORK_LOG.md not updated. Required format:")
+        print("🛑 WORK_LOG.md not updated recently. Required format:")
         print('   echo "🟡 Starting [ACTION]" >> WORK_LOG.md')
         return False
 
