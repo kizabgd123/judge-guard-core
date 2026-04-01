@@ -57,7 +57,10 @@ class GeminiClient:
         genai.configure(api_key=current_key)
         self.model = genai.GenerativeModel(self.model_name)
         # Obscure key for logging
-        masked_key = current_key[:4] + "..." + current_key[-4:]
+        if current_key == "MOCK_KEY":
+            masked_key = "MOCK_KEY"
+        else:
+            masked_key = current_key[:4] + "..." + current_key[-4:] if len(current_key) > 8 else "****"
         logger.info(f"configured Gemini with key: {masked_key} (Key {self.current_key_index + 1}/{len(self.api_keys)})")
 
     def _rotate_key(self):
