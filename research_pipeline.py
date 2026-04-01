@@ -101,12 +101,6 @@ class ResearchPipeline:
     def init_db(self):
         """Initialize SQLite database."""
         self.conn = sqlite3.connect(DB_PATH)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -117,11 +111,6 @@ class ResearchPipeline:
         if not DB_PATH.exists():
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
         self.conn = sqlite3.connect(DB_PATH)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
-        self.conn.row_factory = sqlite3.Row
         self.conn.row_factory = sqlite3.Row
         return self
 
@@ -180,7 +169,7 @@ class ResearchPipeline:
         
         for doc in docs:
             # Find pattern-like structures (headings with status indicators)
-            pattern_regex = r"###?\s+(?:\d+\.\s+)?([^\n]+?)(?:\s*[-–]\s*(.+))?"
+            pattern_regex = r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?"
             matches = re.findall(pattern_regex, doc["content"])
             
             for match in matches:
