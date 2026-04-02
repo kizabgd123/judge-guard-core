@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import random
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional
 from src.antigravity_core.gemini_client import GeminiClient
 from src.antigravity_core.notion_client import NotionClient
@@ -18,6 +19,8 @@ class KaggleAgent:
         self.last_score = 0.0
         self.progress = 0
         self.demo_mode = False
+        # ⚡ Bolt: Executor for offloading synchronous Notion API calls
+        self._executor = ThreadPoolExecutor(max_workers=2)
 
         # Try to initialize Gemini, but catch ALL exceptions to enable Demo Mode
         try:
@@ -84,15 +87,19 @@ class KaggleAgent:
 
     def _log_to_notion(self, data: Dict[str, Any]):
         if self.notion and os.getenv("NOTION_KAGGLE_DB_ID") and os.getenv("NOTION_KAGGLE_DB_ID") != "demo":
-            try:
-                properties = {
-                    "Agent": {"title": [{"text": {"content": self.name}}]},
-                    "Status": {"select": {"name": data.get("status", "checkpoint")}},
-                    "Message": {"rich_text": [{"text": {"content": data.get("message", "")[:2000]}}]},
-                    "Mood": {"rich_text": [{"text": {"content": data.get("mood", "thinking")}}]},
-                    "Accuracy": {"number": data.get("accuracy", 0.0)},
-                    "Progress": {"number": data.get("total_progress", 0) / 100.0}
-                }
-                self.notion.append_to_database(os.getenv("NOTION_KAGGLE_DB_ID"), properties)
-            except Exception:
-                pass
+            # ⚡ Bolt: Offload blocking Notion API call to background thread
+            self._executor.submit(self._execute_notion_append, data)
+
+    def _execute_notion_append(self, data: Dict[str, Any]):
+        try:
+            properties = {
+                "Agent": {"title": [{"text": {"content": self.name}}]},
+                "Status": {"select": {"name": data.get("status", "checkpoint")}},
+                "Message": {"rich_text": [{"text": {"content": data.get("message", "")[:2000]}}]},
+                "Mood": {"rich_text": [{"text": {"content": data.get("mood", "thinking")}}]},
+                "Accuracy": {"number": data.get("accuracy", 0.0)},
+                "Progress": {"number": data.get("total_progress", 0) / 100.0}
+            }
+            self.notion.append_to_database(os.getenv("NOTION_KAGGLE_DB_ID"), properties)
+        except Exception:
+            pass
