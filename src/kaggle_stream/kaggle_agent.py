@@ -116,4 +116,4 @@ class KaggleAgent:
             }
             self.notion.append_to_database(os.getenv("NOTION_KAGGLE_DB_ID"), properties)
         except Exception:
-            pass
+            logger.exception("Error calling Notion API in _execute_notion_append")
