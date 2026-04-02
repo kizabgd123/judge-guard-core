@@ -35,6 +35,26 @@ class KaggleAgent:
         except Exception:
             self.notion = None
 
+    def close(self):
+        """Cleanup resources by shutting down the executor."""
+        self.executor.shutdown(wait=True)
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - cleanup executor."""
+        self.close()
+        return False
+
+    def __del__(self):
+        """Fallback cleanup if context manager is not used."""
+        try:
+            self.executor.shutdown(wait=False)
+        except Exception:
+            pass
+
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
         # If Gemini is present but API key is dummy/invalid, it might still fail at runtime
         if self.demo_mode or not self.gemini:
@@ -51,7 +71,7 @@ class KaggleAgent:
 
         self._update_state(data)
         # ⚡ Bolt: Async logging to Notion to reduce agent turn latency
-        self.executor.submit(self._log_to_notion, data)
+        self.executor.submit(self._log_to_notion, dict(data))
         return data
 
     def _get_demo_data(self) -> Dict[str, Any]:
@@ -79,7 +99,7 @@ class KaggleAgent:
         }
         self._update_state(data)
         # ⚡ Bolt: Async logging to Notion to reduce agent turn latency
-        self.executor.submit(self._log_to_notion, data)
+        self.executor.submit(self._log_to_notion, data.copy())
         return data
 
     def _update_state(self, data: Dict[str, Any]):
