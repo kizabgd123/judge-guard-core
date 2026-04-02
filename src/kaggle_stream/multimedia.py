@@ -16,6 +16,13 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
+        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
+
+        # ⚡ Bolt: Updated to the new recommended router endpoint
+        self.api_base = "https://router.huggingface.co/hf-inference/models"
+
         # ⚡ Bolt: Local memory cache to store generated raw content (bytes)
         # This ensures we can reuse content even if output_path changes.
         self._audio_cache = {}  # {text: bytes}
@@ -36,9 +43,9 @@ class MultimediaManager:
             logger.info("MOCK: Skipping real Audio generation (HF_TOKEN missing).")
             return None
 
-        API_URL = f"https://api-inference.huggingface.co/models/{self.tts_model}"
+        API_URL = f"{self.api_base}/{self.tts_model}"
         try:
-            response = requests.post(API_URL, headers=self.headers, json={"inputs": text})
+            response = self.session.post(API_URL, json={"inputs": text})
             if response.status_code == 200:
                 # ⚡ Bolt: Store in cache BEFORE writing to file to ensure we have the bytes
                 self._audio_cache[text] = response.content
@@ -67,10 +74,10 @@ class MultimediaManager:
             return None
 
         prompt = f"A high-quality 3D glossy icon of a {mood}, cute character, white background."
-        API_URL = f"https://api-inference.huggingface.co/models/{self.img_model}"
+        API_URL = f"{self.api_base}/{self.img_model}"
 
         try:
-            response = requests.post(API_URL, headers=self.headers, json={"inputs": prompt})
+            response = self.session.post(API_URL, json={"inputs": prompt})
             if response.status_code == 200:
                 # ⚡ Bolt: Store in cache BEFORE writing to file to ensure we have the bytes
                 self._image_cache[mood] = response.content

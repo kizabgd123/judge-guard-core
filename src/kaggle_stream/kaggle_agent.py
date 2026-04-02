@@ -35,6 +35,20 @@ class KaggleAgent:
         except Exception:
             self.notion = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
+        if hasattr(self, "_executor"):
+            self._executor.shutdown(wait=True)
+
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
         # If Gemini is present but API key is dummy/invalid, it might still fail at runtime
         if self.demo_mode or not self.gemini:
