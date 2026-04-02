@@ -4,6 +4,14 @@ from unittest.mock import MagicMock, patch
 import os
 import sys
 
+# Mock missing dependencies BEFORE importing src modules
+mock_genai = MagicMock()
+sys.modules["google"] = MagicMock()
+sys.modules["google.generativeai"] = mock_genai
+sys.modules["requests"] = MagicMock()
+sys.modules["dotenv"] = MagicMock()
+sys.modules["gradio"] = MagicMock()
+
 # Ensure src is in path
 sys.path.append(os.getcwd())
 

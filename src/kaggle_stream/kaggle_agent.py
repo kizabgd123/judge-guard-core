@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import random
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional
 from src.antigravity_core.gemini_client import GeminiClient
 from src.antigravity_core.notion_client import NotionClient
@@ -18,6 +19,8 @@ class KaggleAgent:
         self.last_score = 0.0
         self.progress = 0
         self.demo_mode = False
+        # ⚡ Bolt: Offload I/O tasks to background thread to minimize latency
+        self.executor = ThreadPoolExecutor(max_workers=1)
 
         # Try to initialize Gemini, but catch ALL exceptions to enable Demo Mode
         try:
@@ -47,7 +50,8 @@ class KaggleAgent:
             return self._get_demo_data()
 
         self._update_state(data)
-        self._log_to_notion(data)
+        # ⚡ Bolt: Async logging to Notion to reduce agent turn latency
+        self.executor.submit(self._log_to_notion, data)
         return data
 
     def _get_demo_data(self) -> Dict[str, Any]:
@@ -74,7 +78,8 @@ class KaggleAgent:
             "progress_increment": 20
         }
         self._update_state(data)
-        self._log_to_notion(data)
+        # ⚡ Bolt: Async logging to Notion to reduce agent turn latency
+        self.executor.submit(self._log_to_notion, data)
         return data
 
     def _update_state(self, data: Dict[str, Any]):
