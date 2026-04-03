@@ -9,3 +9,7 @@
 ## 2026-03-31 - [Synchronous Notion API Bottleneck]
 **Learning:** Synchronous network I/O (like Notion API calls) in the main agent loop creates a serial execution bottleneck. Even when other parts of the turn (like multimedia) are parallelized, the agent still waits for the database log to finish before proceeding to the next logical step.
 **Action:** Offload side-effect logging to background threads using a `ThreadPoolExecutor`. This allows the agent to return immediately while the I/O happens asynchronously.
+
+## 2026-04-03 - [Inefficient Log Tail Retrieval]
+**Learning:** Reading a large log file (e.g., 10MB+) into memory just to retrieve the last few lines results in O(N) latency and memory usage. This is particularly noticeable in safety-critical loops like JudgeGuard which run frequently.
+**Action:** Use O(1) tail retrieval via `f.seek(0, 2)` to jump directly to the end of the file. Always use binary mode (`rb`) and decode with `errors='ignore'` to safely handle potential split multi-byte characters at the boundary.

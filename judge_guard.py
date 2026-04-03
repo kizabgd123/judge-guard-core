@@ -107,10 +107,22 @@ class JudgeGuard:
             return f"Error loading rules: {e}"
 
     def _load_context(self, max_chars: int = 15000) -> str:
+        """
+        Efficiently loads the last max_chars characters from the work log.
+        ⚡ Bolt: Optimized to O(1) tail retrieval using seek-from-end.
+        """
         if self.work_log_path and os.path.exists(self.work_log_path):
             try:
-                with open(self.work_log_path, "r", encoding="utf-8") as f:
-                    content = f.read()
+                with open(self.work_log_path, "rb") as f:
+                    f.seek(0, 2)  # Seek to end
+                    file_size = f.tell()
+
+                    # Each char can be up to 4 bytes in UTF-8, but let's read at least max_chars
+                    # Reading max_chars bytes from end is a good heuristic for max_chars characters.
+                    to_read = min(file_size, max_chars * 2) # Read extra to account for multi-byte
+                    f.seek(-to_read, 2)
+
+                    content = f.read().decode('utf-8', errors='ignore')
                     return content[-max_chars:]
             except Exception:
                 pass
@@ -202,10 +214,15 @@ class JudgeGuard:
         age_seconds = now - mtime
         
         # Read last few lines to check if action was logged
+        # ⚡ Bolt: Optimized to O(1) tail retrieval.
         try:
-            with open(self.work_log_path, 'r', encoding="utf-8") as f:
-                content = f.read()
-                last_lines = content[-1000:].lower()
+            with open(self.work_log_path, 'rb') as f:
+                f.seek(0, 2)
+                file_size = f.tell()
+                to_read = min(file_size, 2000) # Read last 2KB
+                f.seek(-to_read, 2)
+
+                last_lines = f.read().decode('utf-8', errors='ignore').lower()
                 
                 # Check if this action or 'starting' is in recent log
                 # We allow up to 120 seconds for slower API calls or manual logging
