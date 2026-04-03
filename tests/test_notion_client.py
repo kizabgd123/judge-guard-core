@@ -4,6 +4,12 @@ from src.antigravity_core.notion_client import NotionClient
 
 @pytest.fixture
 def notion_client(monkeypatch):
+    """
+    Create a NotionClient preconfigured for tests by setting the NOTION_API_KEY environment variable to "test_key".
+    
+    Returns:
+        NotionClient: An instance configured to use the test API key.
+    """
     monkeypatch.setenv("NOTION_API_KEY", "test_key")
     return NotionClient()
 
