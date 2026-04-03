@@ -107,11 +107,18 @@ class JudgeGuard:
             return f"Error loading rules: {e}"
 
     def _load_context(self, max_chars: int = 15000) -> str:
+        """
+        ⚡ Bolt: Optimized O(1) tail retrieval using file seek.
+        Prevents O(N) memory/IO overhead for large log files.
+        """
         if self.work_log_path and os.path.exists(self.work_log_path):
             try:
-                with open(self.work_log_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    return content[-max_chars:]
+                with open(self.work_log_path, "rb") as f:
+                    f.seek(0, 2)
+                    file_size = f.tell()
+                    to_read = min(file_size, max_chars)
+                    f.seek(-to_read, 2)
+                    return f.read().decode('utf-8', errors='ignore')
             except Exception:
                 pass
         return "(No work log context)"
@@ -188,7 +195,10 @@ class JudgeGuard:
             print(f"⚠️  Notion sync failed (non-critical): {e}")
 
     def _check_work_log(self, action: str) -> bool:
-        """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
+        """
+        Check if WORK_LOG.md was recently updated (within last 120 seconds).
+        ⚡ Bolt: Optimized O(1) tail retrieval using file seek.
+        """
         if not self.work_log_path or not os.path.exists(self.work_log_path):
             logger.error("🛑 WORK_LOG.md not found. Required for action verification.")
             print("🛑 WORK_LOG.md not found. Update required before action.")
@@ -203,9 +213,12 @@ class JudgeGuard:
         
         # Read last few lines to check if action was logged
         try:
-            with open(self.work_log_path, 'r', encoding="utf-8") as f:
-                content = f.read()
-                last_lines = content[-1000:].lower()
+            with open(self.work_log_path, "rb") as f:
+                f.seek(0, 2)
+                file_size = f.tell()
+                to_read = min(file_size, 1000)
+                f.seek(-to_read, 2)
+                last_lines = f.read().decode('utf-8', errors='ignore').lower()
                 
                 # Check if this action or 'starting' is in recent log
                 # We allow up to 120 seconds for slower API calls or manual logging
