@@ -26,13 +26,15 @@ class NotionClient:
             "Notion-Version": "2022-06-28",
             "Content-Type": "application/json"
         }
+        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
     
     def test_connection(self) -> Dict[str, Any]:
         """Test the connection by listing accessible pages."""
         try:
-            response = requests.post(
+            response = self.session.post(
                 f"{self.base_url}/search",
-                headers=self.headers,
                 json={"page_size": 1}
             )
             response.raise_for_status()
@@ -62,9 +64,8 @@ class NotionClient:
             ]
         }
         
-        response = requests.post(
+        response = self.session.post(
             f"{self.base_url}/pages",
-            headers=self.headers,
             json=payload
         )
         response.raise_for_status()
@@ -78,9 +79,8 @@ class NotionClient:
             "properties": properties
         }
         
-        response = requests.post(
+        response = self.session.post(
             f"{self.base_url}/databases",
-            headers=self.headers,
             json=payload
         )
         response.raise_for_status()
@@ -93,9 +93,8 @@ class NotionClient:
             "properties": properties
         }
         
-        response = requests.post(
+        response = self.session.post(
             f"{self.base_url}/pages",
-            headers=self.headers,
             json=payload
         )
         response.raise_for_status()
@@ -107,9 +106,8 @@ class NotionClient:
         if filter_criteria:
             payload["filter"] = filter_criteria
         
-        response = requests.post(
+        response = self.session.post(
             f"{self.base_url}/databases/{database_id}/query",
-            headers=self.headers,
             json=payload
         )
         response.raise_for_status()
@@ -118,9 +116,8 @@ class NotionClient:
         """Update properties of an existing page."""
         payload = {"properties": properties}
         
-        response = requests.patch(
+        response = self.session.patch(
             f"{self.base_url}/pages/{page_id}",
-            headers=self.headers,
             json=payload
         )
         response.raise_for_status()
@@ -128,9 +125,8 @@ class NotionClient:
 
     def retrieve_database(self, database_id: str) -> Dict[str, Any]:
         """Retrieve a database object to inspect schema."""
-        response = requests.get(
-            f"{self.base_url}/databases/{database_id}",
-            headers=self.headers
+        response = self.session.get(
+            f"{self.base_url}/databases/{database_id}"
         )
         response.raise_for_status()
         return response.json()
