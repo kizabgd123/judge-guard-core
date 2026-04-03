@@ -1,4 +1,28 @@
+# Environment
+.env
 .venv/
+venv/
 __pycache__/
 *.pyc
-.env
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (keep WORK_LOG.md template, ignore runtime logs)
+gradio.log
+research.db
+
+# Local tools
+.cache/
+.conda/
+.clj-kondo/
+.lsp/
+.claude/
+.jules/
+.agent/
