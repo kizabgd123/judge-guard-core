@@ -109,9 +109,13 @@ class JudgeGuard:
     def _load_context(self, max_chars: int = 15000) -> str:
         if self.work_log_path and os.path.exists(self.work_log_path):
             try:
-                with open(self.work_log_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    return content[-max_chars:]
+                # ⚡ Bolt: Efficient O(1) tail retrieval
+                with open(self.work_log_path, "rb") as f:
+                    f.seek(0, 2)
+                    file_size = f.tell()
+                    to_read = min(file_size, max_chars)
+                    f.seek(-to_read, 2)
+                    return f.read().decode('utf-8', errors='ignore')
             except Exception:
                 pass
         return "(No work log context)"
@@ -203,9 +207,13 @@ class JudgeGuard:
         
         # Read last few lines to check if action was logged
         try:
-            with open(self.work_log_path, 'r', encoding="utf-8") as f:
-                content = f.read()
-                last_lines = content[-1000:].lower()
+            # ⚡ Bolt: Efficient O(1) tail retrieval
+            with open(self.work_log_path, 'rb') as f:
+                f.seek(0, 2)
+                file_size = f.tell()
+                to_read = min(file_size, 1000)
+                f.seek(-to_read, 2)
+                last_lines = f.read().decode('utf-8', errors='ignore').lower()
                 
                 # Check if this action or 'starting' is in recent log
                 # We allow up to 120 seconds for slower API calls or manual logging
