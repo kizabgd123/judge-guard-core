@@ -13,3 +13,7 @@
 ## 2026-04-03 - [O(N) Log Retrieval Anti-pattern]
 **Learning:** Multiple components (LogStreamer, JudgeGuard) were reading entire growth-unbounded log files (WORK_LOG.md) into memory just to extract the tail. This causes linear performance degradation as the project progresses.
 **Action:** Always use binary seek-from-end ('rb' with f.seek(0, 2)) for tail retrieval. Use 'errors=ignore' during decoding to safely handle potential UTF-8 character splits at the seek boundary.
+
+## 2026-04-04 - [Cache-Before-Security Anti-pattern]
+**Learning:** Placing a performance-oriented caching layer (e.g., for LLM verdicts) before mandatory security enforcement (Layer 00) creates a critical bypass vulnerability. If an action is cached as 'PASSED', it might skip newly added security blacklists.
+**Action:** Always execute hard-coded security filters (Layer 00) at the very entry point of the verification pipeline, strictly before any cache lookups or optimistic exits.
