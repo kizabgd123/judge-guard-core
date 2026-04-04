@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 # --- DEPENDENCY INJECTION ---
 try:
+    from research_pipeline import ResearchPipeline
+except ImportError as e:
+    logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+
+try:
     from src.antigravity_core.judge_flow import BlockJudge
     from src.antigravity_core.gemini_client import GeminiClient
     JUDGE_AVAILABLE = True
@@ -70,6 +75,18 @@ class JudgeGuard:
         
         if JUDGE_AVAILABLE:
             self.gemini = GeminiClient()
+
+        # ⚡ Bolt: Initialize ResearchPipeline for verdict caching
+        try:
+            self.research = ResearchPipeline()
+            # If database doesn't exist, it will be initialized on first access in ResearchPipeline
+            if not os.path.exists("research.db"):
+                self.research.init_db()
+            else:
+                self.research.connect()
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
+            self.research = None
         
         logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
 
@@ -267,6 +284,15 @@ class JudgeGuard:
         if BRIDGE_AVAILABLE:
             bridge.push_verdict("Thinking...", "PENDING", "Analyzing against Phase rules...")
 
+        # ⚡ Bolt: Check Verdict Cache before expensive LLM calls
+        if self.research:
+            cached = self.research.get_cached_verdict(current_action)
+            if cached == "PASSED":
+                print(f"⚡ Bolt: Verdict Cache HIT for '{current_action[:30]}...'")
+                if BRIDGE_AVAILABLE:
+                    bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
+                return True
+
         context = self._load_context()
         phase = self._detect_phase(context)
         
@@ -343,6 +369,10 @@ class JudgeGuard:
             if BRIDGE_AVAILABLE:
                 bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
             
+            # ⚡ Bolt: Cache successful verdict
+            if self.research:
+                self.research.cache_verdict(current_action, "PASSED")
+
             # Auto-sync to Notion if this is a research action
             if self._is_research_action(current_action):
                 self._sync_to_notion(current_action)
