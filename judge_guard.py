@@ -79,11 +79,8 @@ class JudgeGuard:
         # ⚡ Bolt: Initialize ResearchPipeline for verdict caching
         try:
             self.research = ResearchPipeline()
-            # If database doesn't exist, it will be initialized on first access in ResearchPipeline
-            if not os.path.exists("research.db"):
-                self.research.init_db()
-            else:
-                self.research.connect()
+            # Ensure schema exists even for pre-existing DB files
+            self.research.init_db()
         except Exception as e:
             logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
             self.research = None
