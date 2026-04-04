@@ -3,10 +3,18 @@ from unittest.mock import patch, MagicMock
 import os
 import sys
 
-# Mock GeminiClient and bridge before importing JudgeGuard to avoid environment issues during init
-with patch('src.antigravity_core.gemini_client.GeminiClient'), \
-     patch('src.antigravity_core.mobile_bridge.bridge'):
-    from judge_guard import JudgeGuard
+# Mock dependencies to avoid import errors in some environments
+sys.modules['google'] = MagicMock()
+sys.modules['google.generativeai'] = MagicMock()
+sys.modules['requests'] = MagicMock()
+sys.modules['dotenv'] = MagicMock()
+
+# Now we can import things
+import src.antigravity_core.judge_flow
+import src.antigravity_core.gemini_client
+import src.antigravity_core.mobile_bridge
+
+from judge_guard import JudgeGuard
 
 class TestJudgeGuard(unittest.TestCase):
     def setUp(self):
@@ -15,7 +23,7 @@ class TestJudgeGuard(unittest.TestCase):
         
         Creates a temporary work log at /tmp/test_work_log.md containing the marker "🟡 Starting Valid Action", and patches module-level availability flags and external clients so that a JudgeGuard can be constructed with work_log_path pointing to the created file.
         """
-        self.work_log_path = "/tmp/test_work_log.md"
+        self.work_log_path = "/tmp/test_work_log_md"
         
         # Create dummy work log that meets the requirements
         with open(self.work_log_path, "w") as f:

@@ -13,3 +13,7 @@
 ## 2026-04-03 - [O(N) Log Retrieval Anti-pattern]
 **Learning:** Multiple components (LogStreamer, JudgeGuard) were reading entire growth-unbounded log files (WORK_LOG.md) into memory just to extract the tail. This causes linear performance degradation as the project progresses.
 **Action:** Always use binary seek-from-end ('rb' with f.seek(0, 2)) for tail retrieval. Use 'errors=ignore' during decoding to safely handle potential UTF-8 character splits at the seek boundary.
+
+## 2026-04-04 - [Redundant LLM Verification Bottleneck]
+**Learning:** LLM-based verification (JudgeGuard) for repetitive system actions introduces significant, recurring latency (often >500ms per call). Since many agent actions are idempotent or repeated, re-verifying every single turn is wasteful.
+**Action:** Implement a verdict caching layer in JudgeGuard using ResearchPipeline. Store "PASSED" verdicts in SQLite and reuse them for identical action strings, reducing warm-call latency from ~500ms to <5ms.

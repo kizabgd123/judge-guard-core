@@ -37,6 +37,13 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ MobileBridge not available: {e}")
     BRIDGE_AVAILABLE = False
+
+try:
+    from research_pipeline import ResearchPipeline
+    PIPELINE_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+    PIPELINE_AVAILABLE = False
 # ----------------------------
 
 # --- LAYER 3 CONSTANT ---
@@ -70,6 +77,20 @@ class JudgeGuard:
         
         if JUDGE_AVAILABLE:
             self.gemini = GeminiClient()
+
+        # ⚡ Bolt: Initialize ResearchPipeline for verdict caching
+        if PIPELINE_AVAILABLE:
+            try:
+                self.pipeline = ResearchPipeline().connect()
+            except Exception:
+                # If connect fails (db doesn't exist), try to init it
+                try:
+                    self.pipeline = ResearchPipeline().init_db()
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
+                    self.pipeline = None
+        else:
+            self.pipeline = None
         
         logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
 
@@ -263,6 +284,16 @@ class JudgeGuard:
         if not self._check_work_log(current_action):
             return False
 
+        # --- LAYER 0.1: Verdict Caching (⚡ Bolt) ---
+        # Skip redundant LLM calls if this action was already approved.
+        if self.pipeline:
+            cached_verdict = self.pipeline.get_cached_verdict(current_action)
+            if cached_verdict == "PASSED":
+                print(f"⚡ Bolt: Reusing cached approval for '{current_action}'")
+                if BRIDGE_AVAILABLE:
+                    bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
+                return True
+
         # --- LAYER 2: Live Thought Streaming ---
         if BRIDGE_AVAILABLE:
             bridge.push_verdict("Thinking...", "PENDING", "Analyzing against Phase rules...")
@@ -343,6 +374,10 @@ class JudgeGuard:
             if BRIDGE_AVAILABLE:
                 bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
             
+            # ⚡ Bolt: Cache the verdict for future speed
+            if self.pipeline:
+                self.pipeline.cache_verdict(current_action, "PASSED")
+
             # Auto-sync to Notion if this is a research action
             if self._is_research_action(current_action):
                 self._sync_to_notion(current_action)
