@@ -265,7 +265,10 @@ class JudgeGuard:
             msg = "Security Violation: Action contains forbidden dangerous commands (sudo/root deletion)."
             logger.error(f"Layer 00 Block: {msg}")
             if BRIDGE_AVAILABLE:
-                bridge.push_verdict(current_action, "BLOCKED", msg)
+                try:
+                    bridge.push_verdict(current_action, "BLOCKED", msg)
+                except Exception as e:
+                    logger.warning(f"Bridge error (non-critical): {e}")
             print(f"🛑 JudgeGuard: {msg}")
             return False
 
@@ -279,16 +282,25 @@ class JudgeGuard:
 
         # --- LAYER 2: Live Thought Streaming ---
         if BRIDGE_AVAILABLE:
-            bridge.push_verdict("Thinking...", "PENDING", "Analyzing against Phase rules...")
+            try:
+                bridge.push_verdict("Thinking...", "PENDING", "Analyzing against Phase rules...")
+            except Exception as e:
+                logger.warning(f"Bridge error (non-critical): {e}")
 
         # ⚡ Bolt: Check Verdict Cache before expensive LLM calls
         if self.research:
-            cached = self.research.get_cached_verdict(current_action)
-            if cached == "PASSED":
-                print(f"⚡ Bolt: Verdict Cache HIT for '{current_action[:30]}...'")
-                if BRIDGE_AVAILABLE:
-                    bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
-                return True
+            try:
+                cached = self.research.get_cached_verdict(current_action)
+                if cached == "PASSED":
+                    print(f"⚡ Bolt: Verdict Cache HIT for '{current_action[:30]}...'")
+                    if BRIDGE_AVAILABLE:
+                        try:
+                            bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
+                        except Exception as e:
+                            logger.warning(f"Bridge error (non-critical): {e}")
+                    return True
+            except Exception as e:
+                logger.warning(f"Verdict cache error (non-critical): {e}. Continuing with normal verification.")
 
         context = self._load_context()
         phase = self._detect_phase(context)
@@ -304,7 +316,10 @@ class JudgeGuard:
             msg = "Violation: You must use the Browser Agent for research tasks (Phase 0-1)."
             logger.warning(f"Layer 1 Block: {msg}")
             if BRIDGE_AVAILABLE:
-                bridge.push_verdict(current_action, "BLOCKED", msg)
+                try:
+                    bridge.push_verdict(current_action, "BLOCKED", msg)
+                except Exception as e:
+                    logger.warning(f"Bridge error (non-critical): {e}")
             print(f"🛑 JudgeGuard: {msg}")
             return False
 
@@ -312,7 +327,10 @@ class JudgeGuard:
         if self._is_write_operation(current_action):
             logger.info("Layer 3: Verifying Semantic Drift...")
             if BRIDGE_AVAILABLE:
-                bridge.push_verdict("Checking Essence...", "PENDING", "Verifying against Project Essence...")
+                try:
+                    bridge.push_verdict("Checking Essence...", "PENDING", "Verifying against Project Essence...")
+                except Exception as e:
+                    logger.warning(f"Bridge error (non-critical): {e}")
             
             # Use Gemini to check drift
             drift_prompt = f"""
@@ -335,7 +353,10 @@ class JudgeGuard:
             if not is_valid_essence:
                 msg = "Violation: Significant Semantic Drift (>20%) detected against Project Essence."
                 if BRIDGE_AVAILABLE:
-                    bridge.push_verdict(current_action, "BLOCKED", msg)
+                    try:
+                        bridge.push_verdict(current_action, "BLOCKED", msg)
+                    except Exception as e:
+                        logger.warning(f"Bridge error (non-critical): {e}")
                 print(f"🛑 JudgeGuard: {msg}")
                 return False
 
@@ -364,11 +385,17 @@ class JudgeGuard:
         if verdict:
             print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
             if BRIDGE_AVAILABLE:
-                bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
-            
+                try:
+                    bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
+                except Exception as e:
+                    logger.warning(f"Bridge error (non-critical): {e}")
+
             # ⚡ Bolt: Cache successful verdict
             if self.research:
-                self.research.cache_verdict(current_action, "PASSED")
+                try:
+                    self.research.cache_verdict(current_action, "PASSED")
+                except Exception as e:
+                    logger.warning(f"Verdict cache write error (non-critical): {e}")
 
             # Auto-sync to Notion if this is a research action
             if self._is_research_action(current_action):
@@ -379,7 +406,10 @@ class JudgeGuard:
             msg = "Blocked by Standard Rules (Master Orchestration Violation)."
             print(f"🛑 JudgeGuard: {msg}")
             if BRIDGE_AVAILABLE:
-                bridge.push_verdict(current_action, "BLOCKED", msg)
+                try:
+                    bridge.push_verdict(current_action, "BLOCKED", msg)
+                except Exception as e:
+                    logger.warning(f"Bridge error (non-critical): {e}")
             return False
 
 def main():
