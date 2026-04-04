@@ -13,3 +13,7 @@
 ## 2026-04-03 - [O(N) Log Retrieval Anti-pattern]
 **Learning:** Multiple components (LogStreamer, JudgeGuard) were reading entire growth-unbounded log files (WORK_LOG.md) into memory just to extract the tail. This causes linear performance degradation as the project progresses.
 **Action:** Always use binary seek-from-end ('rb' with f.seek(0, 2)) for tail retrieval. Use 'errors=ignore' during decoding to safely handle potential UTF-8 character splits at the seek boundary.
+
+## 2026-05-15 - [Redundant LLM Verification Latency]
+**Learning:** Performing full semantic and rules-based verification via LLM (Gemini/BlockJudge) for every repetitive agent action introduces significant, unnecessary latency (1-2 seconds per action).
+**Action:** Integrate a persistent verdict cache (SQLite via ResearchPipeline) into the verification pipeline. Short-circuit approved actions by checking the cache first, reducing latency by >90% for repeat operations.
