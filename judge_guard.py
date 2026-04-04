@@ -37,6 +37,13 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ MobileBridge not available: {e}")
     BRIDGE_AVAILABLE = False
+
+try:
+    from research_pipeline import ResearchPipeline
+    PIPELINE_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+    PIPELINE_AVAILABLE = False
 # ----------------------------
 
 # --- LAYER 3 CONSTANT ---
@@ -71,6 +78,19 @@ class JudgeGuard:
         if JUDGE_AVAILABLE:
             self.gemini = GeminiClient()
         
+        if PIPELINE_AVAILABLE:
+            self.pipeline = ResearchPipeline()
+            try:
+                self.pipeline.connect()
+            except Exception:
+                try:
+                    self.pipeline.init_db()
+                except Exception as e:
+                    logger.warning(f"Failed to initialize ResearchPipeline DB: {e}")
+                    self.pipeline = None
+        else:
+            self.pipeline = None
+
         logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
 
     def _discover_brain_path(self) -> Optional[str]:
@@ -247,13 +267,36 @@ class JudgeGuard:
             May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
         """
         # --- LAYER 00: Security Enforcement (Emergency Fix) ---
+        # ⚡ Bolt: Security checks must ALWAYS happen before cache lookup
         if self._is_dangerous_command(current_action):
             msg = "Security Violation: Action contains forbidden dangerous commands (sudo/root deletion)."
             logger.error(f"Layer 00 Block: {msg}")
             if BRIDGE_AVAILABLE:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
             print(f"🛑 JudgeGuard: {msg}")
+            if self.pipeline:
+                self.pipeline.cache_verdict(current_action, "FAILED")
             return False
+
+        # ⚡ Bolt: Check Cache first to avoid redundant LLM/Notion calls
+        if self.pipeline:
+            cached_verdict = self.pipeline.get_cached_verdict(current_action)
+            if cached_verdict:
+                logger.info(f"⚡ Bolt: Cache HIT for action: {current_action[:50]}...")
+                if cached_verdict == "PASSED":
+                    # Layer 0 still applies (WORK_LOG check) even for cached items
+                    # But we can assume it passes if it was approved before? No, let's keep it safe.
+                    if self._check_work_log(current_action):
+                        if BRIDGE_AVAILABLE:
+                            bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard (CACHED)")
+                        return True
+                    return False
+                elif cached_verdict == "FAILED":
+                    msg = "Blocked by Standard Rules (Cached Rejection)."
+                    if BRIDGE_AVAILABLE:
+                        bridge.push_verdict(current_action, "BLOCKED", msg)
+                    print(f"🛑 JudgeGuard: {msg}")
+                    return False
 
         if not JUDGE_AVAILABLE:
             print("🛑 JudgeGuard: Dependencies missing (GeminiClient/JudgeFlow).")
@@ -343,6 +386,10 @@ class JudgeGuard:
             if BRIDGE_AVAILABLE:
                 bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
             
+            # ⚡ Bolt: Cache the successful verdict
+            if self.pipeline:
+                self.pipeline.cache_verdict(current_action, "PASSED")
+
             # Auto-sync to Notion if this is a research action
             if self._is_research_action(current_action):
                 self._sync_to_notion(current_action)
@@ -353,6 +400,11 @@ class JudgeGuard:
             print(f"🛑 JudgeGuard: {msg}")
             if BRIDGE_AVAILABLE:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
+
+            # ⚡ Bolt: Cache the failure
+            if self.pipeline:
+                self.pipeline.cache_verdict(current_action, "FAILED")
+
             return False
 
 def main():
