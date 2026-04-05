@@ -18,7 +18,9 @@ with patch.dict('sys.modules', {
 class TestJudgeGuardSecurity(unittest.TestCase):
     def setUp(self):
         """
-        Prepare the test environment for JudgeGuard security tests.
+        Set up filesystem state, mocks, and environment patches required by JudgeGuard security tests.
+        
+        Creates a temporary work log at /tmp/test_work_log_security.md containing an initial marker line, resets call history on the global mock objects `mock_gemini_class` and `mock_bridge_obj`, starts patches that force `judge_guard.JUDGE_AVAILABLE = True`, `judge_guard.BRIDGE_AVAILABLE = True`, and replace `judge_guard.bridge` with `mock_bridge_obj` (stored in `self.jg_patchers`), and instantiates a `JudgeGuard` assigned to `self.judge`.
         """
         self.work_log_path = "/tmp/test_work_log_security.md"
         with open(self.work_log_path, "w") as f:
@@ -65,6 +67,11 @@ class TestJudgeGuardSecurity(unittest.TestCase):
 
     def test_safe_command(self):
         # For safe commands, we need to mock deeper layers
+        """
+        Verifies that a benign shell command is permitted when deeper validation layers approve.
+        
+        Patches the block-level evaluator and Gemini content judge to return True, calls verify_action with "ls -la", and asserts the action is allowed.
+        """
         with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True),              patch.object(self.judge.gemini, 'judge_content', return_value=True):
 
             action = "ls -la"

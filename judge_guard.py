@@ -256,16 +256,16 @@ class JudgeGuard:
 
     def verify_action(self, current_action: str) -> bool:
         """
-        Validate an action description through the JudgeGuard layered verification pipeline.
+        Determine whether a proposed action is approved by the JudgeGuard layered verification pipeline.
         
         Parameters:
             current_action (str): The proposed action description to evaluate.
         
         Returns:
-            True if the action passes all verification layers and is approved, False otherwise.
+            bool: `True` if the action passes all verification layers and is approved, `False` otherwise.
         
         Notes:
-            May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
+            May push verdicts to an external bridge, cache verdicts in the research pipeline, and sync approved research actions to Notion.
         """
         # --- LAYER 00: Security Enforcement (Emergency Fix) ---
         if self._is_dangerous_command(current_action):
