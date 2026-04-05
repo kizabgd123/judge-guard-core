@@ -16,6 +16,7 @@ import sys
 import glob
 import logging
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -77,6 +78,9 @@ class JudgeGuard:
         
         if JUDGE_AVAILABLE:
             self.gemini = GeminiClient()
+
+        # ⚡ Bolt: Executor for parallelizing LLM-based verification layers
+        self.executor = ThreadPoolExecutor(max_workers=2)
 
         # ⚡ Bolt: Initialize ResearchPipeline for verdict caching
         if PIPELINE_AVAILABLE:
@@ -316,13 +320,10 @@ class JudgeGuard:
             print(f"🛑 JudgeGuard: {msg}")
             return False
 
-        # --- LAYER 3: Essence Check (Semantic Drift) ---
-        if self._is_write_operation(current_action):
-            logger.info("Layer 3: Verifying Semantic Drift...")
-            if BRIDGE_AVAILABLE:
-                bridge.push_verdict("Checking Essence...", "PENDING", "Verifying against Project Essence...")
-            
-            # Use Gemini to check drift
+        # --- PREPARE PROMPTS FOR LLM LAYERS ---
+        is_write = self._is_write_operation(current_action)
+        drift_prompt = ""
+        if is_write:
             drift_prompt = f"""
             PROJECT ESSENCE (Golden Snapshot):
             {PROJECT_ESSENCE}
@@ -337,18 +338,7 @@ class JudgeGuard:
             reply PASSED if it aligns or is neutral.
             reply FAILED if it causes significant drift.
             """
-            
-            is_valid_essence = self.gemini.judge_content(drift_prompt, "The action must not deviate significantly from the Project Essence.")
-            
-            if not is_valid_essence:
-                msg = "Violation: Significant Semantic Drift (>20%) detected against Project Essence."
-                if BRIDGE_AVAILABLE:
-                    bridge.push_verdict(current_action, "BLOCKED", msg)
-                print(f"🛑 JudgeGuard: {msg}")
-                return False
 
-        # --- STANDARD VERIFICATION (Existing Logic) ---
-        # Combine everything for final sanity check
         criteria = f"""
         You are the PERMANENT JUDGE GUARD.
         
@@ -365,10 +355,31 @@ class JudgeGuard:
         - Check for any other logic violations.
         - Ensure strict adherence to Master Orchestration.
         """
-        
-        judge = BlockJudge(criteria)
-        verdict = judge.evaluate(f"ACTION: {current_action}")
-        
+
+        # --- EXECUTE LLM LAYERS (⚡ Bolt: Parallelized for write operations) ---
+        if is_write:
+            logger.info("⚡ Bolt: Running Layer 3 and Standard Verification in parallel...")
+            if BRIDGE_AVAILABLE:
+                bridge.push_verdict("Checking Rules...", "PENDING", "Verifying Essence and Rules concurrently...")
+
+            # Submit both tasks to the executor
+            essence_future = self.executor.submit(self.gemini.judge_content, drift_prompt, "The action must not deviate significantly from the Project Essence.")
+            standard_future = self.executor.submit(lambda: BlockJudge(criteria).evaluate(f"ACTION: {current_action}"))
+
+            # Await results
+            is_valid_essence = essence_future.result()
+            if not is_valid_essence:
+                msg = "Violation: Significant Semantic Drift (>20%) detected against Project Essence."
+                if BRIDGE_AVAILABLE:
+                    bridge.push_verdict(current_action, "BLOCKED", msg)
+                print(f"🛑 JudgeGuard: {msg}")
+                return False
+
+            verdict = standard_future.result()
+        else:
+            # For non-write actions, only run Standard Verification (sequential)
+            verdict = BlockJudge(criteria).evaluate(f"ACTION: {current_action}")
+
         if verdict:
             print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
             if BRIDGE_AVAILABLE:
