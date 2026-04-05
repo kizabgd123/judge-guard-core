@@ -17,3 +17,7 @@
 ## 2026-04-04 - [Redundant LLM Verification Bottleneck]
 **Learning:** LLM-based verification (JudgeGuard) for repetitive system actions introduces significant, recurring latency (often >500ms per call). Since many agent actions are idempotent or repeated, re-verifying every single turn is wasteful.
 **Action:** Implement a verdict caching layer in JudgeGuard using ResearchPipeline. Store "PASSED" verdicts in SQLite and reuse them for identical action strings, reducing warm-call latency from ~500ms to <5ms.
+
+## 2026-04-05 - [Sequential API Call Bottleneck in GuardianAgent]
+**Learning:** Processing log entries sequentially when each entry requires high-latency Gemini and Notion API calls creates a linear performance bottleneck ((N)$). As the number of unprocessed logs grows, the system becomes unresponsive.
+**Action:** Use a `ThreadPoolExecutor` to parallelize I/O-bound tasks. By processing logs in parallel, we can reduce total latency to approximately (N/workers)$, making the system significantly more scalable.
