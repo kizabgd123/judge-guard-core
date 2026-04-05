@@ -36,6 +36,8 @@ class TestJudgeGuardSecurity(unittest.TestCase):
         for p in self.jg_patchers:
             p.start()
 
+        # Instantiate JudgeGuard
+        # We need to mock judge_content on the instance's gemini object for some tests
         self.judge = JudgeGuard(work_log_path=self.work_log_path)
 
     def tearDown(self):
@@ -63,9 +65,7 @@ class TestJudgeGuardSecurity(unittest.TestCase):
 
     def test_safe_command(self):
         # For safe commands, we need to mock deeper layers
-        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True):
-            # Mock Layer 3
-            self.judge.gemini.judge_content.return_value = True
+        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True),              patch.object(self.judge.gemini, 'judge_content', return_value=True):
 
             action = "ls -la"
             result = self.judge.verify_action(action)

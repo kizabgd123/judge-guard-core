@@ -338,9 +338,9 @@ class JudgeGuard:
             reply FAILED if it causes significant drift.
             """
             
-            is_valid_essence = self.gemini.judge_content(drift_prompt, "The action must not deviate significantly from the Project Essence.")
+            essence_result = self.gemini.judge_content(drift_prompt, "The action must not deviate significantly from the Project Essence.")
             
-            if not is_valid_essence:
+            if not essence_result:
                 msg = "Violation: Significant Semantic Drift (>20%) detected against Project Essence."
                 if BRIDGE_AVAILABLE:
                     bridge.push_verdict(current_action, "BLOCKED", msg)
@@ -368,9 +368,9 @@ class JudgeGuard:
         
         # ⚡ Bolt: Pass existing GeminiClient to BlockJudge to avoid redundant init
         judge = BlockJudge(criteria, client=self.gemini)
-        verdict = judge.evaluate(f"ACTION: {current_action}")
+        standard_result = judge.evaluate(f"ACTION: {current_action}")
         
-        if verdict:
+        if standard_result:
             print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
             if BRIDGE_AVAILABLE:
                 bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
