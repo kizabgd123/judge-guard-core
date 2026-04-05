@@ -1,4 +1,5 @@
 import os
+import time
 import google.generativeai as genai
 from typing import Optional
 import logging
@@ -96,7 +97,6 @@ class GeminiClient:
                 return "PASSED"
             return "Mock response from Gemini Client"
 
-        import time
         max_retries = 3
         
         # We allow retries * (number of keys) effective attempts

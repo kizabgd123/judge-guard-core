@@ -366,7 +366,8 @@ class JudgeGuard:
         - Ensure strict adherence to Master Orchestration.
         """
         
-        judge = BlockJudge(criteria)
+        # ⚡ Bolt: Pass existing GeminiClient to BlockJudge to avoid redundant init
+        judge = BlockJudge(criteria, client=self.gemini)
         verdict = judge.evaluate(f"ACTION: {current_action}")
         
         if verdict:

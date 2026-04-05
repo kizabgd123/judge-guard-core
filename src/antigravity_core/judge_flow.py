@@ -11,9 +11,10 @@ class BlockJudge:
     """
     Evaluates content using Real Gemini AI.
     """
-    def __init__(self, criteria: str):
+    def __init__(self, criteria: str, client: Optional[GeminiClient] = None):
         self.criteria = criteria
-        self.client = GeminiClient()
+        # ⚡ Bolt: Allow dependency injection of GeminiClient to avoid redundant initialization
+        self.client = client or GeminiClient()
 
     def evaluate(self, content: str) -> bool:
         """

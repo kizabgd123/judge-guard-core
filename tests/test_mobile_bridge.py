@@ -32,6 +32,9 @@ def test_update_state(temp_pwa_dir):
         bridge = MobileBridge()
         bridge.update_state({"theme": "dark", "content": "Updated content"})
 
+        # ⚡ Bolt: Wait for background sync to complete
+        bridge._executor.shutdown(wait=True)
+
         assert bridge.app_state["theme"] == "dark"
         assert bridge.app_state["content"] == "Updated content"
 
@@ -47,6 +50,9 @@ def test_push_verdict(temp_pwa_dir):
 
         bridge = MobileBridge()
         bridge.push_verdict("TestAction", "PASSED", "All good")
+
+        # ⚡ Bolt: Wait for background sync to complete
+        bridge._executor.shutdown(wait=True)
 
         assert "last_verdict" in bridge.app_state
         assert bridge.app_state["last_verdict"]["action"] == "TestAction"

@@ -1,19 +1,3 @@
-## 2026-03-29 - [PWA Polling Overhead]
-**Learning:** Aggressive polling (500ms) with cache-busting and unconditional state updates leads to high CPU and battery drain on mobile devices, even when the UI state is static.
-**Action:** Implement 'Smart Polling' by respecting 'document.visibilityState' and only updating state if the payload has changed.
-
-## 2026-03-30 - [Redundant Multimedia Generation]
-**Learning:** In a live multi-agent stream, agents often use similar or identical phrases and exhibit recurring moods. Generating fresh audio and images for every turn results in significant network overhead and latency (HF API calls can take seconds).
-**Action:** Implement content-based caching in the MultimediaManager. Always check if the exact text or mood has been recently generated before hitting external APIs.
-
-## 2026-03-31 - [Synchronous Notion API Bottleneck]
-**Learning:** Synchronous network I/O (like Notion API calls) in the main agent loop creates a serial execution bottleneck. Even when other parts of the turn (like multimedia) are parallelized, the agent still waits for the database log to finish before proceeding to the next logical step.
-**Action:** Offload side-effect logging to background threads using a `ThreadPoolExecutor`. This allows the agent to return immediately while the I/O happens asynchronously.
-
-## 2026-04-03 - [O(N) Log Retrieval Anti-pattern]
-**Learning:** Multiple components (LogStreamer, JudgeGuard) were reading entire growth-unbounded log files (WORK_LOG.md) into memory just to extract the tail. This causes linear performance degradation as the project progresses.
-**Action:** Always use binary seek-from-end ('rb' with f.seek(0, 2)) for tail retrieval. Use 'errors=ignore' during decoding to safely handle potential UTF-8 character splits at the seek boundary.
-
-## 2026-04-04 - [Redundant LLM Verification Bottleneck]
-**Learning:** LLM-based verification (JudgeGuard) for repetitive system actions introduces significant, recurring latency (often >500ms per call). Since many agent actions are idempotent or repeated, re-verifying every single turn is wasteful.
-**Action:** Implement a verdict caching layer in JudgeGuard using ResearchPipeline. Store "PASSED" verdicts in SQLite and reuse them for identical action strings, reducing warm-call latency from ~500ms to <5ms.
+## 2026-04-05 - [Synchronous Disk I/O in MobileBridge]
+**Learning:** Even small JSON writes (~1KB) to `app_config.json` can introduce spikes in latency during the critical path of `JudgeGuard.verify_action`. On some systems, synchronous disk I/O can take 10-50ms, which is significant when the target is sub-10ms for cached hits.
+**Action:** Offload `MobileBridge.sync_state` to a single-worker `ThreadPoolExecutor`. Use a state snapshot (`copy()`) before serialization to prevent race conditions.

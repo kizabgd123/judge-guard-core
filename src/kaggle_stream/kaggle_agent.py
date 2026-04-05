@@ -19,6 +19,8 @@ class KaggleAgent:
         self.last_score = 0.0
         self.progress = 0
         self.demo_mode = False
+        # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
+        self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
         # ⚡ Bolt: Executor for offloading synchronous Notion API calls
         self._executor = ThreadPoolExecutor(max_workers=2)
 
@@ -100,7 +102,7 @@ class KaggleAgent:
         data["total_progress"] = self.progress
 
     def _log_to_notion(self, data: Dict[str, Any]):
-        if self.notion and os.getenv("NOTION_KAGGLE_DB_ID") and os.getenv("NOTION_KAGGLE_DB_ID") != "demo":
+        if self.notion and self.notion_db_id and self.notion_db_id != "demo":
             # ⚡ Bolt: Offload blocking Notion API call to background thread
             self._executor.submit(self._execute_notion_append, data)
 
@@ -114,6 +116,6 @@ class KaggleAgent:
                 "Accuracy": {"number": data.get("accuracy", 0.0)},
                 "Progress": {"number": data.get("total_progress", 0) / 100.0}
             }
-            self.notion.append_to_database(os.getenv("NOTION_KAGGLE_DB_ID"), properties)
+            self.notion.append_to_database(self.notion_db_id, properties)
         except Exception:
             logger.exception("Error calling Notion API in _execute_notion_append")
