@@ -63,10 +63,9 @@ class TestJudgeGuardSecurity(unittest.TestCase):
 
     def test_safe_command(self):
         # For safe commands, we need to mock deeper layers
-        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True):
+        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True), \
+             patch.object(self.judge.gemini, 'judge_content', return_value=True):
             # Mock Layer 3
-            self.judge.gemini.judge_content.return_value = True
-
             action = "ls -la"
             result = self.judge.verify_action(action)
             self.assertTrue(result)
