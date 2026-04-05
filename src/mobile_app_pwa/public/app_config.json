@@ -4,9 +4,9 @@
   "content": "Welcome to the Agent-Controlled PWA!",
   "components": [],
   "last_verdict": {
-    "action": "Valid Action",
+    "action": "Refactor variable names for better clarity in verify_action",
     "status": "PASSED",
-    "reason": "Approved (Cached)",
+    "reason": "Approved by JudgeGuard v2.0",
     "timestamp": "Now"
   }
 }
