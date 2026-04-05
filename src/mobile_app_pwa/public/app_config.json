@@ -2,5 +2,11 @@
   "title": "Antigravity Mobile",
   "theme": "light",
   "content": "Welcome to the Agent-Controlled PWA!",
-  "components": []
+  "components": [],
+  "last_verdict": {
+    "action": "Valid Action",
+    "status": "PASSED",
+    "reason": "Approved (Cached)",
+    "timestamp": "Now"
+  }
 }
