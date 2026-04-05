@@ -17,3 +17,7 @@
 ## 2026-04-04 - [Redundant LLM Verification Bottleneck]
 **Learning:** LLM-based verification (JudgeGuard) for repetitive system actions introduces significant, recurring latency (often >500ms per call). Since many agent actions are idempotent or repeated, re-verifying every single turn is wasteful.
 **Action:** Implement a verdict caching layer in JudgeGuard using ResearchPipeline. Store "PASSED" verdicts in SQLite and reuse them for identical action strings, reducing warm-call latency from ~500ms to <5ms.
+
+## 2026-04-05 - [Sequential LLM Verification Bottleneck]
+**Learning:** Even with caching, cold-path verification (new actions) remains slow because multiple LLM layers (Essence Check and Standard Verification) are executed serially. This adds additive latency (0.5s + 0.5s = 1s) for every new write operation.
+**Action:** Parallelize independent LLM verification layers using a 'ThreadPoolExecutor'. By launching Essence Check and Rules Verification concurrently, cold-path latency is reduced by ~50% (capped by the slowest single LLM call).

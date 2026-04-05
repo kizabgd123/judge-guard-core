@@ -71,21 +71,6 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        """
-        Initialize a JudgeGuard instance, resolving paths, loading immutable rules, and setting up verification components.
-        
-        Parameters:
-            brain_path (Optional[str]): Optional explicit path to the brain directory. If omitted, the environment variable `BRAIN_PATH` is used, then a discovered default is attempted.
-            work_log_path (Optional[str]): Optional explicit path to the work log file. If omitted, the environment variable `WORK_LOG_PATH` is used, then a discovered default is attempted.
-        
-        Detailed behavior:
-        - Resolves and assigns `self.brain_path`, `self.work_log_path`, and `self.rules_path`.
-        - Loads the master orchestration into `self.immutable_laws`.
-        - If available, constructs `self.gemini` (LLM client).
-        - Creates `self.executor` as a ThreadPoolExecutor(max_workers=2) for concurrent LLM verification tasks.
-        - Attempts to initialize or connect `self.pipeline` (ResearchPipeline) for verdict caching; falls back to `None` on failure.
-        - Logs initialization status.
-        """
         self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
         self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
         self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
@@ -275,16 +260,16 @@ class JudgeGuard:
 
     def verify_action(self, current_action: str) -> bool:
         """
-        Evaluate a proposed action description through JudgeGuard's layered verification pipeline.
+        Validate an action description through the JudgeGuard layered verification pipeline.
         
         Parameters:
-            current_action (str): The action description to evaluate.
+            current_action (str): The proposed action description to evaluate.
         
         Returns:
             True if the action passes all verification layers and is approved, False otherwise.
         
         Notes:
-            The method may push approval/block verdicts to external systems, cache positive verdicts, and trigger a research sync when applicable.
+            May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
         """
         # --- LAYER 00: Security Enforcement (Emergency Fix) ---
         if self._is_dangerous_command(current_action):
