@@ -1,6 +1,7 @@
 import os
 import logging
 from typing import List, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 from src.antigravity_core.notion_client import NotionClient
 from src.antigravity_core.gemini_client import GeminiClient
@@ -19,8 +20,19 @@ class GuardianAgent:
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
         
+        # ⚡ Bolt: Executor for parallelizing I/O-bound analysis and Notion calls
+        self._executor = ThreadPoolExecutor(max_workers=5)
+
         if not self.goals_db or not self.logs_db:
             raise ValueError("Database IDs missing in .env")
+
+    def close(self):
+        """⚡ Bolt: Ensure ThreadPoolExecutor is shut down."""
+        if hasattr(self, "_executor"):
+            self._executor.shutdown(wait=True)
+
+    def __del__(self):
+        self.close()
 
     def fetch_active_goals(self) -> List[Dict]:
         """Fetch goals currently 'In Progress' or 'Not Started'."""
@@ -85,24 +97,37 @@ class GuardianAgent:
         
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
         
+        # ⚡ Bolt: Parallelize log processing using ThreadPoolExecutor
+        futures = []
         for log in logs:
-            log_text = self._get_title(log)
-            log_id = log["id"]
+            futures.append(self._executor.submit(self._process_single_log, log, goals))
+
+        # Wait for all logs to be processed
+        for future in futures:
+            try:
+                future.result()
+            except Exception as e:
+                logger.error(f"Error processing log in background: {e}")
+
+    def _process_single_log(self, log: Dict, goals: List[Dict]):
+        """⚡ Bolt: Helper for processing a single log entry in a thread."""
+        log_text = self._get_title(log)
+        log_id = log["id"]
+
+        logger.info(f"Analyzing log: '{log_text}'")
+        analysis = self.analyze_log_against_goals(log_text, goals)
+
+        if analysis.get("match_found"):
+            goal_id = analysis["goal_id"]
+            comment = analysis["progress_comment"]
+            logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
             
-            logger.info(f"Analyzing log: '{log_text}'")
-            analysis = self.analyze_log_against_goals(log_text, goals)
-            
-            if analysis.get("match_found"):
-                goal_id = analysis["goal_id"]
-                comment = analysis["progress_comment"]
-                logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
-                
-                # In a real app, we'd update the Goal's progress bar or add a related page.
-                # For now, let's just mark the log as Processed and maybe tag it.
-                self._mark_processed(log_id, True)
-            else:
-                logger.info("No specific goal progress detected.")
-                self._mark_processed(log_id, True) # Mark processed anyway so we don't loop
+            # In a real app, we'd update the Goal's progress bar or add a related page.
+            # For now, let's just mark the log as Processed and maybe tag it.
+            self._mark_processed(log_id, True)
+        else:
+            logger.info(f"No specific goal progress detected for '{log_text[:30]}...'.")
+            self._mark_processed(log_id, True) # Mark processed anyway so we don't loop
 
     def _mark_processed(self, page_id: str, processed: bool):
         """Updates the 'Processed' checkbox in Notion."""
