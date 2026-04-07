@@ -31,7 +31,6 @@ class TestJudgeGuardSecurity(unittest.TestCase):
         self.jg_patchers = [
             patch('judge_guard.JUDGE_AVAILABLE', True),
             patch('judge_guard.BRIDGE_AVAILABLE', True),
-            patch('judge_guard.bridge', mock_bridge_obj)
         ]
         for p in self.jg_patchers:
             p.start()
@@ -51,6 +50,8 @@ class TestJudgeGuardSecurity(unittest.TestCase):
             os.remove(self.work_log_path)
 
     def test_dangerous_command_sudo(self):
+        # We need to manually set bridge on the judge instance since it's lazy-loaded or deferred
+        self.judge.bridge = mock_bridge_obj
         action = "sudo rm -rf /"
         result = self.judge.verify_action(action)
         self.assertFalse(result)
@@ -58,14 +59,17 @@ class TestJudgeGuardSecurity(unittest.TestCase):
         mock_bridge_obj.push_verdict.assert_called_with(action, "BLOCKED", "Security Violation: Action contains forbidden dangerous commands (sudo/root deletion).")
 
     def test_dangerous_command_root_delete(self):
+        self.judge.bridge = mock_bridge_obj
         action = "rm -rf /*"
         result = self.judge.verify_action(action)
         self.assertFalse(result)
         mock_bridge_obj.push_verdict.assert_called()
 
     def test_safe_command(self):
+        self.judge.bridge = mock_bridge_obj
         # For safe commands, we need to mock deeper layers
-        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True),              patch.object(self.judge.gemini, 'judge_content', return_value=True):
+        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True), \
+             patch.object(self.judge, '_get_gemini', return_value=MagicMock()):
 
             action = "ls -la"
             result = self.judge.verify_action(action)
