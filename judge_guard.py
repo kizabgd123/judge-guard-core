@@ -15,7 +15,10 @@ import os
 import sys
 import glob
 import logging
+import time
+import subprocess
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -75,6 +78,9 @@ class JudgeGuard:
         self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
         self.immutable_laws = self._load_rules()
         
+        # ⚡ Bolt: Executor for background tasks (Notion sync)
+        self._executor = ThreadPoolExecutor(max_workers=1)
+
         if JUDGE_AVAILABLE:
             self.gemini = GeminiClient()
 
@@ -93,6 +99,17 @@ class JudgeGuard:
             self.pipeline = None
         
         logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        """⚡ Bolt: Ensure background threads are shut down."""
+        if hasattr(self, "_executor"):
+            self._executor.shutdown(wait=True)
 
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
@@ -195,22 +212,31 @@ class JudgeGuard:
         return any(k in action_lower for k in keywords)
     
     def _sync_to_notion(self, action: str):
-        """Trigger Notion sync via research_pipeline.py."""
+        """
+        Trigger Notion sync via research_pipeline.py.
+        ⚡ Bolt: Offloaded to background thread to prevent blocking the agent.
+        """
+        self._executor.submit(self._execute_sync)
+
+    def _execute_sync(self):
+        """Background worker to perform the actual synchronization."""
         try:
-            import subprocess
-            print("📝 Syncing to Notion...")
+            # ⚡ Bolt: Use subprocess for sync to maintain process-level SQLite safety
+            # and avoid cross-thread SQLite object access issues.
+            print("📝 Syncing to Notion (Background Subprocess)...")
             result = subprocess.run(
                 ["python3", "research_pipeline.py", "--sync-notion"],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=15
             )
             if result.returncode == 0:
                 print("✅ Notion sync completed")
             else:
-                print(f"⚠️  Notion sync warning: {result.stderr}")
+                # Use logger instead of print for errors in background threads
+                logger.warning(f"Notion sync warning: {result.stderr}")
         except Exception as e:
-            print(f"⚠️  Notion sync failed (non-critical): {e}")
+            logger.error(f"Notion sync failed (non-critical): {e}")
 
     def _check_work_log(self, action: str) -> bool:
         """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
@@ -397,10 +423,9 @@ def main():
         sys.exit(1)
         
     action = sys.argv[1]
-    guard = JudgeGuard()
-    
-    if not guard.verify_action(action):
-        sys.exit(1)
+    with JudgeGuard() as guard:
+        if not guard.verify_action(action):
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
