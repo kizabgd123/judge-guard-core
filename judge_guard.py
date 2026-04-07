@@ -16,6 +16,7 @@ import sys
 import glob
 import logging
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -70,6 +71,8 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
+        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
+        self._executor = ThreadPoolExecutor(max_workers=1)
         self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
         self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
         self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
@@ -93,6 +96,14 @@ class JudgeGuard:
             self.pipeline = None
         
         logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
+        if hasattr(self, "_executor"):
+            self._executor.shutdown(wait=False)
 
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
@@ -195,22 +206,16 @@ class JudgeGuard:
         return any(k in action_lower for k in keywords)
     
     def _sync_to_notion(self, action: str):
-        """Trigger Notion sync via research_pipeline.py."""
+        """⚡ Bolt: Trigger Notion sync in the background to avoid blocking."""
+        if not self.pipeline:
+            return
+
         try:
-            import subprocess
-            print("📝 Syncing to Notion...")
-            result = subprocess.run(
-                ["python3", "research_pipeline.py", "--sync-notion"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            if result.returncode == 0:
-                print("✅ Notion sync completed")
-            else:
-                print(f"⚠️  Notion sync warning: {result.stderr}")
+            # ⚡ Bolt: Offload to background executor to skip subprocess overhead
+            # and reuse existing ResearchPipeline instance.
+            self._executor.submit(self.pipeline.sync_to_notion)
         except Exception as e:
-            print(f"⚠️  Notion sync failed (non-critical): {e}")
+            logger.error(f"⚠️ Notion background sync failed: {e}")
 
     def _check_work_log(self, action: str) -> bool:
         """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
@@ -292,6 +297,10 @@ class JudgeGuard:
                 print(f"⚡ Bolt: Reusing cached approval for '{current_action}'")
                 if BRIDGE_AVAILABLE:
                     bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
+
+                # ⚡ Bolt: Still trigger Notion sync for research actions
+                if self._is_research_action(current_action):
+                    self._sync_to_notion(current_action)
                 return True
 
         # --- LAYER 2: Live Thought Streaming ---
