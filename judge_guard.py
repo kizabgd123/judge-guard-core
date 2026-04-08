@@ -13,6 +13,7 @@ Environment Variables:
 
 import os
 import sys
+import time
 import glob
 import logging
 from typing import Optional
@@ -224,8 +225,6 @@ class JudgeGuard:
             print("🛑 WORK_LOG.md not found. Update required before action.")
             return False
         
-        import time
-        
         # Check last modification time
         mtime = os.path.getmtime(self.work_log_path)
         now = time.time()
@@ -286,6 +285,7 @@ class JudgeGuard:
             return False
         
         # --- LAYER 0: Work Log Enforcement (NEW) ---
+        # ⚡ Bolt: Fast-fail before expensive context loading/LLM calls
         if not self._check_work_log(current_action):
             return False
 
@@ -325,76 +325,51 @@ class JudgeGuard:
             print(f"🛑 JudgeGuard: {msg}")
             return False
 
-        # --- LAYER 3: Essence Check (Semantic Drift) ---
-        if self._is_write_operation(current_action):
-            logger.info("Layer 3: Verifying Semantic Drift...")
-            if BRIDGE_AVAILABLE:
-                bridge.push_verdict("Checking Essence...", "PENDING", "Verifying against Project Essence...")
-            
-            # Use Gemini to check drift
-            drift_prompt = f"""
-            PROJECT ESSENCE (Golden Snapshot):
-            {PROJECT_ESSENCE}
-            
-            PROPOSED ACTION:
-            "{current_action}"
-            
-            TASK:
-            Does this action deviate significantly (>20%) from the Project Essence definitions?
-            Is it introducing features or changes that contradict the Core Values?
-            
-            reply PASSED if it aligns or is neutral.
-            reply FAILED if it causes significant drift.
-            """
-            
-            essence_result = self.gemini.judge_content(drift_prompt, "The action must not deviate significantly from the Project Essence.")
-            
-            if not essence_result:
-                msg = "Violation: Significant Semantic Drift (>20%) detected against Project Essence."
-                if BRIDGE_AVAILABLE:
-                    bridge.push_verdict(current_action, "BLOCKED", msg)
-                print(f"🛑 JudgeGuard: {msg}")
-                return False
+        # --- CONSOLIDATED VERIFICATION (⚡ Bolt: Merge Layer 3 and Standard) ---
+        is_write = self._is_write_operation(current_action)
+        logger.info(f"Consolidated Verification (Write: {is_write})...")
 
-        # --- STANDARD VERIFICATION (Existing Logic) ---
-        # Combine everything for final sanity check
-        criteria = f"""
-        You are the PERMANENT JUDGE GUARD.
+        if BRIDGE_AVAILABLE:
+            status_msg = "Verifying Rules & Essence..." if is_write else "Verifying Standard Rules..."
+            bridge.push_verdict("Judging...", "PENDING", status_msg)
+
+        # Build unified criteria
+        criteria_parts = [
+            "You are the PERMANENT JUDGE GUARD.",
+            f"\n1. IMMUTABLE LAWS (Master Orchestration):\n{self.immutable_laws}"
+        ]
+
+        if is_write:
+            criteria_parts.append(f"\n2. PROJECT ESSENCE (Semantic Drift Check):\n{PROJECT_ESSENCE}")
+            criteria_parts.append("\nTASK FOR WRITE OPERATION:\n- Ensure action aligns with Project Essence (no >20% drift).\n- Ensure strict adherence to Immutable Laws.")
+        else:
+            criteria_parts.append("\nTASK:\n- Ensure strict adherence to Immutable Laws.")
+
+        criteria_parts.append(f"\n3. CONTEXT:\n{context[-5000:]}")
+        criteria_parts.append(f"\n4. ACTION:\n\"{current_action}\"")
         
-        1. IMMUTABLE LAWS:
-        {self.immutable_laws}
+        criteria = "\n".join(criteria_parts)
         
-        2. CONTEXT:
-        {context[-5000:]}
-        
-        3. ACTION:
-        "{current_action}"
-        
-        VERDICT REQUIRED:
-        - Check for any other logic violations.
-        - Ensure strict adherence to Master Orchestration.
-        """
-        
-        # ⚡ Bolt: Pass existing GeminiClient to BlockJudge to avoid redundant init
+        # ⚡ Bolt: Single Gemini call for both Essence and Standard rules
         judge = BlockJudge(criteria, client=self.gemini)
-        standard_result = judge.evaluate(f"ACTION: {current_action}")
+        passed = judge.evaluate(f"ACTION: {current_action}")
         
-        if standard_result:
+        if passed:
             print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
             if BRIDGE_AVAILABLE:
-                bridge.push_verdict(current_action, "PASSED", "Approved by JudgeGuard v2.0")
+                bridge.push_verdict(current_action, "PASSED", "Approved (Unified Verification)")
             
             # ⚡ Bolt: Cache the verdict for future speed
             if self.pipeline:
                 self.pipeline.cache_verdict(current_action, "PASSED")
 
-            # Auto-sync to Notion if this is a research action
+            # ⚡ Bolt: Auto-sync to Notion if this is a research action (Fix: restored missing call)
             if self._is_research_action(current_action):
                 self._sync_to_notion(current_action)
             
             return True
         else:
-            msg = "Blocked by Standard Rules (Master Orchestration Violation)."
+            msg = "Violation detected (Master Orchestration or Project Essence)."
             print(f"🛑 JudgeGuard: {msg}")
             if BRIDGE_AVAILABLE:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
