@@ -17,7 +17,6 @@ import time
 import glob
 import logging
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -72,8 +71,22 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
-        self._executor = ThreadPoolExecutor(max_workers=1)
+        """
+        Initialize the JudgeGuard instance and configure paths, clients, and caching.
+        
+        Sets instance attributes:
+        - brain_path: resolved from the argument, BRAIN_PATH env var, or discovered default.
+        - work_log_path: resolved from the argument, WORK_LOG_PATH env var, or found default.
+        - rules_path: path to the master orchestration rules file.
+        - immutable_laws: contents of the master orchestration rules (or an error/warning string).
+        - gemini: initialized GeminiClient when available.
+        - pipeline: initialized ResearchPipeline connection or None if unavailable or initialization fails.
+        
+        Parameters:
+            brain_path (Optional[str]): Optional explicit path to the brain directory; if omitted, resolved from env or discovery.
+            work_log_path (Optional[str]): Optional explicit path to the work log file; if omitted, resolved from env or search.
+        
+        """
         self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
         self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
         self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
@@ -98,16 +111,15 @@ class JudgeGuard:
         
         logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
 
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
-            self._executor.shutdown(wait=False)
-
     def _discover_brain_path(self) -> Optional[str]:
-        """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
+        """
+        Locate the most recently modified brain directory under ~/.gemini/antigravity/brain.
+        
+        Searches for directories matching the pattern "*-*-*-*-*" inside ~/.gemini/antigravity/brain and returns the path of the newest one.
+        
+        Returns:
+            Optional[str]: Path to the most recently modified brain directory, or `None` if the base directory does not exist, no matching entries are found, or an error occurs.
+        """
         try:
             base_path = os.path.expanduser("~/.gemini/antigravity/brain")
             if not os.path.exists(base_path):
@@ -201,25 +213,56 @@ class JudgeGuard:
         return any(k in action.lower() for k in keywords)
 
     def _is_research_action(self, action: str) -> bool:
-        """Detect if action is research-related and should sync to Notion."""
+        """
+        Determine whether the given action is related to research activities and should trigger a Notion sync.
+        
+        Parameters:
+            action (str): Action text to inspect for research-related keywords.
+        
+        Returns:
+            bool: `True` if the action contains research-related keywords such as "phase", "research", "discovery", "analysis", "validation", "documentation", or "complete"; `False` otherwise.
+        """
         keywords = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
         action_lower = action.lower()
         return any(k in action_lower for k in keywords)
     
     def _sync_to_notion(self, action: str):
-        """⚡ Bolt: Trigger Notion sync in the background to avoid blocking."""
-        if not self.pipeline:
-            return
-
+        """
+        Attempt to synchronize research data to Notion by invoking the external research pipeline.
+        
+        Invokes the external `research_pipeline.py --sync-notion` command and prints a success message if the command exits successfully, prints a warning containing stderr if the command returns a non-zero exit code, and treats any raised exception as a non-critical failure (prints a non-critical failure message). The `action` parameter is accepted for API compatibility and is not used.
+         
+        Parameters:
+            action (str): Ignored; present for interface compatibility.
+        """
         try:
-            # ⚡ Bolt: Offload to background executor to skip subprocess overhead
-            # and reuse existing ResearchPipeline instance.
-            self._executor.submit(self.pipeline.sync_to_notion)
+            import subprocess
+            print("📝 Syncing to Notion...")
+            result = subprocess.run(
+                ["python3", "research_pipeline.py", "--sync-notion"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                print("✅ Notion sync completed")
+            else:
+                print(f"⚠️  Notion sync warning: {result.stderr}")
         except Exception as e:
-            logger.error(f"⚠️ Notion background sync failed: {e}")
+            print(f"⚠️  Notion sync failed (non-critical): {e}")
 
     def _check_work_log(self, action: str) -> bool:
-        """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
+        """
+        Determine whether WORK_LOG.md records a recent "Starting" entry and was modified within the last 120 seconds.
+        
+        Reads up to the final 1000 bytes of the configured work log and accepts the action if the tail contains either the "🟡" marker or the word "starting" (case-insensitive) and the file's modification time is less than 120 seconds ago. If the work log is missing, unreadable, stale, or lacks the required marker, the function prints a usage hint and returns False.
+        
+        Parameters:
+            action (str): Present for interface compatibility; not inspected by this check.
+        
+        Returns:
+            `True` if the work log contains a start marker in its last 1000 bytes and was modified less than 120 seconds ago, `False` otherwise.
+        """
         if not self.work_log_path or not os.path.exists(self.work_log_path):
             logger.error("🛑 WORK_LOG.md not found. Required for action verification.")
             print("🛑 WORK_LOG.md not found. Update required before action.")
@@ -260,16 +303,12 @@ class JudgeGuard:
 
     def verify_action(self, current_action: str) -> bool:
         """
-        Validate an action description through the JudgeGuard layered verification pipeline.
+        Validate a proposed action against layered security, work-log, tool, essence, and master-orchestration rules.
         
-        Parameters:
-            current_action (str): The proposed action description to evaluate.
+        May push verdicts to an external bridge, cache approvals in the research pipeline, and trigger a Notion sync for approved research actions.
         
         Returns:
-            True if the action passes all verification layers and is approved, False otherwise.
-        
-        Notes:
-            May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
+            `true` if the action is approved, `false` otherwise.
         """
         # --- LAYER 00: Security Enforcement (Emergency Fix) ---
         if self._is_dangerous_command(current_action):
@@ -297,10 +336,6 @@ class JudgeGuard:
                 print(f"⚡ Bolt: Reusing cached approval for '{current_action}'")
                 if BRIDGE_AVAILABLE:
                     bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
-
-                # ⚡ Bolt: Still trigger Notion sync for research actions
-                if self._is_research_action(current_action):
-                    self._sync_to_notion(current_action)
                 return True
 
         # --- LAYER 2: Live Thought Streaming ---
