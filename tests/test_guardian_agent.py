@@ -25,9 +25,9 @@ def test_analyze_log_against_goals(mock_clients, monkeypatch):
     mock_gemini_instance.generate_content.return_value = '{"match_found": true, "goal_id": "goal1", "progress_comment": "Made progress"}'
 
     agent = GuardianAgent()
-    goals = [{"id": "goal1", "properties": {"Name": {"title": [{"text": {"content": "Test Goal"}}]}}}]
+    goals_text = "- ID: goal1 | Goal: Test Goal"
 
-    result = agent.analyze_log_against_goals("Test log entry", goals)
+    result = agent.analyze_log_against_goals("Test log entry", goals_text)
     assert result["match_found"] is True
     assert result["goal_id"] == "goal1"
 
@@ -51,7 +51,8 @@ def test_process_logs(mock_clients, monkeypatch):
     agent = GuardianAgent()
 
     # Mock _get_title to handle the structure we provided
-    with patch.object(GuardianAgent, '_get_title', side_effect=["log text", "goal text"]):
+    # Updated: Now pre-calculates goals_text before processing logs
+    with patch.object(GuardianAgent, '_get_title', side_effect=["goal text", "log text"]):
         agent.process_logs()
 
     # Verify log marked as processed

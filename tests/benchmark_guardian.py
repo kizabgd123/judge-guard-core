@@ -21,7 +21,14 @@ class BenchmarkGuardian(unittest.TestCase):
         logs = [{"id": f"log{i}", "properties": {"Entry": {"title": [{"text": {"content": f"log {i}"}}]}}} for i in range(5)]
         goals = [{"id": "goal1", "properties": {"Name": {"title": [{"text": {"content": "goal 1"}}]}}}]
 
-        mock_notion.query_database.side_effect = [logs, goals]
+        # Updated: include artificial delay in database queries to demonstrate parallel fetch
+        def slow_query(*args, **kwargs):
+            time.sleep(1.0) # Simulate 1s query latency
+            if args[0] == 'g': # goals
+                return goals
+            return logs
+
+        mock_notion.query_database.side_effect = slow_query
 
         # Artificial delays
         def slow_gemini(*args, **kwargs):

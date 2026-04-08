@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -52,12 +53,10 @@ class GuardianAgent:
             }
         })
 
-    def analyze_log_against_goals(self, log_entry: str, goals: List[Dict]) -> Dict[str, Any]:
+    def analyze_log_against_goals(self, log_entry: str, goals_text: str) -> Dict[str, Any]:
         """
         Ask Gemini if this log entry advances any of the goals.
         """
-        goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
-        
         prompt = f"""
         You are The Guardian, an accountability AI.
         
@@ -83,19 +82,18 @@ class GuardianAgent:
             response = self.gemini.generate_content(prompt)
             # Basic cleanup if model adds markdown
             response = response.replace("```json", "").replace("```", "").strip()
-            import json
             return json.loads(response)
         except Exception as e:
             logger.error(f"Judge Error: {e}")
             return {"match_found": False}
 
-    def _process_single_log(self, log: Dict, goals: List[Dict]):
+    def _process_single_log(self, log: Dict, goals_text: str):
         """⚡ Bolt: Helper to process a single log (reasoning + I/O)."""
         log_text = self._get_title(log)
         log_id = log["id"]
 
         logger.info(f"Analyzing log: '{log_text}'")
-        analysis = self.analyze_log_against_goals(log_text, goals)
+        analysis = self.analyze_log_against_goals(log_text, goals_text)
 
         if analysis.get("match_found"):
             goal_id = analysis["goal_id"]
@@ -108,14 +106,21 @@ class GuardianAgent:
     def process_logs(self):
         """Main execution loop."""
         logger.info("🛡️ Guardian Active: Fetching data...")
-        logs = self.fetch_unprocessed_logs()
-        goals = self.fetch_active_goals()
+        # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency
+        logs_future = self._executor.submit(self.fetch_unprocessed_logs)
+        goals_future = self._executor.submit(self.fetch_active_goals)
+
+        logs = logs_future.result()
+        goals = goals_future.result()
         
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
         
+        # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
+        goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
+
         # ⚡ Bolt: Parallelize processing to reduce total turn-around time
         # This overlaps the high-latency Gemini and Notion API calls.
-        list(self._executor.map(lambda l: self._process_single_log(l, goals), logs))
+        list(self._executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
 
     def _mark_processed(self, page_id: str, processed: bool):
         """Updates the 'Processed' checkbox in Notion."""
@@ -143,5 +148,5 @@ class GuardianAgent:
                 return entry[0]["text"]["content"]
                 
             return "Untitled"
-        except:
+        except Exception:
             return "Error extracting title"
