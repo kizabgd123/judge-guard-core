@@ -4,8 +4,9 @@ from src.antigravity_core.gemini_client import GeminiClient
 
 @pytest.fixture
 def mock_genai():
-    with patch('google.generativeai.configure') as mock_config, \
-         patch('google.generativeai.GenerativeModel') as mock_model:
+    # Patch the reference inside the module to avoid global state issues
+    with patch('src.antigravity_core.gemini_client.genai.configure') as mock_config, \
+         patch('src.antigravity_core.gemini_client.genai.GenerativeModel') as mock_model:
         yield mock_config, mock_model
 
 def test_gemini_client_init_single_key(mock_genai, monkeypatch):
