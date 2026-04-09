@@ -110,13 +110,14 @@ class GuardianAgent:
         goals = self.fetch_active_goals()
 
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
-
-        # ⚡ Bolt: Pre-calculate goals_text once instead of O(L*G)
+        
+        # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
+        # This avoids O(L * G) complexity by pre-building the context once.
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
         # ⚡ Bolt: Parallelize processing to reduce total turn-around time
         # This overlaps the high-latency Gemini and Notion API calls.
-        list(self._executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
+        list(self._executor.map(lambda l: self._process_single_log(l, goals_text), logs))
 
     def _mark_processed(self, page_id: str, processed: bool):
         """Updates the 'Processed' checkbox in Notion."""
