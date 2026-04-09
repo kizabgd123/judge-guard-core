@@ -110,6 +110,9 @@ class GuardianAgent:
         goals = self.fetch_active_goals()
 
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
+
+        # ⚡ Bolt: Construct goals_text once to avoid O(L*G) complexity
+        goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
         
         # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
         # This avoids O(L * G) complexity by pre-building the context once.
