@@ -108,8 +108,14 @@ class GuardianAgent:
     def process_logs(self):
         """Main execution loop."""
         logger.info("🛡️ Guardian Active: Fetching data...")
-        logs = self.fetch_unprocessed_logs()
-        goals = self.fetch_active_goals()
+
+        # ⚡ Bolt: Parallelize initial data fetching to reduce total latency.
+        # This overlaps the high-latency Notion API calls for logs and goals.
+        logs_future = self._executor.submit(self.fetch_unprocessed_logs)
+        goals_future = self._executor.submit(self.fetch_active_goals)
+
+        logs = logs_future.result()
+        goals = goals_future.result()
         
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
         
