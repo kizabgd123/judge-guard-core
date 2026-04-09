@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -81,7 +82,6 @@ class GuardianAgent:
             response = self.gemini.generate_content(prompt)
             # Basic cleanup if model adds markdown
             response = response.replace("```json", "").replace("```", "").strip()
-            import json
             return json.loads(response)
         except Exception as e:
             logger.error(f"Judge Error: {e}")
@@ -108,12 +108,16 @@ class GuardianAgent:
         logger.info("🛡️ Guardian Active: Fetching data...")
         logs = self.fetch_unprocessed_logs()
         goals = self.fetch_active_goals()
-        
+
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
 
         # ⚡ Bolt: Construct goals_text once to avoid O(L*G) complexity
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
         
+        # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
+        # This avoids O(L * G) complexity by pre-building the context once.
+        goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
+
         # ⚡ Bolt: Parallelize processing to reduce total turn-around time
         # This overlaps the high-latency Gemini and Notion API calls.
         list(self._executor.map(lambda l: self._process_single_log(l, goals_text), logs))
@@ -144,5 +148,5 @@ class GuardianAgent:
                 return entry[0]["text"]["content"]
                 
             return "Untitled"
-        except:
+        except Exception:
             return "Error extracting title"
