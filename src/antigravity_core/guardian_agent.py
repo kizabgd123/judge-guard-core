@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -81,7 +82,6 @@ class GuardianAgent:
             response = self.gemini.generate_content(prompt)
             # Basic cleanup if model adds markdown
             response = response.replace("```json", "").replace("```", "").strip()
-            import json
             return json.loads(response)
         except Exception as e:
             logger.error(f"Judge Error: {e}")
@@ -108,7 +108,7 @@ class GuardianAgent:
         logger.info("🛡️ Guardian Active: Fetching data...")
         logs = self.fetch_unprocessed_logs()
         goals = self.fetch_active_goals()
-        
+
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
         
         # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
@@ -145,5 +145,5 @@ class GuardianAgent:
                 return entry[0]["text"]["content"]
                 
             return "Untitled"
-        except:
+        except Exception:
             return "Error extracting title"
