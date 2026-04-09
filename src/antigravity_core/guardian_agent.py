@@ -106,6 +106,13 @@ class GuardianAgent:
     def process_logs(self):
         """Main execution loop."""
         logger.info("🛡️ Guardian Active: Fetching data...")
+        # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency
+        logs_future = self._executor.submit(self.fetch_unprocessed_logs)
+        goals_future = self._executor.submit(self.fetch_active_goals)
+
+        logs = logs_future.result()
+        goals = goals_future.result()
+        
         logs = self.fetch_unprocessed_logs()
         goals = self.fetch_active_goals()
 
@@ -114,12 +121,14 @@ class GuardianAgent:
         # ⚡ Bolt: Construct goals_text once to avoid O(L*G) complexity
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
         
+        # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
         # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
         # This avoids O(L * G) complexity by pre-building the context once.
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
         # ⚡ Bolt: Parallelize processing to reduce total turn-around time
         # This overlaps the high-latency Gemini and Notion API calls.
+        list(self._executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
         list(self._executor.map(lambda l: self._process_single_log(l, goals_text), logs))
 
     def _mark_processed(self, page_id: str, processed: bool):

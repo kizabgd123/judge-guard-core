@@ -51,7 +51,8 @@ def test_process_logs(mock_clients, monkeypatch):
     agent = GuardianAgent()
 
     # Mock _get_title to handle the structure we provided
-    with patch.object(GuardianAgent, '_get_title', side_effect=["log text", "goal text"]):
+    # Updated: Now pre-calculates goals_text before processing logs
+    with patch.object(GuardianAgent, '_get_title', side_effect=["goal text", "log text"]):
         agent.process_logs()
 
     # Verify log marked as processed
