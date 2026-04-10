@@ -1,4 +1,4 @@
-#!/bin/bash
+c#!/bin/bash
 # Qwen CLI Wrapper for Antigravity (Mocked for Now)
 
 ACTION=$1
