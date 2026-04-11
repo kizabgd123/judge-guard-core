@@ -53,6 +53,20 @@ def test_generate_content_success(mock_genai, monkeypatch):
     assert result == "Success response"
     mock_model_instance.generate_content.assert_called_once_with("test prompt")
 
+def test_generate_content_with_kwargs(mock_genai, monkeypatch):
+    mock_config, mock_model_class = mock_genai
+    mock_model_instance = mock_model_class.return_value
+    mock_model_instance.generate_content.return_value.text = "Success response"
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test_key")
+    client = GeminiClient()
+    try:
+        result = client.generate_content("test prompt", generation_config={"temperature": 0.1})
+        assert result == "Success response"
+        mock_model_instance.generate_content.assert_called_once_with("test prompt", generation_config={"temperature": 0.1})
+    except TypeError:
+        pytest.fail("GeminiClient.generate_content does not support keyword arguments")
+
 def test_generate_content_retry_and_rotate(mock_genai, monkeypatch):
     mock_config, mock_model_class = mock_genai
     mock_model_instance = mock_model_class.return_value

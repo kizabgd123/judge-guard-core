@@ -5,3 +5,7 @@
 ## 2026-04-07 - [Process Overhead in Notion Synchronization]
 **Learning:** Using `subprocess.run` to call an external script (`research_pipeline.py`) for Notion synchronization introduces ~300ms of overhead per call. This is particularly wasteful when the parent process already has an initialized instance of the required class (`ResearchPipeline`) and the synchronization task is I/O-bound.
 **Action:** Refactor `JudgeGuard` to reuse the existing `ResearchPipeline` instance for synchronization. Offload the `sync_to_notion` call to a background `ThreadPoolExecutor` to remove synchronization latency from the main verification path, reducing total turn-around time by >90% for cached actions.
+
+## 2026-04-10 - [Aggressive Token Truncation in LLM Responses]
+**Learning:** Setting `max_output_tokens` to an extremely low value (e.g., 10) for LLM calls that return structured data (like JSON or even simple classification verdicts) can lead to truncated responses and subsequent parsing errors. This is a "breaking" micro-optimization that negates the performance benefit by causing functional failure.
+**Action:** When using `generation_config` to limit tokens, always set a safe upper bound based on the maximum expected length of the valid response (e.g., 50 for classification, 150-250 for short JSON) to ensure reliability while still limiting tail-end latency from model verbosity.

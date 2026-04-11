@@ -79,7 +79,11 @@ class GuardianAgent:
         """
         
         try:
-            response = self.gemini.generate_content(prompt)
+            # ⚡ Bolt: Use generation_config for faster JSON responses
+            response = self.gemini.generate_content(
+                prompt,
+                generation_config={"max_output_tokens": 150, "temperature": 0.1}
+            )
             # Basic cleanup if model adds markdown
             response = response.replace("```json", "").replace("```", "").strip()
             return json.loads(response)
@@ -98,10 +102,11 @@ class GuardianAgent:
         if analysis.get("match_found"):
             goal_id = analysis["goal_id"]
             logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
-            self._mark_processed(log_id, True)
         else:
             logger.info("No specific goal progress detected.")
-            self._mark_processed(log_id, True) # Mark processed anyway so we don't loop
+
+        # ⚡ Bolt: Consolidated common cleanup - mark processed regardless of match
+        self._mark_processed(log_id, True)
 
     def process_logs(self):
         """Main execution loop."""
