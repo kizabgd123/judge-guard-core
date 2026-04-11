@@ -75,7 +75,7 @@ class GeminiClient:
         self._configure_client()
         return True
 
-    def generate_content(self, prompt: str) -> str:
+    def generate_content(self, prompt: str, **kwargs) -> str:
         """
         Produce model-generated text for the given prompt, using API-key rotation and retry/backoff on quota or rate-limit errors.
         
@@ -83,6 +83,7 @@ class GeminiClient:
         
         Parameters:
             prompt (str): The text prompt to send to the model.
+            **kwargs: Additional configuration to pass to the underlying model (e.g., generation_config).
         
         Returns:
             str: The text produced by the model (or a deterministic mock string in mock mode).
@@ -104,7 +105,7 @@ class GeminiClient:
         
         for attempt in range(total_attempts):
             try:
-                response = self.model.generate_content(prompt)
+                response = self.model.generate_content(prompt, **kwargs)
                 return response.text
             except Exception as e:
                 error_str = str(e)
@@ -150,7 +151,9 @@ class GeminiClient:
         """
         
         try:
-            raw_result = self.generate_content(prompt)
+            # ⚡ Bolt: Limit max_output_tokens to 10 for binary classification.
+            # This reduces latency and cost by stopping the model immediately after the verdict.
+            raw_result = self.generate_content(prompt, generation_config={"max_output_tokens": 10})
             if not raw_result:
                 raise ValueError("Empty response from Gemini")
             

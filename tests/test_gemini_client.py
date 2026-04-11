@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, ANY
 from src.antigravity_core.gemini_client import GeminiClient
 
 @pytest.fixture
@@ -83,6 +83,10 @@ def test_judge_content_passed(mock_genai, monkeypatch):
     result = client.judge_content("content", "criteria")
 
     assert result is True
+    # Verify max_output_tokens was passed
+    mock_model_instance.generate_content.assert_called_with(
+        ANY, generation_config={"max_output_tokens": 10}
+    )
 
 def test_judge_content_failed(mock_genai, monkeypatch):
     mock_config, mock_model_class = mock_genai
