@@ -19,9 +19,11 @@ import json
 import glob
 import re
 import logging
+import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
+from concurrent.futures import ThreadPoolExecutor
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -85,6 +87,18 @@ class ResearchPipeline:
     def __init__(self):
         self.conn = None
         self.notion_queue = []
+        self.session = requests.Session()
+        self._executor = ThreadPoolExecutor(max_workers=5)
+
+    def __del__(self):
+        self.close()
+
+    def close(self):
+        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
+        if hasattr(self, "_executor"):
+            self._executor.shutdown(wait=True)
+        if hasattr(self, "session"):
+            self.session.close()
         
     def log_audit(self, action: str, details: str = ""):
         """Log action for Notion sync and local audit."""
@@ -292,6 +306,7 @@ class ResearchPipeline:
     def sync_to_notion(self):
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
+        ⚡ Bolt: Parallelized with ThreadPoolExecutor and connection pooling.
         """
         # Reload env vars
         from dotenv import load_dotenv
@@ -300,6 +315,10 @@ class ResearchPipeline:
         token = os.getenv("NOTION_TOKEN")
         db_id = os.getenv("NOTION_DATABASE_ID")
         
+        # Snapshot and clear queue to avoid race conditions
+        queue_snapshot = self.notion_queue.copy()
+        self.notion_queue = []
+
         if not token or not db_id:
             logger.warning(f"NOTION_TOKEN={'✓' if token else '✗'} NOTION_DATABASE_ID={'✓' if db_id else '✗'}")
             logger.info("Saving queue to local cache instead of Notion.")
@@ -312,21 +331,21 @@ class ResearchPipeline:
                 except json.JSONDecodeError:
                     existing = []
             
-            existing.extend(self.notion_queue)
+            existing.extend(queue_snapshot)
             NOTION_LOG.write_text(json.dumps(existing, indent=2))
-            self.log_audit("NOTION_MOCKED", f"{len(self.notion_queue)} entries saved to {NOTION_LOG}")
+            self.log_audit("NOTION_MOCKED", f"{len(queue_snapshot)} entries saved to {NOTION_LOG}")
             return
         
         # If token exists, push to Notion
         try:
-            import requests
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Notion-Version": "2022-06-28",
                 "Content-Type": "application/json"
             }
+            self.session.headers.update(headers)
             
-            for entry in self.notion_queue:
+            def push_entry(entry):
                 data = {
                     "parent": {"database_id": db_id},
                     "properties": {
@@ -336,16 +355,18 @@ class ResearchPipeline:
                         "Status": {"select": {"name": "Done"}}
                     }
                 }
-                resp = requests.post(
+                resp = self.session.post(
                     "https://api.notion.com/v1/pages",
-                    headers=headers,
                     json=data
                 )
                 if resp.status_code != 200:
                     logger.warning(f"⚠️  Entry failed: {resp.text}")
+                return resp.status_code == 200
+
+            # ⚡ Bolt: Parallelize requests
+            results = list(self._executor.map(push_entry, queue_snapshot))
             
-            self.log_audit("NOTION_SYNCED", f"{len(self.notion_queue)} entries pushed")
-            self.notion_queue = []  # Clear after sync
+            self.log_audit("NOTION_SYNCED", f"{sum(results)}/{len(queue_snapshot)} entries pushed")
         except Exception as e:
             logger.error(f"❌ Notion sync failed: {e}")
             # Fallback to file
@@ -356,7 +377,7 @@ class ResearchPipeline:
                     existing = json.loads(NOTION_LOG.read_text())
                 except json.JSONDecodeError:
                     existing = []
-            existing.extend(self.notion_queue)
+            existing.extend(queue_snapshot)
             NOTION_LOG.write_text(json.dumps(existing, indent=2))
 
     def get_stats(self) -> Dict:
