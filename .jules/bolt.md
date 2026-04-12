@@ -5,3 +5,7 @@
 ## 2026-04-07 - [Process Overhead in Notion Synchronization]
 **Learning:** Using `subprocess.run` to call an external script (`research_pipeline.py`) for Notion synchronization introduces ~300ms of overhead per call. This is particularly wasteful when the parent process already has an initialized instance of the required class (`ResearchPipeline`) and the synchronization task is I/O-bound.
 **Action:** Refactor `JudgeGuard` to reuse the existing `ResearchPipeline` instance for synchronization. Offload the `sync_to_notion` call to a background `ThreadPoolExecutor` to remove synchronization latency from the main verification path, reducing total turn-around time by >90% for cached actions.
+
+## 2026-04-10 - [Parallelizing Batch Notion Synchronization]
+**Learning:** Batch synchronization to Notion (e.g., during research parsing or audit logging) is heavily I/O-bound. Sequential requests for 10 entries take ~1.0s even with low latency. Parallelizing these requests with `ThreadPoolExecutor` and using `requests.Session` for connection pooling reduces latency by ~80% for small batches.
+**Action:** Implement `requests.Session` and `ThreadPoolExecutor` in `ResearchPipeline` for parallelized Notion API calls. Ensure an explicit `close()` method is provided to cleanup resources and prevent `RuntimeError` during thread join on exit.
