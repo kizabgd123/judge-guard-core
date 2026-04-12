@@ -19,6 +19,8 @@ import json
 import glob
 import re
 import logging
+import requests
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -85,7 +87,18 @@ class ResearchPipeline:
     def __init__(self):
         self.conn = None
         self.notion_queue = []
+        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
+        self.session = requests.Session()
+        # ⚡ Bolt: Parallelize I/O-bound Notion syncs
+        self._executor = ThreadPoolExecutor(max_workers=5)
         
+    def close(self):
+        """⚡ Bolt: Cleanup resources."""
+        if hasattr(self, "session"):
+            self.session.close()
+        if hasattr(self, "_executor"):
+            self._executor.shutdown(wait=True)
+
     def log_audit(self, action: str, details: str = ""):
         """Log action for Notion sync and local audit."""
         entry = {
@@ -293,6 +306,10 @@ class ResearchPipeline:
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
         """
+        # ⚡ Bolt: Fast return if nothing to sync
+        if not self.notion_queue:
+            return
+
         # Reload env vars
         from dotenv import load_dotenv
         load_dotenv()
@@ -312,21 +329,26 @@ class ResearchPipeline:
                 except json.JSONDecodeError:
                     existing = []
             
+            num_saved = len(self.notion_queue)
             existing.extend(self.notion_queue)
+            self.notion_queue = [] # Clear after cache
             NOTION_LOG.write_text(json.dumps(existing, indent=2))
-            self.log_audit("NOTION_MOCKED", f"{len(self.notion_queue)} entries saved to {NOTION_LOG}")
+            self.log_audit("NOTION_MOCKED", f"{num_saved} entries saved to {NOTION_LOG}")
             return
         
         # If token exists, push to Notion
         try:
-            import requests
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Notion-Version": "2022-06-28",
                 "Content-Type": "application/json"
             }
             
-            for entry in self.notion_queue:
+            # Local copy and clear to avoid race conditions
+            queue_to_sync = self.notion_queue[:]
+            self.notion_queue = []
+
+            def _push_entry(entry):
                 data = {
                     "parent": {"database_id": db_id},
                     "properties": {
@@ -336,16 +358,19 @@ class ResearchPipeline:
                         "Status": {"select": {"name": "Done"}}
                     }
                 }
-                resp = requests.post(
+                # ⚡ Bolt: Use pooled session for efficiency
+                resp = self.session.post(
                     "https://api.notion.com/v1/pages",
                     headers=headers,
                     json=data
                 )
                 if resp.status_code != 200:
                     logger.warning(f"⚠️  Entry failed: {resp.text}")
+
+            # ⚡ Bolt: Parallelize the I/O-bound Notion requests
+            list(self._executor.map(_push_entry, queue_to_sync))
             
-            self.log_audit("NOTION_SYNCED", f"{len(self.notion_queue)} entries pushed")
-            self.notion_queue = []  # Clear after sync
+            self.log_audit("NOTION_SYNCED", f"{len(queue_to_sync)} entries pushed")
         except Exception as e:
             logger.error(f"❌ Notion sync failed: {e}")
             # Fallback to file
@@ -356,7 +381,7 @@ class ResearchPipeline:
                     existing = json.loads(NOTION_LOG.read_text())
                 except json.JSONDecodeError:
                     existing = []
-            existing.extend(self.notion_queue)
+            existing.extend(queue_to_sync)
             NOTION_LOG.write_text(json.dumps(existing, indent=2))
 
     def get_stats(self) -> Dict:
@@ -417,6 +442,8 @@ def main():
     
     else:
         parser.print_help()
+
+    pipeline.close()
 
 
 if __name__ == "__main__":
