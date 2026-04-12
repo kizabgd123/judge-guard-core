@@ -58,8 +58,12 @@ class KaggleAgent:
 
         prompt = f"You are agent {self.name}. Task: {task}. Context: {context}. Return JSON: thought, message, mood, status, accuracy, progress_increment."
         try:
-            response_raw = self.gemini.generate_content(prompt)
-            response_raw = response_raw.replace("```json", "").replace("```", "").strip()
+            # ⚡ Bolt: Use max_output_tokens=500 and response_mime_type="application/json"
+            # for efficient, well-formatted reasoning logs.
+            response_raw = self.gemini.generate_content(
+                prompt,
+                generation_config={"max_output_tokens": 500, "response_mime_type": "application/json"}
+            )
             data = json.loads(response_raw)
         except Exception as e:
             logger.warning(f"Gemini API call failed: {e}. Falling back to Demo Data.")

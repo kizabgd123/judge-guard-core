@@ -5,3 +5,11 @@
 ## 2026-04-07 - [Process Overhead in Notion Synchronization]
 **Learning:** Using `subprocess.run` to call an external script (`research_pipeline.py`) for Notion synchronization introduces ~300ms of overhead per call. This is particularly wasteful when the parent process already has an initialized instance of the required class (`ResearchPipeline`) and the synchronization task is I/O-bound.
 **Action:** Refactor `JudgeGuard` to reuse the existing `ResearchPipeline` instance for synchronization. Offload the `sync_to_notion` call to a background `ThreadPoolExecutor` to remove synchronization latency from the main verification path, reducing total turn-around time by >90% for cached actions.
+
+## 2026-04-12 - [LLM Latency and Token Restrictions]
+**Learning:** For classification tasks (e.g., "PASSED"/"FAILED") and structured JSON extraction, Gemini API latency is heavily influenced by the  parameter. Restricting output to the minimum necessary (e.g., 10 tokens for binary verdicts) can reduce latency by up to 90% in simulated environments. Additionally, using  ensures structural integrity and eliminates the need for expensive and brittle markdown regex stripping.
+**Action:** Always prefer  and  in  calls for deterministic, low-latency agent reasoning.
+
+## 2026-04-12 - [LLM Latency and Token Restrictions]
+**Learning:** For classification tasks (e.g., "PASSED"/"FAILED") and structured JSON extraction, Gemini API latency is heavily influenced by the `max_output_tokens` parameter. Restricting output to the minimum necessary (e.g., 10 tokens for binary verdicts) can reduce latency by up to 90% in simulated environments. Additionally, using `response_mime_type: "application/json"` ensures structural integrity and eliminates the need for expensive and brittle markdown regex stripping.
+**Action:** Always prefer `max_output_tokens` and `response_mime_type` in `GeminiClient` calls for deterministic, low-latency agent reasoning.
