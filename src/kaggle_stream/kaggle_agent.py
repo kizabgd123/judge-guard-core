@@ -53,6 +53,23 @@ class KaggleAgent:
 
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
         # If Gemini is present but API key is dummy/invalid, it might still fail at runtime
+        """
+        Perform a single agent step: produce structured output for the given task (using the Gemini client when available, otherwise using demo data), update internal state, and enqueue Notion logging.
+        
+        Parameters:
+            task (str): The task or prompt the agent should respond to.
+            context (Optional[str]): Optional additional context to include in the agent's response.
+        
+        Returns:
+            dict: A mapping with keys:
+                - "thought" (str): Internal reasoning or short summary of the agent's thought.
+                - "message" (str): The primary human-readable message or result.
+                - "mood" (str): A short descriptor of the agent's mood/state.
+                - "status" (str): Status label such as "success" or "checkpoint".
+                - "accuracy" (float): Estimated accuracy/confidence (e.g., 0.0–1.0).
+                - "progress_increment" (int): Amount to advance the agent's progress.
+                - "total_progress" (int): Agent's cumulative progress after applying the increment.
+        """
         if self.demo_mode or not self.gemini:
             return self._get_demo_data()
 

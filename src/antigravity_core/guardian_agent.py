@@ -55,7 +55,20 @@ class GuardianAgent:
 
     def analyze_log_against_goals(self, log_entry: str, goals_text: str) -> Dict[str, Any]:
         """
-        Ask Gemini if this log entry advances any of the goals.
+        Determine whether a daily log entry indicates progress toward any active goal.
+        
+        Parameters:
+            log_entry (str): The text of the daily log entry to evaluate.
+            goals_text (str): Plain-text representation of active goals to match against.
+        
+        Returns:
+            dict: A JSON-like dictionary with keys:
+                - "match_found" (bool): `true` if progress toward a specific goal was detected, `false` otherwise.
+                - "goal_id" (str or None): Identifier of the matched goal when `match_found` is `true`, otherwise `None`.
+                - "progress_comment" (str or None): Short summary of the detected progress when `match_found` is `true`, otherwise `None`.
+        
+        Notes:
+            On error, the function logs the exception and returns {"match_found": False}.
         """
         prompt = f"""
         You are The Guardian, an accountability AI.

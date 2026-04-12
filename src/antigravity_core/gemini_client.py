@@ -65,7 +65,14 @@ class GeminiClient:
         logger.info(f"configured Gemini with key: {masked_key} (Key {self.current_key_index + 1}/{len(self.api_keys)})")
 
     def _rotate_key(self):
-        """Rotates to the next available API key."""
+        """
+        Rotate to the next API key and reconfigure the client.
+        
+        Updates the client's current key index to the next key (wrapping to the start) and calls _configure_client() to apply the new key.
+        
+        Returns:
+            bool: `True` if the key was rotated, `False` if rotation could not occur because there is one or no API keys.
+        """
         if len(self.api_keys) <= 1:
             logger.warning("Only one API key available. Cannot rotate.")
             return False
@@ -77,20 +84,20 @@ class GeminiClient:
 
     def generate_content(self, prompt: str, generation_config: Optional[Dict] = None) -> str:
         """
-        Produce model-generated text for the given prompt, using API-key rotation and retry/backoff on quota or rate-limit errors.
+        Generate text from the configured Gemini model for a prompt, using API-key rotation and retry/backoff for quota or rate-limit errors.
         
-        When the instance is in mock mode, returns deterministic mock responses ("PASSED" for judge-style prompts, otherwise "Mock response from Gemini Client"). Otherwise, attempts up to (max_retries * number_of_keys) tries: on quota/rate-limit errors it will try to rotate to the next API key and retry immediately if rotation succeeds, or apply exponential backoff and retry if rotation is not possible. Non-quota errors are re-raised.
+        When the client is in mock mode, returns deterministic mock responses for judge-style prompts or a fixed mock string otherwise.
         
         Parameters:
             prompt (str): The text prompt to send to the model.
-            generation_config (Optional[Dict]): Additional generation configuration (e.g., max_output_tokens).
+            generation_config (Optional[Dict]): Optional model generation settings to override defaults (e.g., `{"max_output_tokens": 10}`).
         
         Returns:
-            str: The text produced by the model (or a deterministic mock string in mock mode).
+            str: The text produced by the model, or a deterministic mock string when in mock mode.
         
         Raises:
-            Exception: Re-raises model errors that are not quota/rate-limit related.
-            Exception: Raises Exception("Max retries exceeded for Gemini API") if all retry attempts fail.
+            Exception: Re-raises non-quota/rate-limit model errors encountered during generation.
+            Exception: Raises `Exception("Max retries exceeded for Gemini API")` if all retry attempts fail.
         """
         if getattr(self, "mock_mode", False):
             # Deterministic mock responses
@@ -133,7 +140,14 @@ class GeminiClient:
 
     def judge_content(self, content: str, criteria: str) -> bool:
         """
-        Evaluates content against criteria to return True/False.
+        Determine whether the given content satisfies the provided evaluation criteria.
+        
+        Parameters:
+            content (str): The text to be evaluated.
+            criteria (str): One or more evaluation rules or requirements expressed in plain language.
+        
+        Returns:
+            bool: `true` if the content meets all criteria, `false` otherwise or if an error occurs during evaluation.
         """
         prompt = f"""
         You are an impartial Judge AI.
