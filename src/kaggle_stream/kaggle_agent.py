@@ -58,7 +58,8 @@ class KaggleAgent:
 
         prompt = f"You are agent {self.name}. Task: {task}. Context: {context}. Return JSON: thought, message, mood, status, accuracy, progress_increment."
         try:
-            response_raw = self.gemini.generate_content(prompt)
+            # ⚡ Bolt: Use max_output_tokens=512 for structured reasoning output
+            response_raw = self.gemini.generate_content(prompt, generation_config={"max_output_tokens": 512})
             response_raw = response_raw.replace("```json", "").replace("```", "").strip()
             data = json.loads(response_raw)
         except Exception as e:
