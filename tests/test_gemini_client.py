@@ -51,7 +51,7 @@ def test_generate_content_success(mock_genai, monkeypatch):
     result = client.generate_content("test prompt")
 
     assert result == "Success response"
-    mock_model_instance.generate_content.assert_called_once_with("test prompt")
+    mock_model_instance.generate_content.assert_called_once_with("test prompt", generation_config=None)
 
 def test_generate_content_retry_and_rotate(mock_genai, monkeypatch):
     mock_config, mock_model_class = mock_genai
