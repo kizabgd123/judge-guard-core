@@ -79,7 +79,8 @@ class GuardianAgent:
         """
         
         try:
-            response = self.gemini.generate_content(prompt)
+            # ⚡ Bolt: Use max_output_tokens=256 to reduce latency for JSON analysis while avoiding truncation
+            response = self.gemini.generate_content(prompt, generation_config={"max_output_tokens": 256})
             # Basic cleanup if model adds markdown
             response = response.replace("```json", "").replace("```", "").strip()
             return json.loads(response)
