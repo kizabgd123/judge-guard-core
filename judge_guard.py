@@ -102,14 +102,29 @@ class JudgeGuard:
         self.close()
 
     def close(self):
-        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
+        """
+        Shut down background resources used by this JudgeGuard instance.
+        
+        Shuts down the internal ThreadPoolExecutor without waiting for running tasks to finish and closes the ResearchPipeline connection if one is attached. This ensures background threads and external pipeline resources are released.
+        """
         if hasattr(self, "_executor"):
             self._executor.shutdown(wait=False)
         if hasattr(self, "pipeline") and self.pipeline:
             self.pipeline.close()
 
     def _discover_brain_path(self) -> Optional[str]:
-        """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
+        """
+        Locate the most recently modified brain directory under ~/.gemini/antigravity/brain.
+        
+        Searches for directories matching the pattern '*-*-*-*-*' beneath the user's
+        ~/.gemini/antigravity/brain directory and selects the one with the newest
+        modification time.
+        
+        Returns:
+            The path to the newest brain directory as a string, or `None` if the base
+            directory does not exist, no matching brain directories are found, or an
+            error occurs while inspecting the filesystem.
+        """
         try:
             base_path = os.path.expanduser("~/.gemini/antigravity/brain")
             if not os.path.exists(base_path):

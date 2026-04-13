@@ -85,6 +85,15 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
+        """
+        Initialize a ResearchPipeline instance and allocate its runtime resources.
+        
+        Sets up:
+        - conn: SQLite connection placeholder (None until connect/init_db is called).
+        - notion_queue: in-memory list for audit entries pending Notion sync.
+        - session: a requests.Session for HTTP connection pooling.
+        - _executor: ThreadPoolExecutor used to perform concurrent Notion API requests.
+        """
         self.conn = None
         self.notion_queue = []
         # ⚡ Bolt: Use requests.Session for connection pooling and better performance
@@ -93,7 +102,11 @@ class ResearchPipeline:
         self._executor = ThreadPoolExecutor(max_workers=5)
 
     def close(self):
-        """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
+        """
+        Shuts down pipeline resources: waits for background tasks to finish, closes the HTTP session, and closes the SQLite connection.
+        
+        This method waits for the ThreadPoolExecutor to complete any in-flight tasks before shutting it down, closes the persistent HTTP session used for Notion requests, and closes the database connection if one is open. It is safe to call multiple times.
+        """
         if hasattr(self, "_executor"):
             self._executor.shutdown(wait=True)
         if hasattr(self, "session"):
@@ -102,7 +115,15 @@ class ResearchPipeline:
             self.conn.close()
         
     def log_audit(self, action: str, details: str = ""):
-        """Log action for Notion sync and local audit."""
+        """
+        Record an audit entry and queue it for Notion synchronization.
+        
+        Appends an entry (action, details, ISO timestamp) to the in-memory Notion queue and, if a database connection is available, inserts the entry into the local `audit_log` table.
+        
+        Parameters:
+            action (str): Short action identifier.
+            details (str): Optional human-readable details (default: "").
+        """
         entry = {
             "action": action,
             "details": details,
@@ -306,7 +327,9 @@ class ResearchPipeline:
 
     def sync_to_notion(self):
         """
-        Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
+        Sync queued audit entries to Notion or persist them to the local cache when Notion is unavailable.
+        
+        If NOTION_TOKEN and NOTION_DATABASE_ID are set in the environment, creates pages in the configured Notion database for each entry in the in-memory audit queue and clears the queue on success. If credentials are missing or an error occurs, appends the queued entries to the local JSON cache file at NOTION_LOG and leaves the in-memory queue intact. Also emits appropriate audit log entries for mocked saves and successful syncs.
         """
         # Reload env vars
         from dotenv import load_dotenv
@@ -341,6 +364,18 @@ class ResearchPipeline:
             }
             
             def push_entry(entry):
+                """
+                Create a Notion page for a single audit entry by POSTing it to the Notion Pages API.
+                
+                Parameters:
+                	entry (dict): Audit entry with keys:
+                		- "action" (str): short title of the action.
+                		- "details" (str): detailed text for the entry.
+                		- "timestamp" (str): ISO 8601 timestamp for the page's date.
+                
+                Returns:
+                	requests.Response: HTTP response returned by the Notion API POST request. A non-200 status will emit a warning but is still returned.
+                """
                 data = {
                     "parent": {"database_id": db_id},
                     "properties": {
@@ -392,6 +427,11 @@ class ResearchPipeline:
 
 
 def main():
+    """
+    Command-line entry point that runs the research workspace pipeline based on parsed arguments.
+    
+    Parses CLI flags and dispatches actions against a ResearchPipeline instance: --init initializes the database, --parse parses Markdown files and extracts patterns (then syncs audit entries), --query TERM searches patterns and documents and syncs audit entries, --sync-notion forces syncing queued audit entries to Notion (or local cache), and --stats prints database counts. Ensures persistent resources (HTTP session, thread executor, and database connection) are closed before exit.
+    """
     import argparse
     
     parser = argparse.ArgumentParser(description="Research Pipeline")
