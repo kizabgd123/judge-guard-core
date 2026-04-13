@@ -105,6 +105,8 @@ class JudgeGuard:
         """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
         if hasattr(self, "_executor"):
             self._executor.shutdown(wait=False)
+        if hasattr(self, "pipeline") and self.pipeline:
+            self.pipeline.close()
 
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
