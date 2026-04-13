@@ -22,6 +22,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
+import requests
+from concurrent.futures import ThreadPoolExecutor
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -85,6 +87,19 @@ class ResearchPipeline:
     def __init__(self):
         self.conn = None
         self.notion_queue = []
+        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
+        self.session = requests.Session()
+        # ⚡ Bolt: Executor for parallelizing Notion API calls
+        self._executor = ThreadPoolExecutor(max_workers=5)
+
+    def close(self):
+        """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
+        if hasattr(self, "_executor"):
+            self._executor.shutdown(wait=True)
+        if hasattr(self, "session"):
+            self.session.close()
+        if hasattr(self, "conn") and self.conn:
+            self.conn.close()
         
     def log_audit(self, action: str, details: str = ""):
         """Log action for Notion sync and local audit."""
@@ -319,14 +334,13 @@ class ResearchPipeline:
         
         # If token exists, push to Notion
         try:
-            import requests
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Notion-Version": "2022-06-28",
                 "Content-Type": "application/json"
             }
             
-            for entry in self.notion_queue:
+            def push_entry(entry):
                 data = {
                     "parent": {"database_id": db_id},
                     "properties": {
@@ -336,13 +350,17 @@ class ResearchPipeline:
                         "Status": {"select": {"name": "Done"}}
                     }
                 }
-                resp = requests.post(
+                resp = self.session.post(
                     "https://api.notion.com/v1/pages",
                     headers=headers,
                     json=data
                 )
                 if resp.status_code != 200:
                     logger.warning(f"⚠️  Entry failed: {resp.text}")
+                return resp
+
+            # ⚡ Bolt: Parallelize Notion API calls using the thread executor
+            list(self._executor.map(push_entry, self.notion_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(self.notion_queue)} entries pushed")
             self.notion_queue = []  # Clear after sync
@@ -417,6 +435,9 @@ def main():
     
     else:
         parser.print_help()
+
+    # ⚡ Bolt: Ensure resources are cleaned up
+    pipeline.close()
 
 
 if __name__ == "__main__":
