@@ -99,9 +99,14 @@ class ResearchPipeline:
         if hasattr(self, "session"):
             self.session.close()
         if hasattr(self, "conn") and self.conn:
+            # ⚡ Bolt: Final commit to persist deferred audit logs
+            try:
+                self.conn.commit()
+            except Exception:
+                pass
             self.conn.close()
         
-    def log_audit(self, action: str, details: str = ""):
+    def log_audit(self, action: str, details: str = "", commit: bool = True):
         """Log action for Notion sync and local audit."""
         entry = {
             "action": action,
@@ -115,7 +120,8 @@ class ResearchPipeline:
                 "INSERT INTO audit_log (action, details) VALUES (?, ?)",
                 (action, details)
             )
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
         logger.info(f"📝 {action}: {details}")
 
     def init_db(self):
@@ -135,13 +141,13 @@ class ResearchPipeline:
         self.conn.row_factory = sqlite3.Row
         return self
 
-    def parse_markdown_files(self):
-        """Parse all research/*.md files into SQLite."""
+    def parse_markdown_files(self) -> List[int]:
+        """Parse all research/*.md files into SQLite. Returns IDs of updated documents."""
         if not self.conn:
             self.connect()
             
         md_files = list(RESEARCH_DIR.glob("**/*.md"))
-        parsed = 0
+        updated_ids = []
         
         for md_path in md_files:
             content = md_path.read_text(encoding="utf-8")
@@ -156,54 +162,64 @@ class ResearchPipeline:
             
             # Check if already exists with same hash
             existing = self.conn.execute(
-                "SELECT hash FROM documents WHERE filename = ?",
+                "SELECT id, hash FROM documents WHERE filename = ?",
                 (str(md_path),)
             ).fetchone()
             
             if existing and existing["hash"] == content_hash:
                 continue  # Skip unchanged files
             
-            # Upsert document
-            self.conn.execute("""
+            # Upsert document (using RETURNING id available in SQLite 3.35+)
+            cursor = self.conn.execute("""
                 INSERT INTO documents (phase, filename, title, content, hash, updated_at)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(filename) DO UPDATE SET
                     content = excluded.content,
                     hash = excluded.hash,
                     updated_at = CURRENT_TIMESTAMP
+                RETURNING id
             """, (phase, str(md_path), title, content, content_hash))
             
-            parsed += 1
-            self.log_audit("PARSED", f"{md_path.name}")
+            row = cursor.fetchone()
+            if row:
+                updated_ids.append(row["id"])
+
+            self.log_audit("PARSED", f"{md_path.name}", commit=False)
         
         self.conn.commit()
-        self.log_audit("PARSE_COMPLETE", f"{parsed} files processed")
-        return parsed
+        self.log_audit("PARSE_COMPLETE", f"{len(updated_ids)} files processed")
+        return updated_ids
 
-    def extract_patterns(self):
-        """Extract patterns from documents into patterns table."""
+    def extract_patterns(self, doc_ids: Optional[List[int]] = None):
+        """Extract patterns from documents into patterns table. ⚡ Bolt: Supports incremental updates via doc_ids."""
+        # ⚡ Bolt: If doc_ids is an empty list, no documents were updated, so no patterns to extract.
+        if doc_ids is not None and not doc_ids:
+            return 0
+
         if not self.conn:
             self.connect()
         
-        docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
+        query = "SELECT id, content FROM documents"
+        params = []
+        if doc_ids:
+            query += f" WHERE id IN ({','.join(['?']*len(doc_ids))})"
+            params = doc_ids
+            # Stale pattern cleanup for the documents being updated
+            self.conn.execute(f"DELETE FROM patterns WHERE doc_id IN ({','.join(['?']*len(doc_ids))})", doc_ids)
+
+        docs = self.conn.execute(query, params).fetchall()
         patterns_found = 0
         
-        for doc in docs:
-            # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
-            lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
-            
-            for line in lines:
-                # Extract the title part before any dash
-                match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
-                if not match:
-                    continue
+        # ⚡ Bolt: Single-pass regex for all matching patterns
+        pattern_regex = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
 
+        for doc in docs:
+            for match in pattern_regex.finditer(doc["content"]):
                 name = match.group(1).strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
-                # Determine priority and strip icons from name for consistent storage
+                # Determine priority and strip icons
                 priority = "MEDIUM"
                 if "🔥" in name or "HIGH" in name.upper():
                     priority = "HIGH"
@@ -212,18 +228,21 @@ class ResearchPipeline:
                     priority = "LOW"
                     name = name.replace("🟢", "").strip()
                 
-                # Check if pattern already exists
-                existing = self.conn.execute(
-                    "SELECT id FROM patterns WHERE name = ? AND doc_id = ?",
-                    (name, doc["id"])
-                ).fetchone()
-                
-                if not existing:
-                    self.conn.execute("""
-                        INSERT INTO patterns (name, priority, doc_id)
-                        VALUES (?, ?, ?)
-                    """, (name, priority, doc["id"]))
-                    patterns_found += 1
+                # ⚡ Bolt: Since we cleaned up old patterns for target docs,
+                # we can insert directly without per-row check if doc_ids is used.
+                # For safety and backward compatibility, we'll keep a check if doc_ids is None.
+                if not doc_ids:
+                    existing = self.conn.execute(
+                        "SELECT id FROM patterns WHERE name = ? AND doc_id = ?",
+                        (name, doc["id"])
+                    ).fetchone()
+                    if existing: continue
+
+                self.conn.execute("""
+                    INSERT INTO patterns (name, priority, doc_id)
+                    VALUES (?, ?, ?)
+                """, (name, priority, doc["id"]))
+                patterns_found += 1
         
         self.conn.commit()
         self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
@@ -300,7 +319,8 @@ class ResearchPipeline:
         ).fetchone()
         
         if result:
-            self.log_audit("CACHE_HIT", action[:50])
+            # ⚡ Bolt: Disable synchronous commit for cache hits to ensure sub-millisecond response
+            self.log_audit("CACHE_HIT", action[:50], commit=False)
             return result["verdict"]
         return None
 
@@ -410,9 +430,10 @@ def main():
     
     elif args.parse:
         pipeline.connect()
-        parsed = pipeline.parse_markdown_files()
-        patterns = pipeline.extract_patterns()
-        logger.info(f"✅ Parsed {parsed} documents, extracted {patterns} patterns")
+        updated_ids = pipeline.parse_markdown_files()
+        # ⚡ Bolt: Pass updated_ids directly to take advantage of the empty-list optimization
+        patterns = pipeline.extract_patterns(doc_ids=updated_ids)
+        logger.info(f"✅ Parsed {len(updated_ids)} documents, extracted {patterns} patterns")
         pipeline.sync_to_notion()
     
     elif args.query:
