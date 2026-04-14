@@ -12,11 +12,9 @@ Usage:
 """
 
 import os
-import sys
 import sqlite3
 import hashlib
 import json
-import glob
 import re
 import logging
 from datetime import datetime
@@ -302,6 +300,8 @@ class ResearchPipeline:
         ).fetchone()
         
         if result:
+            # ⚡ Bolt: Removed log_audit here to eliminate synchronous SQLite write
+            # and redundant Notion queueing on the hot path (improves latency by ~99%).
             # ⚡ Bolt: Removed redundant log_audit here to reduce hit latency by ~99% (2.5ms -> 0.02ms)
             return result["verdict"]
         return None
@@ -310,6 +310,7 @@ class ResearchPipeline:
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
         """
+        # ⚡ Bolt: Fast return if nothing to sync to avoid redundant overhead
         # ⚡ Bolt: Early return if nothing to sync to avoid redundant env/meta-logging overhead
         if not self.notion_queue:
             return
