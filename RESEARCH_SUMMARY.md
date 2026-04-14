@@ -39,7 +39,7 @@ Agents can correct course when given specific, negative feedback by the Judge.
 | Metric                    | Target | Achieved                 | Status |
 | :------------------------ | :----- | :----------------------- | :----- |
 | **Drift False Positives** | < 10%  | 0% (in controlled tests) | ✅     |
-| **Intervention Latency**  | < 2s   | ~1.5s (Gemini Flash)     | ✅     |
+| **Intervention Latency**  | < 2s   | ~1.5s (Gemini 2.5 Flash)     | ✅     |
 | **Recovery Rate**         | > 80%  | 100% (Prototype)         | ✅     |
 
 ## 🔮 Future Recommendations

@@ -2,7 +2,7 @@
 
 ## 📂 Overview
 
-Ovaj dokument sumira rezultate validacije naprednih šablona kontrole agenata. Testiranja su izvršena koristeći `Gemini-Flash` i prilagođene prototipove.
+Ovaj dokument sumira rezultate validacije naprednih šablona kontrole agenata. Testiranja su izvršena koristeći `Gemini 2.5 Flash` i prilagođene prototipove.
 
 ---
 

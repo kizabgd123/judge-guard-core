@@ -98,6 +98,9 @@ python3 web_ui/server.py
 
 ---
 
+## ⚔️ Agent Taming Challenge
+See [CHALLENGE.md](./CHALLENGE.md) for the "Triple-Threat" verification scenario.
+
 ## 📁 Project Structure
 
 ```

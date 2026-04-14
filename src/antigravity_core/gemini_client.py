@@ -10,12 +10,12 @@ class GeminiClient:
     """
     Client for interacting with Google's Gemini models.
     """
-    def __init__(self, model_name: str = "models/gemini-flash-latest", api_keys: Optional[str] = None):
+    def __init__(self, model_name: str = "gemini-2.5-flash", api_keys: Optional[str] = None):
         """
         Initialize a GeminiClient, loading API keys, configuring mock mode when no keys are found, and preparing the client.
         
         Parameters:
-            model_name (str): The Gemini model identifier to use (default: "models/gemini-flash-latest").
+            model_name (str): The Gemini model identifier to use (default: "gemini-2.5-flash").
             api_keys (Optional[str]): Comma-separated API keys string; if omitted, the environment variables
                 `GEMINI_API_KEYS` or `GEMINI_API_KEY` will be used. When no keys are available, the client
                 enters mock mode and uses a placeholder key.
