@@ -9,3 +9,7 @@
 ## 2026-04-10 - [Parallelization and Connection Pooling in ResearchPipeline]
 **Learning:** Sequential HTTP POST requests in `ResearchPipeline.sync_to_notion` create a significant bottleneck, especially when batching multiple audit entries. Using `requests.Session` for connection pooling and `ThreadPoolExecutor.map` for parallelizing I/O-bound API calls reduces latency by ~70-80% (from ~1.12s to ~0.31s for 11 entries).
 **Action:** Implement a persistent `self.session` and `self._executor` in classes performing batch API calls. Always include a `close()` method for clean resource teardown.
+
+## 2026-04-12 - [Redundant Auditing in Cache Hot-Path]
+**Learning:** Performing a synchronous database write (audit log) on every read-only cache hit in `ResearchPipeline.get_cached_verdict` introduces ~2.5ms of overhead, which is ~100x the latency of the actual SQLite lookup (~0.02ms). This negates much of the "fast path" benefit of caching and creates noise in Notion.
+**Action:** Avoid synchronous I/O or state mutations in cache retrieval methods. If auditing is required for hits, offload it to a background thread or use a lower-frequency sampling method.
