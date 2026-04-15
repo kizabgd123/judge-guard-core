@@ -135,13 +135,13 @@ class ResearchPipeline:
         self.conn.row_factory = sqlite3.Row
         return self
 
-    def parse_markdown_files(self):
-        """Parse all research/*.md files into SQLite."""
+    def parse_markdown_files(self) -> List[int]:
+        """Parse all research/*.md files into SQLite. Returns list of affected doc IDs."""
         if not self.conn:
             self.connect()
             
         md_files = list(RESEARCH_DIR.glob("**/*.md"))
-        parsed = 0
+        affected_ids = []
         
         for md_path in md_files:
             content = md_path.read_text(encoding="utf-8")
@@ -164,30 +164,48 @@ class ResearchPipeline:
                 continue  # Skip unchanged files
             
             # Upsert document
-            self.conn.execute("""
+            cursor = self.conn.execute("""
                 INSERT INTO documents (phase, filename, title, content, hash, updated_at)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(filename) DO UPDATE SET
                     content = excluded.content,
                     hash = excluded.hash,
                     updated_at = CURRENT_TIMESTAMP
+                RETURNING id
             """, (phase, str(md_path), title, content, content_hash))
             
-            parsed += 1
-            self.log_audit("PARSED", f"{md_path.name}")
+            row = cursor.fetchone()
+            if row:
+                affected_ids.append(row[0])
+                self.log_audit("PARSED", f"{md_path.name}")
         
         self.conn.commit()
-        self.log_audit("PARSE_COMPLETE", f"{parsed} files processed")
-        return parsed
+        if affected_ids:
+            self.log_audit("PARSE_COMPLETE", f"{len(affected_ids)} files processed")
+        return affected_ids
 
-    def extract_patterns(self):
-        """Extract patterns from documents into patterns table."""
+    def extract_patterns(self, doc_ids: Optional[List[int]] = None):
+        """Extract patterns from documents. If doc_ids provided, performs incremental extraction."""
         if not self.conn:
             self.connect()
         
-        docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
-        patterns_found = 0
+        if doc_ids:
+            # Incremental: Only fetch specified documents
+            placeholders = ",".join(["?"] * len(doc_ids))
+            docs = self.conn.execute(
+                f"SELECT id, content FROM documents WHERE id IN ({placeholders})",
+                doc_ids
+            ).fetchall()
+            # Clean up old patterns for these docs to avoid duplicates on re-extraction
+            self.conn.execute(
+                f"DELETE FROM patterns WHERE doc_id IN ({placeholders})",
+                doc_ids
+            )
+        else:
+            # Full: Fetch all documents
+            docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
         
+        patterns_found = 0
         for doc in docs:
             # Find pattern-like structures (headings with status indicators)
             # Find all matching lines first
@@ -212,7 +230,7 @@ class ResearchPipeline:
                     priority = "LOW"
                     name = name.replace("🟢", "").strip()
                 
-                # Check if pattern already exists
+                # Check if pattern already exists (still useful for initial full extract if table was partially populated)
                 existing = self.conn.execute(
                     "SELECT id FROM patterns WHERE name = ? AND doc_id = ?",
                     (name, doc["id"])
@@ -417,9 +435,13 @@ def main():
     
     elif args.parse:
         pipeline.connect()
-        parsed = pipeline.parse_markdown_files()
-        patterns = pipeline.extract_patterns()
-        logger.info(f"✅ Parsed {parsed} documents, extracted {patterns} patterns")
+        affected_ids = pipeline.parse_markdown_files()
+        # ⚡ Bolt: Only extract patterns if files were actually changed to avoid redundant full scans
+        if affected_ids:
+            patterns = pipeline.extract_patterns(doc_ids=affected_ids)
+            logger.info(f"✅ Parsed {len(affected_ids)} documents, extracted {patterns} patterns")
+        else:
+            logger.info("✅ No changes detected. Skipping pattern extraction.")
         pipeline.sync_to_notion()
     
     elif args.query:
