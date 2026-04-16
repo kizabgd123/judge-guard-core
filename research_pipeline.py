@@ -99,7 +99,7 @@ class ResearchPipeline:
         if hasattr(self, "conn") and self.conn:
             self.conn.close()
         
-    def log_audit(self, action: str, details: str = ""):
+    def log_audit(self, action: str, details: str = "", commit: bool = True):
         """Log action for Notion sync and local audit."""
         entry = {
             "action": action,
@@ -113,7 +113,8 @@ class ResearchPipeline:
                 "INSERT INTO audit_log (action, details) VALUES (?, ?)",
                 (action, details)
             )
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
         logger.info(f"📝 {action}: {details}")
 
     def init_db(self):
@@ -135,17 +136,30 @@ class ResearchPipeline:
         self.conn.row_factory = sqlite3.Row
         return self
 
-    def parse_markdown_files(self):
-        """Parse all research/*.md files into SQLite."""
+    def parse_markdown_files(self) -> List[int]:
+        """
+        Parse all research/*.md files into SQLite.
+        Returns a list of document IDs that were modified or newly created.
+        """
         if not self.conn:
             self.connect()
             
         md_files = list(RESEARCH_DIR.glob("**/*.md"))
-        parsed = 0
+        affected_ids = []
+
+        # ⚡ Bolt: Fetch all existing hashes in one query to avoid O(N) queries in the loop
+        existing_meta = {
+            row["filename"]: row["hash"]
+            for row in self.conn.execute("SELECT filename, hash FROM documents").fetchall()
+        }
         
         for md_path in md_files:
             content = md_path.read_text(encoding="utf-8")
             content_hash = hashlib.md5(content.encode()).hexdigest()
+            filename = str(md_path)
+
+            if existing_meta.get(filename) == content_hash:
+                continue  # Skip unchanged files
             
             # Extract phase from path (e.g., phase0_scoping)
             phase = md_path.parent.name
@@ -154,47 +168,62 @@ class ResearchPipeline:
             title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
             title = title_match.group(1) if title_match else md_path.stem
             
-            # Check if already exists with same hash
-            existing = self.conn.execute(
-                "SELECT hash FROM documents WHERE filename = ?",
-                (str(md_path),)
-            ).fetchone()
-            
-            if existing and existing["hash"] == content_hash:
-                continue  # Skip unchanged files
-            
-            # Upsert document
-            self.conn.execute("""
+            # ⚡ Bolt: Use RETURNING id to track modified documents and avoid another SELECT
+            res = self.conn.execute("""
                 INSERT INTO documents (phase, filename, title, content, hash, updated_at)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(filename) DO UPDATE SET
                     content = excluded.content,
                     hash = excluded.hash,
                     updated_at = CURRENT_TIMESTAMP
-            """, (phase, str(md_path), title, content, content_hash))
+                RETURNING id
+            """, (phase, filename, title, content, content_hash)).fetchone()
             
-            parsed += 1
-            self.log_audit("PARSED", f"{md_path.name}")
+            if res:
+                doc_id = res["id"]
+                affected_ids.append(doc_id)
+                # ⚡ Bolt: Batch audit logs by passing commit=False
+                self.log_audit("PARSED", f"{md_path.name}", commit=False)
         
         self.conn.commit()
-        self.log_audit("PARSE_COMPLETE", f"{parsed} files processed")
-        return parsed
+        if affected_ids:
+            self.log_audit("PARSE_COMPLETE", f"{len(affected_ids)} files processed")
+        return affected_ids
 
-    def extract_patterns(self):
-        """Extract patterns from documents into patterns table."""
+    def extract_patterns(self, doc_ids: Optional[List[int]] = None):
+        """
+        Extract patterns from documents into patterns table.
+        If doc_ids is provided, only extracts from those documents (incremental).
+        """
         if not self.conn:
             self.connect()
         
-        docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
-        patterns_found = 0
+        if doc_ids is not None:
+            if not doc_ids:
+                return 0
+            # ⚡ Bolt: Incremental extraction from specified documents
+            placeholders = ",".join(["?"] * len(doc_ids))
+            docs = self.conn.execute(
+                f"SELECT id, content FROM documents WHERE id IN ({placeholders})",
+                doc_ids
+            ).fetchall()
+            # ⚡ Bolt: Delete old patterns for these docs before re-inserting
+            self.conn.execute(
+                f"DELETE FROM patterns WHERE doc_id IN ({placeholders})",
+                doc_ids
+            )
+        else:
+            # Full extraction
+            docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
+            self.conn.execute("DELETE FROM patterns")
+
+        patterns_to_insert = []
         
         for doc in docs:
             # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
             lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
             
             for line in lines:
-                # Extract the title part before any dash
                 match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
                 if not match:
                     continue
@@ -203,7 +232,6 @@ class ResearchPipeline:
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
-                # Determine priority and strip icons from name for consistent storage
                 priority = "MEDIUM"
                 if "🔥" in name or "HIGH" in name.upper():
                     priority = "HIGH"
@@ -212,22 +240,18 @@ class ResearchPipeline:
                     priority = "LOW"
                     name = name.replace("🟢", "").strip()
                 
-                # Check if pattern already exists
-                existing = self.conn.execute(
-                    "SELECT id FROM patterns WHERE name = ? AND doc_id = ?",
-                    (name, doc["id"])
-                ).fetchone()
-                
-                if not existing:
-                    self.conn.execute("""
-                        INSERT INTO patterns (name, priority, doc_id)
-                        VALUES (?, ?, ?)
-                    """, (name, priority, doc["id"]))
-                    patterns_found += 1
+                patterns_to_insert.append((name, priority, doc["id"]))
+
+        # ⚡ Bolt: Use executemany for batch insertion to improve performance
+        if patterns_to_insert:
+            self.conn.executemany(
+                "INSERT INTO patterns (name, priority, doc_id) VALUES (?, ?, ?)",
+                patterns_to_insert
+            )
         
         self.conn.commit()
-        self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
-        return patterns_found
+        self.log_audit("PATTERNS_EXTRACTED", f"{len(patterns_to_insert)} patterns found")
+        return len(patterns_to_insert)
 
     def query(self, term: str) -> List[Dict]:
         """Search patterns and documents."""
@@ -417,9 +441,12 @@ def main():
     
     elif args.parse:
         pipeline.connect()
-        parsed = pipeline.parse_markdown_files()
-        patterns = pipeline.extract_patterns()
-        logger.info(f"✅ Parsed {parsed} documents, extracted {patterns} patterns")
+        # ⚡ Bolt: Use incremental extraction by passing affected_ids
+        affected_ids = pipeline.parse_markdown_files()
+        patterns = 0
+        if affected_ids:
+            patterns = pipeline.extract_patterns(doc_ids=affected_ids)
+        logger.info(f"✅ Parsed {len(affected_ids)} documents, extracted {patterns} patterns")
         pipeline.sync_to_notion()
     
     elif args.query:
