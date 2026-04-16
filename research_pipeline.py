@@ -99,7 +99,7 @@ class ResearchPipeline:
         if hasattr(self, "conn") and self.conn:
             self.conn.close()
         
-    def log_audit(self, action: str, details: str = ""):
+    def log_audit(self, action: str, details: str = "", commit: bool = True):
         """Log action for Notion sync and local audit."""
         entry = {
             "action": action,
@@ -113,7 +113,8 @@ class ResearchPipeline:
                 "INSERT INTO audit_log (action, details) VALUES (?, ?)",
                 (action, details)
             )
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
         logger.info(f"📝 {action}: {details}")
 
     def init_db(self):
@@ -174,9 +175,11 @@ class ResearchPipeline:
             """, (phase, str(md_path), title, content, content_hash))
             
             parsed += 1
-            self.log_audit("PARSED", f"{md_path.name}")
+            # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
+            self.log_audit("PARSED", f"{md_path.name}", commit=False)
         
-        self.conn.commit()
+        # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
+        # will commit all pending inserts, including the PARSED entries.
         self.log_audit("PARSE_COMPLETE", f"{parsed} files processed")
         return parsed
 
@@ -225,7 +228,8 @@ class ResearchPipeline:
                     """, (name, priority, doc["id"]))
                     patterns_found += 1
         
-        self.conn.commit()
+        # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
+        # will commit all pending pattern inserts.
         self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
         return patterns_found
 
