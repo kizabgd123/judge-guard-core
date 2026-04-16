@@ -13,3 +13,7 @@
 ## 2026-04-12 - [Redundant Auditing in Cache Hot-Path]
 **Learning:** Performing a synchronous database write (audit log) on every read-only cache hit in `ResearchPipeline.get_cached_verdict` introduces ~2.5ms of overhead, which is ~100x the latency of the actual SQLite lookup (~0.02ms). This negates much of the "fast path" benefit of caching and creates noise in Notion.
 **Action:** Avoid synchronous I/O or state mutations in cache retrieval methods. If auditing is required for hits, offload it to a background thread or use a lower-frequency sampling method.
+
+## 2026-04-15 - [Inefficient Full-Scan Pattern Extraction]
+**Learning:** Re-extracting patterns from all documents in `research_pipeline.py` whenever a single file changes leads to $O(N)$ database overhead (where $N$ is the total document count). Using SQLite's `RETURNING id` clause during the UPSERT allows tracking exactly which documents were modified, enabling incremental extraction.
+**Action:** Implement incremental extraction in `extract_patterns(doc_ids=...)` and use `executemany` for bulk inserts. This reduces extraction latency for single-file updates by ~70% (verified by `benchmark_incremental_extraction.py`).

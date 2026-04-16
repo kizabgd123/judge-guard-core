@@ -135,13 +135,17 @@ class ResearchPipeline:
         self.conn.row_factory = sqlite3.Row
         return self
 
-    def parse_markdown_files(self):
-        """Parse all research/*.md files into SQLite."""
+    def parse_markdown_files(self) -> List[int]:
+        """
+        Parse all research/*.md files into SQLite.
+        Returns a list of IDs for documents that were modified or newly created.
+        """
         if not self.conn:
             self.connect()
             
         md_files = list(RESEARCH_DIR.glob("**/*.md"))
         parsed = 0
+        affected_ids = []
         
         for md_path in md_files:
             content = md_path.read_text(encoding="utf-8")
@@ -163,38 +167,52 @@ class ResearchPipeline:
             if existing and existing["hash"] == content_hash:
                 continue  # Skip unchanged files
             
-            # Upsert document
-            self.conn.execute("""
+            # Upsert document and return ID (⚡ Bolt: SQLite 3.35+ RETURNING)
+            cursor = self.conn.execute("""
                 INSERT INTO documents (phase, filename, title, content, hash, updated_at)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(filename) DO UPDATE SET
                     content = excluded.content,
                     hash = excluded.hash,
                     updated_at = CURRENT_TIMESTAMP
+                RETURNING id
             """, (phase, str(md_path), title, content, content_hash))
             
+            row = cursor.fetchone()
+            if row:
+                affected_ids.append(row["id"])
+
             parsed += 1
             self.log_audit("PARSED", f"{md_path.name}")
         
         self.conn.commit()
         self.log_audit("PARSE_COMPLETE", f"{parsed} files processed")
-        return parsed
+        return affected_ids
 
-    def extract_patterns(self):
-        """Extract patterns from documents into patterns table."""
+    def extract_patterns(self, doc_ids: Optional[List[int]] = None):
+        """
+        Extract patterns from documents into patterns table.
+        ⚡ Bolt: Supports incremental extraction via doc_ids and bulk inserts.
+        """
         if not self.conn:
             self.connect()
         
-        docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
-        patterns_found = 0
+        query = "SELECT id, content FROM documents"
+        params = []
+        if doc_ids:
+            query += f" WHERE id IN ({','.join(['?'] * len(doc_ids))})"
+            params = doc_ids
+
+            # ⚡ Bolt: Cleanup existing patterns for these specific docs before re-extracting
+            self.conn.execute(f"DELETE FROM patterns WHERE doc_id IN ({','.join(['?'] * len(doc_ids))})", params)
+
+        docs = self.conn.execute(query, params).fetchall()
+        patterns_to_insert = []
         
         for doc in docs:
-            # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
             lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
             
             for line in lines:
-                # Extract the title part before any dash
                 match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
                 if not match:
                     continue
@@ -203,7 +221,6 @@ class ResearchPipeline:
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
-                # Determine priority and strip icons from name for consistent storage
                 priority = "MEDIUM"
                 if "🔥" in name or "HIGH" in name.upper():
                     priority = "HIGH"
@@ -212,22 +229,18 @@ class ResearchPipeline:
                     priority = "LOW"
                     name = name.replace("🟢", "").strip()
                 
-                # Check if pattern already exists
-                existing = self.conn.execute(
-                    "SELECT id FROM patterns WHERE name = ? AND doc_id = ?",
-                    (name, doc["id"])
-                ).fetchone()
-                
-                if not existing:
-                    self.conn.execute("""
-                        INSERT INTO patterns (name, priority, doc_id)
-                        VALUES (?, ?, ?)
-                    """, (name, priority, doc["id"]))
-                    patterns_found += 1
+                # ⚡ Bolt: Collect for bulk insertion to avoid O(N) round-trips
+                patterns_to_insert.append((name, priority, doc["id"]))
+
+        if patterns_to_insert:
+            self.conn.executemany("""
+                INSERT INTO patterns (name, priority, doc_id)
+                VALUES (?, ?, ?)
+            """, patterns_to_insert)
         
         self.conn.commit()
-        self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
-        return patterns_found
+        self.log_audit("PATTERNS_EXTRACTED", f"{len(patterns_to_insert)} patterns found")
+        return len(patterns_to_insert)
 
     def query(self, term: str) -> List[Dict]:
         """Search patterns and documents."""
@@ -417,9 +430,11 @@ def main():
     
     elif args.parse:
         pipeline.connect()
-        parsed = pipeline.parse_markdown_files()
-        patterns = pipeline.extract_patterns()
-        logger.info(f"✅ Parsed {parsed} documents, extracted {patterns} patterns")
+        affected_ids = pipeline.parse_markdown_files()
+        patterns = 0
+        if affected_ids:
+            patterns = pipeline.extract_patterns(doc_ids=affected_ids)
+        logger.info(f"✅ Parsed {len(affected_ids)} documents, extracted {patterns} patterns")
         pipeline.sync_to_notion()
     
     elif args.query:
