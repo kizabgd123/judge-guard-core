@@ -13,3 +13,7 @@
 ## 2026-04-12 - [Redundant Auditing in Cache Hot-Path]
 **Learning:** Performing a synchronous database write (audit log) on every read-only cache hit in `ResearchPipeline.get_cached_verdict` introduces ~2.5ms of overhead, which is ~100x the latency of the actual SQLite lookup (~0.02ms). This negates much of the "fast path" benefit of caching and creates noise in Notion.
 **Action:** Avoid synchronous I/O or state mutations in cache retrieval methods. If auditing is required for hits, offload it to a background thread or use a lower-frequency sampling method.
+
+## 2026-04-15 - [O(N) Query Overhead in ResearchPipeline]
+**Learning:** Performing individual SQLite SELECT queries for every file during the markdown parsing phase creates a significant bottleneck as the repository grows. Pre-fetching all filename/hash pairs into an in-memory dictionary reduces this to a single O(1) lookup. Furthermore, incremental pattern extraction using affected document IDs avoids redundant full-table scans.
+**Action:** Always pre-fetch existing state for batch operations. Use the `RETURNING` clause in SQLite to track affected IDs during upserts for downstream incremental processing.
