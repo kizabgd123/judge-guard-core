@@ -201,16 +201,19 @@ class ResearchPipeline:
             if not doc_ids:
                 return 0
             # ⚡ Bolt: Targeted extraction for specific documents
-            placeholders = ",".join(["?"] * len(doc_ids))
-            docs = self.conn.execute(
-                f"SELECT id, content FROM documents WHERE id IN ({placeholders})",
-                doc_ids
-            ).fetchall()
-            # Clear existing patterns for these documents to avoid duplicates
-            self.conn.execute(
-                f"DELETE FROM patterns WHERE doc_id IN ({placeholders})",
-                doc_ids
-            )
+            docs = []
+            for i in range(0, len(doc_ids), 999):
+                chunk = doc_ids[i:i + 999]
+                placeholders = ",".join(["?"] * len(chunk))
+                docs.extend(self.conn.execute(
+                    f"SELECT id, content FROM documents WHERE id IN ({placeholders})",
+                    chunk
+                ).fetchall())
+                # Clear existing patterns for these documents to avoid duplicates
+                self.conn.execute(
+                    f"DELETE FROM patterns WHERE doc_id IN ({placeholders})",
+                    chunk
+                )
         else:
             # Full extraction (legacy/fallback)
             docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
