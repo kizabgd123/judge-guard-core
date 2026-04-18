@@ -201,8 +201,13 @@ class ResearchPipeline:
             if not doc_ids:
                 return 0
             # ⚡ Bolt: Targeted extraction for modified documents
-            query = f"SELECT id, content FROM documents WHERE id IN ({','.join(['?']*len(doc_ids))})"
-            docs = self.conn.execute(query, doc_ids).fetchall()
+            # ⚡ Bolt: Targeted extraction for modified documents in chunks to avoid SQLite variable limits
+            docs = []
+            for i in range(0, len(doc_ids), 999):
+                chunk = doc_ids[i:i + 999]
+                placeholders = ','.join(['?'] * len(chunk))
+                query = f"SELECT id, content FROM documents WHERE id IN ({placeholders})"
+                docs.extend(self.conn.execute(query, chunk).fetchall())
 
             # ⚡ Bolt: Clean up old patterns for modified docs to avoid duplicates
             self.conn.execute(f"DELETE FROM patterns WHERE doc_id IN ({','.join(['?']*len(doc_ids))})", doc_ids)
