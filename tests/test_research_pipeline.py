@@ -34,7 +34,9 @@ def test_parse_markdown_files(temp_db, tmp_path):
     pipeline.init_db()
 
     with patch('research_pipeline.RESEARCH_DIR', research_dir):
-        pipeline.parse_markdown_files()
+        parsed, affected_ids = pipeline.parse_markdown_files()
+        assert parsed == 1
+        assert len(affected_ids) == 1
 
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()

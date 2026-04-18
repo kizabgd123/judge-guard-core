@@ -137,17 +137,28 @@ class ResearchPipeline:
         return self
 
     def parse_markdown_files(self):
-        """Parse all research/*.md files into SQLite."""
+        """
+        Parse all research/*.md files into SQLite.
+        Returns a tuple: (parsed_count, list_of_affected_document_ids)
+        """
         if not self.conn:
             self.connect()
             
         md_files = list(RESEARCH_DIR.glob("**/*.md"))
         parsed = 0
+        affected_ids = []
+
+        # ⚡ Bolt: Pre-fetch all existing file hashes to reduce Complexity from O(N) database reads to O(1) lookups.
+        existing_hashes = {row["filename"]: row["hash"] for row in self.conn.execute("SELECT filename, hash FROM documents").fetchall()}
         
         for md_path in md_files:
             content = md_path.read_text(encoding="utf-8")
             content_hash = hashlib.md5(content.encode()).hexdigest()
             
+            # ⚡ Bolt: Skip unchanged files using pre-fetched hashes.
+            if existing_hashes.get(str(md_path)) == content_hash:
+                continue
+
             # Extract phase from path (e.g., phase0_scoping)
             phase = md_path.parent.name
             
@@ -155,25 +166,22 @@ class ResearchPipeline:
             title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
             title = title_match.group(1) if title_match else md_path.stem
             
-            # Check if already exists with same hash
-            existing = self.conn.execute(
-                "SELECT hash FROM documents WHERE filename = ?",
-                (str(md_path),)
-            ).fetchone()
-            
-            if existing and existing["hash"] == content_hash:
-                continue  # Skip unchanged files
-            
             # Upsert document
-            self.conn.execute("""
+            # ⚡ Bolt: Use RETURNING id to efficiently track which documents were added or updated.
+            cursor = self.conn.execute("""
                 INSERT INTO documents (phase, filename, title, content, hash, updated_at)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(filename) DO UPDATE SET
                     content = excluded.content,
                     hash = excluded.hash,
                     updated_at = CURRENT_TIMESTAMP
+                RETURNING id
             """, (phase, str(md_path), title, content, content_hash))
             
+            row = cursor.fetchone()
+            if row:
+                affected_ids.append(row["id"])
+
             parsed += 1
             # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
             self.log_audit("PARSED", f"{md_path.name}", commit=False)
@@ -181,23 +189,41 @@ class ResearchPipeline:
         # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
         # will commit all pending inserts, including the PARSED entries.
         self.log_audit("PARSE_COMPLETE", f"{parsed} files processed")
-        return parsed
+        return parsed, affected_ids
 
-    def extract_patterns(self):
-        """Extract patterns from documents into patterns table."""
+    def extract_patterns(self, doc_ids: Optional[List[int]] = None):
+        """
+        Extract patterns from documents into patterns table.
+        ⚡ Bolt: Supports incremental extraction via `doc_ids` to avoid scanning all documents.
+        """
         if not self.conn:
             self.connect()
+
+        # ⚡ Bolt: Chunking factor to respect SQLite's SQLITE_LIMIT_VARIABLE_NUMBER (default 999)
+        CHUNK_SIZE = 900
         
-        docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
-        patterns_found = 0
+        if doc_ids is None:
+            # Full refresh: delete everything to prevent duplication.
+            self.conn.execute("DELETE FROM patterns")
+            docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
+        else:
+            # Incremental refresh: process documents in chunks.
+            docs = []
+            for i in range(0, len(doc_ids), CHUNK_SIZE):
+                chunk = doc_ids[i:i + CHUNK_SIZE]
+                placeholders = ",".join(["?"] * len(chunk))
+
+                # Delete old patterns for this chunk.
+                self.conn.execute(f"DELETE FROM patterns WHERE doc_id IN ({placeholders})", chunk)
+
+                # Fetch content for this chunk.
+                docs.extend(self.conn.execute(f"SELECT id, content FROM documents WHERE id IN ({placeholders})", chunk).fetchall())
+
+        patterns_to_insert = []
         
         for doc in docs:
-            # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
             lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
-            
             for line in lines:
-                # Extract the title part before any dash
                 match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
                 if not match:
                     continue
@@ -206,7 +232,6 @@ class ResearchPipeline:
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
-                # Determine priority and strip icons from name for consistent storage
                 priority = "MEDIUM"
                 if "🔥" in name or "HIGH" in name.upper():
                     priority = "HIGH"
@@ -215,23 +240,19 @@ class ResearchPipeline:
                     priority = "LOW"
                     name = name.replace("🟢", "").strip()
                 
-                # Check if pattern already exists
-                existing = self.conn.execute(
-                    "SELECT id FROM patterns WHERE name = ? AND doc_id = ?",
-                    (name, doc["id"])
-                ).fetchone()
-                
-                if not existing:
-                    self.conn.execute("""
-                        INSERT INTO patterns (name, priority, doc_id)
-                        VALUES (?, ?, ?)
-                    """, (name, priority, doc["id"]))
-                    patterns_found += 1
+                patterns_to_insert.append((name, priority, doc["id"]))
+
+        if patterns_to_insert:
+            # ⚡ Bolt: Use executemany for batch insertion to reduce database roundtrips.
+            self.conn.executemany("""
+                INSERT INTO patterns (name, priority, doc_id)
+                VALUES (?, ?, ?)
+            """, patterns_to_insert)
         
         # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
         # will commit all pending pattern inserts.
-        self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
-        return patterns_found
+        self.log_audit("PATTERNS_EXTRACTED", f"{len(patterns_to_insert)} patterns found")
+        return len(patterns_to_insert)
 
     def query(self, term: str) -> List[Dict]:
         """Search patterns and documents."""
@@ -421,8 +442,11 @@ def main():
     
     elif args.parse:
         pipeline.connect()
-        parsed = pipeline.parse_markdown_files()
-        patterns = pipeline.extract_patterns()
+        parsed, affected_ids = pipeline.parse_markdown_files()
+        # ⚡ Bolt: Only extract patterns if files were actually added or modified.
+        patterns = 0
+        if affected_ids:
+            patterns = pipeline.extract_patterns(doc_ids=affected_ids)
         logger.info(f"✅ Parsed {parsed} documents, extracted {patterns} patterns")
         pipeline.sync_to_notion()
     
