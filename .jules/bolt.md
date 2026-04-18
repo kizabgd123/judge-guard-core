@@ -13,3 +13,7 @@
 ## 2026-04-12 - [Redundant Auditing in Cache Hot-Path]
 **Learning:** Performing a synchronous database write (audit log) on every read-only cache hit in `ResearchPipeline.get_cached_verdict` introduces ~2.5ms of overhead, which is ~100x the latency of the actual SQLite lookup (~0.02ms). This negates much of the "fast path" benefit of caching and creates noise in Notion.
 **Action:** Avoid synchronous I/O or state mutations in cache retrieval methods. If auditing is required for hits, offload it to a background thread or use a lower-frequency sampling method.
+
+## 2026-04-15 - [Incremental Extraction and SQLite Variable Limits]
+**Learning:** Transitioning from full-table scans to incremental extraction (via `RETURNING id`) significantly reduces latency for single-file updates. However, using large batches of IDs in an `IN` clause can trigger SQLite's `SQLITE_LIMIT_VARIABLE_NUMBER` (default 999).
+**Action:** Always chunk large ID lists (e.g., in batches of 900) when using them in parameterized `IN` clauses. Combine this with a "delete-before-reinsert" strategy to maintain consistency without slow per-row existence checks.
