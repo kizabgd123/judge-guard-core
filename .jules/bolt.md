@@ -13,3 +13,7 @@
 ## 2026-04-12 - [Redundant Auditing in Cache Hot-Path]
 **Learning:** Performing a synchronous database write (audit log) on every read-only cache hit in `ResearchPipeline.get_cached_verdict` introduces ~2.5ms of overhead, which is ~100x the latency of the actual SQLite lookup (~0.02ms). This negates much of the "fast path" benefit of caching and creates noise in Notion.
 **Action:** Avoid synchronous I/O or state mutations in cache retrieval methods. If auditing is required for hits, offload it to a background thread or use a lower-frequency sampling method.
+
+## 2026-05-15 - [Early Returns in GuardianAgent Batch Processing]
+**Learning:** Batch processing loops that parallelize I/O-bound tasks (like Gemini and Notion API calls) can still be slow when idle if they wait for all initial data fetches to complete. Returning early when the primary work set (logs) is empty, or skipping expensive AI calls when the criteria set (goals) is empty, can reduce idle latency by >99% (from ~1.0s to ~0.001s).
+**Action:** Implement fast-fail checks immediately after the first required data fetch in parallelized workflows. Mark items as processed even if skipped to maintain queue hygiene without incurring AI latency.
