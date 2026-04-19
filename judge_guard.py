@@ -24,29 +24,9 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- DEPENDENCY INJECTION ---
-try:
-    from src.antigravity_core.judge_flow import BlockJudge
-    from src.antigravity_core.gemini_client import GeminiClient
-    JUDGE_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"⚠️ Judge/Gemini modules not available: {e}")
-    JUDGE_AVAILABLE = False
-
-try:
-    from src.antigravity_core.mobile_bridge import bridge
-    BRIDGE_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"⚠️ MobileBridge not available: {e}")
-    BRIDGE_AVAILABLE = False
-
-try:
-    from research_pipeline import ResearchPipeline
-    PIPELINE_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"⚠️ ResearchPipeline not available: {e}")
-    PIPELINE_AVAILABLE = False
-# ----------------------------
+# --- DEPENDENCY INJECTION (Lazy) ---
+# Dependencies are imported on demand to reduce CLI startup latency.
+# -----------------------------------
 
 # --- LAYER 3 CONSTANT ---
 PROJECT_ESSENCE = """
@@ -79,34 +59,50 @@ class JudgeGuard:
         self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
         self.immutable_laws = self._load_rules()
         
-        if JUDGE_AVAILABLE:
-            self.gemini = GeminiClient()
+        self._gemini = None
+        self._pipeline = None
 
-        # ⚡ Bolt: Initialize ResearchPipeline for verdict caching
-        if PIPELINE_AVAILABLE:
-            try:
-                self.pipeline = ResearchPipeline().connect()
-            except Exception:
-                # If connect fails (db doesn't exist), try to init it
-                try:
-                    self.pipeline = ResearchPipeline().init_db()
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
-                    self.pipeline = None
-        else:
-            self.pipeline = None
-        
         logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+
+    @property
+    def gemini(self):
+        """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
+        if self._gemini is None:
+            try:
+                from src.antigravity_core.gemini_client import GeminiClient
+                self._gemini = GeminiClient()
+            except ImportError as e:
+                logger.warning(f"⚠️ GeminiClient not available: {e}")
+        return self._gemini
+
+    @property
+    def pipeline(self):
+        """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
+        if self._pipeline is None:
+            try:
+                from research_pipeline import ResearchPipeline
+                try:
+                    self._pipeline = ResearchPipeline().connect()
+                except Exception:
+                    # If connect fails (db doesn't exist), try to init it
+                    try:
+                        self._pipeline = ResearchPipeline().init_db()
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
+                        self._pipeline = None
+            except ImportError as e:
+                logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+        return self._pipeline
 
     def __del__(self):
         self.close()
 
     def close(self):
-        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
+        """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
         if hasattr(self, "_executor"):
             self._executor.shutdown(wait=False)
-        if hasattr(self, "pipeline") and self.pipeline:
-            self.pipeline.close()
+        if hasattr(self, "_pipeline") and self._pipeline:
+            self._pipeline.close()
 
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
@@ -273,19 +269,22 @@ class JudgeGuard:
         Notes:
             May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
         """
+        # ⚡ Bolt: Lazy import bridge to avoid early 'requests' load
+        try:
+            from src.antigravity_core.mobile_bridge import bridge
+            bridge_available = True
+        except ImportError:
+            bridge_available = False
+
         # --- LAYER 00: Security Enforcement (Emergency Fix) ---
         if self._is_dangerous_command(current_action):
             msg = "Security Violation: Action contains forbidden dangerous commands (sudo/root deletion)."
             logger.error(f"Layer 00 Block: {msg}")
-            if BRIDGE_AVAILABLE:
+            if bridge_available:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
             print(f"🛑 JudgeGuard: {msg}")
             return False
 
-        if not JUDGE_AVAILABLE:
-            print("🛑 JudgeGuard: Dependencies missing (GeminiClient/JudgeFlow).")
-            return False
-        
         # --- LAYER 0: Work Log Enforcement (NEW) ---
         # ⚡ Bolt: Fast-fail before expensive context loading/LLM calls
         if not self._check_work_log(current_action):
@@ -297,7 +296,7 @@ class JudgeGuard:
             cached_verdict = self.pipeline.get_cached_verdict(current_action)
             if cached_verdict == "PASSED":
                 print(f"⚡ Bolt: Reusing cached approval for '{current_action}'")
-                if BRIDGE_AVAILABLE:
+                if bridge_available:
                     bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
 
                 # ⚡ Bolt: Still trigger Notion sync for research actions
@@ -305,8 +304,13 @@ class JudgeGuard:
                     self._sync_to_notion(current_action)
                 return True
 
+        # Ensure we have the heavy dependencies before proceeding to AI layers
+        if not self.gemini:
+            print("🛑 JudgeGuard: Dependencies missing (GeminiClient).")
+            return False
+
         # --- LAYER 2: Live Thought Streaming ---
-        if BRIDGE_AVAILABLE:
+        if bridge_available:
             bridge.push_verdict("Thinking...", "PENDING", "Analyzing against Phase rules...")
 
         context = self._load_context()
@@ -322,7 +326,7 @@ class JudgeGuard:
         if is_research_phase and is_shell_command:
             msg = "Violation: You must use the Browser Agent for research tasks (Phase 0-1)."
             logger.warning(f"Layer 1 Block: {msg}")
-            if BRIDGE_AVAILABLE:
+            if bridge_available:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
             print(f"🛑 JudgeGuard: {msg}")
             return False
@@ -331,7 +335,7 @@ class JudgeGuard:
         is_write = self._is_write_operation(current_action)
         logger.info(f"Consolidated Verification (Write: {is_write})...")
 
-        if BRIDGE_AVAILABLE:
+        if bridge_available:
             status_msg = "Verifying Rules & Essence..." if is_write else "Verifying Standard Rules..."
             bridge.push_verdict("Judging...", "PENDING", status_msg)
 
@@ -353,12 +357,13 @@ class JudgeGuard:
         criteria = "\n".join(criteria_parts)
         
         # ⚡ Bolt: Single Gemini call for both Essence and Standard rules
+        from src.antigravity_core.judge_flow import BlockJudge
         judge = BlockJudge(criteria, client=self.gemini)
         passed = judge.evaluate(f"ACTION: {current_action}")
         
         if passed:
             print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
-            if BRIDGE_AVAILABLE:
+            if bridge_available:
                 bridge.push_verdict(current_action, "PASSED", "Approved (Unified Verification)")
             
             # ⚡ Bolt: Cache the verdict for future speed
@@ -373,7 +378,7 @@ class JudgeGuard:
         else:
             msg = "Violation detected (Master Orchestration or Project Essence)."
             print(f"🛑 JudgeGuard: {msg}")
-            if BRIDGE_AVAILABLE:
+            if bridge_available:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
             return False
 
