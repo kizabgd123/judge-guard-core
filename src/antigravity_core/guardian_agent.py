@@ -112,13 +112,23 @@ class GuardianAgent:
         goals_future = self._executor.submit(self.fetch_active_goals)
 
         logs = logs_future.result()
-        goals = goals_future.result()
+        # ⚡ Bolt: Early return if no logs to process, avoiding unnecessary wait for goals_future.result()
+        if not logs:
+            logger.info("No new logs found.")
+            return
 
+        goals = goals_future.result()
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
 
+        # ⚡ Bolt: If no active goals exist, we can't match anything.
+        # Mark all logs as processed to clear the queue and skip expensive Gemini API calls.
+        if not goals:
+            logger.info("No active goals found. Skipping AI analysis.")
+            list(self._executor.map(lambda log_item: self._mark_processed(log_item["id"], True), logs))
+            return
+
         # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
-        # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
-        # This avoids O(L * G) complexity by pre-building the context once.
+        # Hoisting this avoids O(L * G) complexity by pre-building the context once.
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
         # ⚡ Bolt: Parallelize processing to reduce total turn-around time
