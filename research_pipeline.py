@@ -21,6 +21,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
 from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -82,6 +83,8 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
+        # ⚡ Bolt: Load environment variables once during initialization
+        load_dotenv()
         self.conn = None
         self.notion_queue = []
         self._session = None
@@ -105,14 +108,15 @@ class ResearchPipeline:
         if hasattr(self, "conn") and self.conn:
             self.conn.close()
         
-    def log_audit(self, action: str, details: str = "", commit: bool = True):
+    def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
-        entry = {
-            "action": action,
-            "details": details,
-            "timestamp": datetime.now().isoformat()
-        }
-        self.notion_queue.append(entry)
+        if sync_notion:
+            entry = {
+                "action": action,
+                "details": details,
+                "timestamp": datetime.now().isoformat()
+            }
+            self.notion_queue.append(entry)
         
         if self.conn:
             self.conn.execute(
@@ -348,15 +352,13 @@ class ResearchPipeline:
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
         """
-        # ⚡ Bolt: Fast return if nothing to sync to avoid redundant overhead
-        # ⚡ Bolt: Early return if nothing to sync to avoid redundant env/meta-logging overhead
-        if not self.notion_queue:
+        # ⚡ Bolt: Snapshot and clear queue immediately to prevent leaks and race conditions
+        current_queue = self.notion_queue[:]
+        self.notion_queue = []
+
+        if not current_queue:
             return
 
-        # Reload env vars
-        from dotenv import load_dotenv
-        load_dotenv()
-        
         token = os.getenv("NOTION_TOKEN")
         db_id = os.getenv("NOTION_DATABASE_ID")
         
@@ -372,9 +374,9 @@ class ResearchPipeline:
                 except json.JSONDecodeError:
                     existing = []
             
-            existing.extend(self.notion_queue)
+            existing.extend(current_queue)
             NOTION_LOG.write_text(json.dumps(existing, indent=2))
-            self.log_audit("NOTION_MOCKED", f"{len(self.notion_queue)} entries saved to {NOTION_LOG}")
+            self.log_audit("NOTION_MOCKED", f"{len(current_queue)} entries saved to {NOTION_LOG}", sync_notion=False)
             return
         
         # If token exists, push to Notion
@@ -405,10 +407,9 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, self.notion_queue))
+            list(self._executor.map(push_entry, current_queue))
             
-            self.log_audit("NOTION_SYNCED", f"{len(self.notion_queue)} entries pushed")
-            self.notion_queue = []  # Clear after sync
+            self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
             logger.error(f"❌ Notion sync failed: {e}")
             # Fallback to file
@@ -419,7 +420,7 @@ class ResearchPipeline:
                     existing = json.loads(NOTION_LOG.read_text())
                 except json.JSONDecodeError:
                     existing = []
-            existing.extend(self.notion_queue)
+            existing.extend(current_queue)
             NOTION_LOG.write_text(json.dumps(existing, indent=2))
 
     def get_stats(self) -> Dict:
