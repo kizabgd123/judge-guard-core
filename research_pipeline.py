@@ -20,7 +20,6 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
-import requests
 from concurrent.futures import ThreadPoolExecutor
 
 # Setup logging
@@ -85,17 +84,26 @@ class ResearchPipeline:
     def __init__(self):
         self.conn = None
         self.notion_queue = []
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
+        # ⚡ Bolt: Use lazy property for session to defer 'requests' import
+        self._session = None
         # ⚡ Bolt: Executor for parallelizing Notion API calls
         self._executor = ThreadPoolExecutor(max_workers=5)
+
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy-load requests session."""
+        if self._session is None:
+            import requests
+            self._session = requests.Session()
+        return self._session
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
         if hasattr(self, "_executor"):
             self._executor.shutdown(wait=True)
-        if hasattr(self, "session"):
-            self.session.close()
+        # Check _session specifically to avoid triggering lazy load during shutdown
+        if getattr(self, "_session", None):
+            self._session.close()
         if hasattr(self, "conn") and self.conn:
             self.conn.close()
         
