@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, PropertyMock
 import os
 import sys
 
@@ -29,26 +29,34 @@ class TestJudgeGuard(unittest.TestCase):
         with open(self.work_log_path, "w") as f:
             f.write("🟡 Starting Valid Action\n")
             
-        # Patch dependencies for the JudgeGuard instance
-        with patch('judge_guard.JUDGE_AVAILABLE', True), \
-             patch('judge_guard.BRIDGE_AVAILABLE', True), \
-             patch('src.antigravity_core.gemini_client.GeminiClient'), \
-             patch('src.antigravity_core.mobile_bridge.bridge'):
-            self.judge = JudgeGuard(work_log_path=self.work_log_path)
+        # Instantiate JudgeGuard
+        self.judge = JudgeGuard(work_log_path=self.work_log_path)
 
-    @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate')
-    def test_verify_action_pass(self, mock_evaluate):
-        # Mock the BlockJudge to return True (PASSED)
-        mock_evaluate.return_value = True
+    @patch('judge_guard.JudgeGuard.gemini', new_callable=PropertyMock)
+    @patch('judge_guard.JudgeGuard.block_judge_class', new_callable=PropertyMock)
+    @patch('judge_guard.JudgeGuard.bridge', new_callable=PropertyMock)
+    def test_verify_action_pass(self, mock_bridge, mock_block_judge_class, mock_gemini):
+        # Mock dependencies
+        mock_gemini.return_value = MagicMock()
+        mock_judge_instance = MagicMock()
+        mock_judge_instance.evaluate.return_value = True
+        mock_block_judge_class.return_value = MagicMock(return_value=mock_judge_instance)
+        mock_bridge.return_value = MagicMock()
         
         # We need to make sure _check_work_log passes
         verdict = self.judge.verify_action("Valid Action")
         self.assertTrue(verdict)
 
-    @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate')
-    def test_verify_action_block(self, mock_evaluate):
-        # Mock the BlockJudge to return False (BLOCKED)
-        mock_evaluate.return_value = False
+    @patch('judge_guard.JudgeGuard.gemini', new_callable=PropertyMock)
+    @patch('judge_guard.JudgeGuard.block_judge_class', new_callable=PropertyMock)
+    @patch('judge_guard.JudgeGuard.bridge', new_callable=PropertyMock)
+    def test_verify_action_block(self, mock_bridge, mock_block_judge_class, mock_gemini):
+        # Mock dependencies
+        mock_gemini.return_value = MagicMock()
+        mock_judge_instance = MagicMock()
+        mock_judge_instance.evaluate.return_value = False
+        mock_block_judge_class.return_value = MagicMock(return_value=mock_judge_instance)
+        mock_bridge.return_value = MagicMock()
         
         verdict = self.judge.verify_action("Malicious Action")
         self.assertFalse(verdict)
