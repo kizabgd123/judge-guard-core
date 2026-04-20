@@ -99,10 +99,11 @@ class GuardianAgent:
         if analysis.get("match_found"):
             goal_id = analysis["goal_id"]
             logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
-            self._mark_processed(log_id, True)
         else:
             logger.info("No specific goal progress detected.")
-            self._mark_processed(log_id, True) # Mark processed anyway so we don't loop
+
+        # ⚡ Bolt: Mark processed regardless of match to avoid re-processing
+        self._mark_processed(log_id, True)
 
     def process_logs(self):
         """Main execution loop."""
@@ -112,18 +113,27 @@ class GuardianAgent:
         goals_future = self._executor.submit(self.fetch_active_goals)
 
         logs = logs_future.result()
-        goals = goals_future.result()
+        # ⚡ Bolt: Early return if no logs to process
+        if not logs:
+            logger.info("No new logs found. Returning early.")
+            return
 
+        goals = goals_future.result()
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
 
-        # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
-        # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
-        # This avoids O(L * G) complexity by pre-building the context once.
-        goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
+        if not goals:
+            # ⚡ Bolt: Skip Gemini if no active goals, just mark logs as processed
+            logger.info("No active goals found. Marking all logs as processed.")
+            list(self._executor.map(lambda log_item: self._mark_processed(log_item["id"], True), logs))
+        else:
+            # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
+            # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
+            # This avoids O(L * G) complexity by pre-building the context once.
+            goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
-        # ⚡ Bolt: Parallelize processing to reduce total turn-around time
-        # This overlaps the high-latency Gemini and Notion API calls.
-        list(self._executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
+            # ⚡ Bolt: Parallelize processing to reduce total turn-around time
+            # This overlaps the high-latency Gemini and Notion API calls.
+            list(self._executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
 
     def _mark_processed(self, page_id: str, processed: bool):
         """Updates the 'Processed' checkbox in Notion."""
