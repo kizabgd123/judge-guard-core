@@ -13,3 +13,7 @@
 ## 2026-04-12 - [Redundant Auditing in Cache Hot-Path]
 **Learning:** Performing a synchronous database write (audit log) on every read-only cache hit in `ResearchPipeline.get_cached_verdict` introduces ~2.5ms of overhead, which is ~100x the latency of the actual SQLite lookup (~0.02ms). This negates much of the "fast path" benefit of caching and creates noise in Notion.
 **Action:** Avoid synchronous I/O or state mutations in cache retrieval methods. If auditing is required for hits, offload it to a background thread or use a lower-frequency sampling method.
+
+## 2026-04-15 - [Import Latency in CLI Tools]
+**Learning:** Top-level imports of heavy libraries like `google-generativeai` (~0.8s) and `requests` (~0.2s) significantly penalize CLI startup time, even for "hot paths" like cached verdict lookups. This makes the system feel sluggish during interactive use.
+**Action:** Implement lazy loading for heavy dependencies. Use helper methods or `@property` to defer imports until the library is actually required for an execution path. Update unit tests to patch the global library namespace instead of module-level aliases.

@@ -1,6 +1,5 @@
 import os
 import time
-import google.generativeai as genai
 from typing import Optional, Dict
 import logging
 
@@ -43,6 +42,11 @@ class GeminiClient:
         self.model_name = model_name
         self._configure_client()
 
+    def _get_genai(self):
+        """⚡ Bolt: Lazy load google.generativeai to reduce import latency (~0.8s)."""
+        import google.generativeai as genai
+        return genai
+
     def _configure_client(self):
         """
         Configure the Gemini client to use the currently selected API key or initialize mock mode.
@@ -54,6 +58,7 @@ class GeminiClient:
             logger.info("GeminiClient: Initialized in MOCK MODE")
             return
 
+        genai = self._get_genai()
         current_key = self.api_keys[self.current_key_index]
         genai.configure(api_key=current_key)
         self.model = genai.GenerativeModel(self.model_name)

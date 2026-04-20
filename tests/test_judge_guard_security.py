@@ -30,8 +30,7 @@ class TestJudgeGuardSecurity(unittest.TestCase):
         # Ensure JudgeGuard uses our mocks for every test
         self.jg_patchers = [
             patch('judge_guard.JUDGE_AVAILABLE', True),
-            patch('judge_guard.BRIDGE_AVAILABLE', True),
-            patch('judge_guard.bridge', mock_bridge_obj)
+            patch('judge_guard.BRIDGE_AVAILABLE', True)
         ]
         for p in self.jg_patchers:
             p.start()
@@ -39,6 +38,8 @@ class TestJudgeGuardSecurity(unittest.TestCase):
         # Instantiate JudgeGuard
         # We need to mock judge_content on the instance's gemini object for some tests
         self.judge = JudgeGuard(work_log_path=self.work_log_path)
+        # Patch the lazy-loaded bridge on the instance
+        self.judge._bridge = mock_bridge_obj
 
     def tearDown(self):
         """
