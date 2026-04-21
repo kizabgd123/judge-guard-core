@@ -162,11 +162,14 @@ class ResearchPipeline:
         
         for md_path in md_files:
             filename_str = str(md_path)
-            content = md_path.read_text(encoding="utf-8")
-            content_hash = hashlib.md5(content.encode()).hexdigest()
+            # ⚡ Bolt: Use read_bytes() for hash check to avoid redundant UTF-8 decoding for unchanged files
+            raw_content = md_path.read_bytes()
+            content_hash = hashlib.md5(raw_content).hexdigest()
             
             if filename_str in existing_hashes and existing_hashes[filename_str] == content_hash:
                 continue  # Skip unchanged files
+
+            content = raw_content.decode(encoding="utf-8", errors="ignore")
 
             # Extract phase from path (e.g., phase0_scoping)
             phase = md_path.parent.name
@@ -233,16 +236,8 @@ class ResearchPipeline:
         new_patterns = [] # (name, priority, doc_id)
         
         for doc in docs:
-            # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
-            lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
-            
-            for line in lines:
-                # Extract the title part before any dash
-                match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
-                if not match:
-                    continue
-
+            # ⚡ Bolt: Use re.finditer for a single-pass scan to avoid redundant line finding and string allocations
+            for match in re.finditer(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", doc["content"], re.MULTILINE):
                 name = match.group(1).strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue

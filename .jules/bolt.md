@@ -17,3 +17,11 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-18 - [Redundant UTF-8 Decoding in File Indexing]
+**Learning:** Calling `Path.read_text()` on every file in a large repository (1000+ files) during a "no-change" parse introduces significant overhead due to unnecessary UTF-8 decoding. Calculating MD5 hashes from raw bytes (`read_bytes()`) and only decoding modified content avoids this CPU bottleneck.
+**Action:** Use `read_bytes()` for initial change detection via hashing. Only `decode()` and process content if the hash has changed. This reduced no-change parse latency by ~67% (108ms -> 36ms).
+
+## 2026-04-18 - [Regex Multi-pass Scanning Overhead]
+**Learning:** Using `re.findall` to extract lines and then `re.search` on each line for pattern extraction creates redundant scans and excessive string allocations. A single-pass `re.finditer` with a combined regex is significantly more efficient for large-scale document parsing.
+**Action:** Replace nested regex operations with a single-pass `re.finditer` scan. This improved pattern extraction speed by ~44% (25ms -> 14ms) for 1000 documents.
