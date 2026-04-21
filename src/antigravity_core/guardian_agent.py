@@ -93,33 +93,45 @@ class GuardianAgent:
         log_text = self._get_title(log)
         log_id = log["id"]
 
+        if not goals_text:
+            logger.info(f"Skipping analysis for '{log_text}': No active goals to match.")
+            self._mark_processed(log_id, True)
+            return
+
         logger.info(f"Analyzing log: '{log_text}'")
         analysis = self.analyze_log_against_goals(log_text, goals_text)
 
         if analysis.get("match_found"):
             goal_id = analysis["goal_id"]
             logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
-            self._mark_processed(log_id, True)
         else:
             logger.info("No specific goal progress detected.")
-            self._mark_processed(log_id, True) # Mark processed anyway so we don't loop
+
+        # ⚡ Bolt: Consolidate mark_processed to avoid redundancy
+        self._mark_processed(log_id, True)
 
     def process_logs(self):
         """Main execution loop."""
-        logger.info("🛡️ Guardian Active: Fetching data...")
-        # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency
-        logs_future = self._executor.submit(self.fetch_unprocessed_logs)
-        goals_future = self._executor.submit(self.fetch_active_goals)
+        logger.info("🛡️ Guardian Active: Fetching logs...")
+        # ⚡ Bolt: Start log fetch first to check if work is actually needed
+        logs = self.fetch_unprocessed_logs()
 
-        logs = logs_future.result()
-        goals = goals_future.result()
+        if not logs:
+            logger.info("No new logs to process. Sleeping.")
+            return
 
-        logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
+        # ⚡ Bolt: Only fetch goals if we have logs to process
+        logger.info(f"Found {len(logs)} new logs. Fetching active goals...")
+        goals = self.fetch_active_goals()
 
-        # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
-        # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
-        # This avoids O(L * G) complexity by pre-building the context once.
-        goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
+        logger.info(f"Processing {len(logs)} logs against {len(goals)} active goals.")
+
+        # ⚡ Bolt: Early skip for goals context construction if none exist
+        if not goals:
+            goals_text = ""
+        else:
+            # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
+            goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
         # ⚡ Bolt: Parallelize processing to reduce total turn-around time
         # This overlaps the high-latency Gemini and Notion API calls.
