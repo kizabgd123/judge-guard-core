@@ -1,6 +1,5 @@
 import os
 import time
-import google.generativeai as genai
 from typing import Optional, Dict
 import logging
 
@@ -53,6 +52,9 @@ class GeminiClient:
             self.model = None
             logger.info("GeminiClient: Initialized in MOCK MODE")
             return
+
+        # ⚡ Bolt: Lazy import to reduce startup latency
+        import google.generativeai as genai
 
         current_key = self.api_keys[self.current_key_index]
         genai.configure(api_key=current_key)

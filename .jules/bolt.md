@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-21 - [Idle Path Efficiency and Sequential Fetching]
+**Learning:** Polling agents (like `GuardianAgent`) often run when there is no work to do. Parallelizing all data fetches (e.g., logs and goals) upfront can be counter-productive if the primary work list (logs) is empty, as it still pays the latency and resource cost of the secondary fetch (goals).
+**Action:** Use sequential fetching with early returns for primary work lists. In `GuardianAgent`, fetching logs first and returning early if empty skips the redundant Notion query for goals. Additionally, if work exists but the matching context (goals) is empty, bypassing the LLM analysis entirely and using the parallel executor for status updates reduces "No Goals" latency by ~58%.

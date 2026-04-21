@@ -99,10 +99,11 @@ class GuardianAgent:
         if analysis.get("match_found"):
             goal_id = analysis["goal_id"]
             logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
-            self._mark_processed(log_id, True)
         else:
             logger.info("No specific goal progress detected.")
-            self._mark_processed(log_id, True) # Mark processed anyway so we don't loop
+
+        # ⚡ Bolt: Consolidate redundant mark_processed calls
+        self._mark_processed(log_id, True)
 
     def process_logs(self):
         """Main execution loop."""
@@ -112,13 +113,21 @@ class GuardianAgent:
         goals_future = self._executor.submit(self.fetch_active_goals)
 
         logs = logs_future.result()
-        goals = goals_future.result()
+        # ⚡ Bolt: Early return if no logs to process
+        if not logs:
+            logger.info("No new logs found.")
+            return
 
+        goals = goals_future.result()
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
 
+        # ⚡ Bolt: Skip Gemini if no active goals to match against
+        if not goals:
+            logger.info("No active goals found. Skipping analysis and marking logs processed.")
+            list(self._executor.map(lambda log_item: self._mark_processed(log_item["id"], True), logs))
+            return
+
         # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
-        # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
-        # This avoids O(L * G) complexity by pre-building the context once.
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
         # ⚡ Bolt: Parallelize processing to reduce total turn-around time

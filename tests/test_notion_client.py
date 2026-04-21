@@ -7,7 +7,7 @@ def notion_client(monkeypatch):
     monkeypatch.setenv("NOTION_API_KEY", "test_key")
     return NotionClient()
 
-@patch('src.antigravity_core.notion_client.requests.Session.post')
+@patch('requests.Session.post')
 def test_test_connection_success(mock_post, notion_client):
     mock_post.return_value.json.return_value = {"results": []}
     mock_post.return_value.status_code = 200
@@ -16,7 +16,7 @@ def test_test_connection_success(mock_post, notion_client):
     assert result == {"results": []}
     mock_post.assert_called_once()
 
-@patch('src.antigravity_core.notion_client.requests.Session.post')
+@patch('requests.Session.post')
 def test_create_page(mock_post, notion_client):
     mock_post.return_value.json.return_value = {"id": "new_page_id"}
     mock_post.return_value.status_code = 200
@@ -27,7 +27,7 @@ def test_create_page(mock_post, notion_client):
     args, kwargs = mock_post.call_args
     assert kwargs["json"]["properties"]["title"]["title"][0]["text"]["content"] == "Title"
 
-@patch('src.antigravity_core.notion_client.requests.Session.post')
+@patch('requests.Session.post')
 def test_query_database(mock_post, notion_client):
     mock_post.return_value.json.return_value = {"results": [{"id": "page1"}]}
     mock_post.return_value.status_code = 200
@@ -36,7 +36,7 @@ def test_query_database(mock_post, notion_client):
     assert len(result) == 1
     assert result[0]["id"] == "page1"
 
-@patch('src.antigravity_core.notion_client.requests.Session.patch')
+@patch('requests.Session.patch')
 def test_update_page_properties(mock_patch, notion_client):
     mock_patch.return_value.json.return_value = {"id": "page_id"}
     mock_patch.return_value.status_code = 200
@@ -48,7 +48,7 @@ def test_update_page_properties(mock_patch, notion_client):
         json={"properties": {"Prop": {"checkbox": True}}}
     )
 
-@patch('src.antigravity_core.notion_client.requests.Session.get')
+@patch('requests.Session.get')
 def test_retrieve_database(mock_get, notion_client):
     mock_get.return_value.json.return_value = {"id": "db_id", "title": []}
     mock_get.return_value.status_code = 200
