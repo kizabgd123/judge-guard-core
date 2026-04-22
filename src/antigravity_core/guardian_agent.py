@@ -4,9 +4,6 @@ import json
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
-from src.antigravity_core.notion_client import NotionClient
-from src.antigravity_core.gemini_client import GeminiClient
-
 # Setup
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -16,8 +13,8 @@ class GuardianAgent:
     The Guardian: Connects Daily Logs to Goals using AI validation.
     """
     def __init__(self):
-        self.notion = NotionClient()
-        self.gemini = GeminiClient()
+        self._notion = None
+        self._gemini = None
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
         
@@ -29,6 +26,22 @@ class GuardianAgent:
 
     def __del__(self):
         self.close()
+
+    @property
+    def gemini(self):
+        """⚡ Bolt: Lazy property to defer GeminiClient initialization."""
+        if self._gemini is None:
+            from src.antigravity_core.gemini_client import GeminiClient
+            self._gemini = GeminiClient()
+        return self._gemini
+
+    @property
+    def notion(self):
+        """⚡ Bolt: Lazy property to defer NotionClient initialization."""
+        if self._notion is None:
+            from src.antigravity_core.notion_client import NotionClient
+            self._notion = NotionClient()
+        return self._notion
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
