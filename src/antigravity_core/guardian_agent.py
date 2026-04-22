@@ -57,6 +57,10 @@ class GuardianAgent:
         """
         Ask Gemini if this log entry advances any of the goals.
         """
+        # ⚡ Bolt: Early return if no goals exist to skip expensive Gemini API call
+        if not goals_text.strip():
+            return {"match_found": False, "goal_id": None, "progress_comment": "No active goals to match against."}
+
         prompt = f"""
         You are The Guardian, an accountability AI.
         
@@ -99,22 +103,28 @@ class GuardianAgent:
         if analysis.get("match_found"):
             goal_id = analysis["goal_id"]
             logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
-            self._mark_processed(log_id, True)
         else:
             logger.info("No specific goal progress detected.")
-            self._mark_processed(log_id, True) # Mark processed anyway so we don't loop
+
+        # ⚡ Bolt: Consolidate redundant marking outside of conditional branches
+        self._mark_processed(log_id, True)
 
     def process_logs(self):
         """Main execution loop."""
-        logger.info("🛡️ Guardian Active: Fetching data...")
-        # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency
-        logs_future = self._executor.submit(self.fetch_unprocessed_logs)
-        goals_future = self._executor.submit(self.fetch_active_goals)
+        logger.info("🛡️ Guardian Active: Fetching logs...")
 
-        logs = logs_future.result()
-        goals = goals_future.result()
+        # ⚡ Bolt: Sequential fetching with early return for idle states.
+        # Fetching logs first allows us to skip fetching goals entirely if no logs exist,
+        # which is the most frequent state for a polling agent.
+        logs = self.fetch_unprocessed_logs()
 
-        logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
+        if not logs:
+            logger.info("No new logs found. Returning to idle.")
+            return
+
+        logger.info(f"Found {len(logs)} new logs. Fetching active goals...")
+        goals = self.fetch_active_goals()
+        logger.info(f"Found {len(goals)} active goals.")
 
         # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
         # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
