@@ -162,11 +162,17 @@ class ResearchPipeline:
         
         for md_path in md_files:
             filename_str = str(md_path)
-            content = md_path.read_text(encoding="utf-8")
-            content_hash = hashlib.md5(content.encode()).hexdigest()
+
+            # ⚡ Bolt: Use read_bytes() for hashing to avoid redundant UTF-8 decoding/encoding
+            # This is significantly faster for 'no-change' parsing of many files.
+            raw_bytes = md_path.read_bytes()
+            content_hash = hashlib.md5(raw_bytes).hexdigest()
             
             if filename_str in existing_hashes and existing_hashes[filename_str] == content_hash:
                 continue  # Skip unchanged files
+
+            # Defer decoding until we know the file has changed
+            content = raw_bytes.decode(encoding="utf-8")
 
             # Extract phase from path (e.g., phase0_scoping)
             phase = md_path.parent.name
