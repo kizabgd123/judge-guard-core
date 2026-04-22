@@ -4,8 +4,6 @@ import json
 import random
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional
-from src.antigravity_core.gemini_client import GeminiClient
-from src.antigravity_core.notion_client import NotionClient
 
 logger = logging.getLogger(__name__)
 
@@ -19,23 +17,36 @@ class KaggleAgent:
         self.last_score = 0.0
         self.progress = 0
         self.demo_mode = False
+        self._gemini = None
+        self._notion = None
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
         # ⚡ Bolt: Executor for offloading synchronous Notion API calls
         self._executor = ThreadPoolExecutor(max_workers=2)
 
-        # Try to initialize Gemini, but catch ALL exceptions to enable Demo Mode
-        try:
-            self.gemini = GeminiClient()
-        except Exception as e:
-            logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
-            self.gemini = None
-            self.demo_mode = True
+    @property
+    def gemini(self):
+        """⚡ Bolt: Lazy property to defer GeminiClient initialization."""
+        if self._gemini is None and not self.demo_mode:
+            try:
+                from src.antigravity_core.gemini_client import GeminiClient
+                self._gemini = GeminiClient()
+            except Exception as e:
+                logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
+                self.demo_mode = True
+                self._gemini = None
+        return self._gemini
 
-        try:
-            self.notion = NotionClient()
-        except Exception:
-            self.notion = None
+    @property
+    def notion(self):
+        """⚡ Bolt: Lazy property to defer NotionClient initialization."""
+        if self._notion is None:
+            try:
+                from src.antigravity_core.notion_client import NotionClient
+                self._notion = NotionClient()
+            except Exception:
+                self._notion = None
+        return self._notion
 
     def __enter__(self):
         return self

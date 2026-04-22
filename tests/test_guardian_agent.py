@@ -4,8 +4,8 @@ from src.antigravity_core.guardian_agent import GuardianAgent
 
 @pytest.fixture
 def mock_clients():
-    with patch('src.antigravity_core.guardian_agent.NotionClient') as mock_notion, \
-         patch('src.antigravity_core.guardian_agent.GeminiClient') as mock_gemini:
+    with patch('src.antigravity_core.notion_client.NotionClient') as mock_notion, \
+         patch('src.antigravity_core.gemini_client.GeminiClient') as mock_gemini:
         yield mock_notion, mock_gemini
 
 def test_guardian_init(mock_clients, monkeypatch):

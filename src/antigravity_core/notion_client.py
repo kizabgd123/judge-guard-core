@@ -1,7 +1,6 @@
 import os
 import logging
 from typing import Dict, List, Any, Optional
-import requests
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -26,9 +25,16 @@ class NotionClient:
             "Notion-Version": "2022-06-28",
             "Content-Type": "application/json"
         }
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        self._session = None
+
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        if self._session is None:
+            import requests
+            self._session = requests.Session()
+            self._session.headers.update(self.headers)
+        return self._session
     
     def test_connection(self) -> Dict[str, Any]:
         """Test the connection by listing accessible pages."""
