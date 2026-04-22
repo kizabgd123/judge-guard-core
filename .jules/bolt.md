@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-22 - [Redundant String Decoding in File Hashing]
+**Learning:** Using `Path.read_text().encode()` for file hashing is inefficient because it triggers a full UTF-8 decoding pass only to re-encode it back to bytes for the hash function. For 1000 unchanged files, this adds ~25-30% overhead compared to reading bytes directly.
+**Action:** Use `Path.read_bytes()` for checksum/hash comparisons and defer `decode()` until a file change is confirmed.
