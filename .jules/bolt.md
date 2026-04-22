@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-20 - [Redundant API Calls in Polling Agents]
+**Learning:** Polling agents like `GuardianAgent` often run in an idle state. Fetching secondary context (e.g., `goals`) in parallel with the primary workload (e.g., `logs`) is wasteful if no primary work exists. Furthermore, processing logs when secondary context is empty can lead to redundant and expensive LLM/API calls.
+**Action:** Implement early returns in the main polling loop to check for primary work before fetching context. Add skip-logic for expensive steps (like LLM analysis) when required context is missing, significantly reducing API quota consumption and latency in idle or partially-configured states.
