@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-20 - [Cold-Start Latency in Polling Agents]
+**Learning:** Polling agents like `GuardianAgent` often suffer from cold-start latency when heavy libraries (e.g. `google-generativeai`) are lazy-loaded only when needed. This can add ~0.5s-1.0s to the first active turn.
+**Action:** Implement "warmup" tasks in background threads. Overlap heavy imports and client initializations with high-latency I/O operations (like Notion API fetches) to hide initialization costs and reduce total turn-around time.
