@@ -70,6 +70,10 @@ class GuardianAgent:
         """
         Ask Gemini if this log entry advances any of the goals.
         """
+        # ⚡ Bolt: Early return if no goals exist to avoid redundant AI calls
+        if not goals_text.strip():
+            return {"match_found": False}
+
         prompt = f"""
         You are The Guardian, an accountability AI.
         
@@ -120,17 +124,29 @@ class GuardianAgent:
     def process_logs(self):
         """Main execution loop."""
         logger.info("🛡️ Guardian Active: Fetching data...")
-        # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency
+
+        # ⚡ Bolt: Parallelize initial fetches and Gemini warmup to hide cold-start latency.
+        # This overlaps high-latency Notion API calls with the heavy 'google-generativeai' import.
         logs_future = self._executor.submit(self.fetch_unprocessed_logs)
         goals_future = self._executor.submit(self.fetch_active_goals)
+        # Warmup gemini (trigger lazy import) in background
+        self._executor.submit(lambda: self.gemini)
 
         logs = logs_future.result()
-        goals = goals_future.result()
+        if not logs:
+            logger.info("No new logs found.")
+            return
 
+        goals = goals_future.result()
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
 
+        if not goals:
+            logger.info("No active goals found. Marking logs as processed in parallel.")
+            # ⚡ Bolt: Parallelize marking as processed to reduce latency
+            list(self._executor.map(lambda log: self._mark_processed(log["id"], True), logs))
+            return
+
         # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
-        # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
         # This avoids O(L * G) complexity by pre-building the context once.
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
@@ -151,17 +167,23 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
             props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
             
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
+            # ⚡ Bolt: Fast-path for common property names to avoid O(N) property scan
+            for key in ["Name", "Title", "Entry", "Goal"]:
+                if key in props:
+                    prop = props[key]
+                    # Check if it's a Title type
+                    if "title" in prop and prop["title"]:
+                        return prop["title"][0]["text"]["content"]
+                    # Check if it's a Rich Text type
+                    if "rich_text" in prop and prop["rich_text"]:
+                        return prop["rich_text"][0]["text"]["content"]
+
+            # Fallback: slow-path scan for property with id "title"
+            title_prop = next((v for k,v in props.items() if v.get("id") == "title"), None)
+            if title_prop and title_prop.get("title"):
+                return title_prop["title"][0]["text"]["content"]
                 
             return "Untitled"
         except Exception:
