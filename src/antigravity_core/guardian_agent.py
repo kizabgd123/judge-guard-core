@@ -120,9 +120,11 @@ class GuardianAgent:
     def process_logs(self):
         """Main execution loop."""
         logger.info("🛡️ Guardian Active: Fetching data...")
-        # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency
+        # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency.
+        # Also warm up the lazy-loaded GeminiClient in the background to hide cold-start latency.
         logs_future = self._executor.submit(self.fetch_unprocessed_logs)
         goals_future = self._executor.submit(self.fetch_active_goals)
+        self._executor.submit(lambda: self.gemini)
 
         logs = logs_future.result()
         goals = goals_future.result()
