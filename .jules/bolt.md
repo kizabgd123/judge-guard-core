@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-18 - [Optimizing No-Change Scans in ResearchPipeline]
+**Learning:** In a repository with hundreds of markdown files, the overhead of UTF-8 decoding every file just to check its MD5 hash is measurable. Deferring the decoding until after the hash check (using `read_bytes()`) reduces the "no-change" scan time by ~30-40%.
+**Action:** For file-based caches or sync tools, perform hashing on raw bytes and defer text decoding until the file is confirmed to have changed. Use `re.finditer` for single-pass pattern extraction to further reduce string allocations.
