@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-24 - [Background Warmup for Lazy-Loaded AI Client]
+**Learning:** Lazy-loading heavy AI clients (e.g., GeminiClient) successfully reduces initial process startup time but shifts the latency penalty (~400ms) to the first request. In loops involving multiple I/O-bound calls (Notion query + LLM inference), this cold-start can become a visible bottleneck.
+**Action:** Overlap initialization with other I/O by submitting a "warmup" task to a background executor that accesses the lazy property. This reduced active path latency in GuardianAgent by ~33% (from ~1.2s to ~0.8s).
