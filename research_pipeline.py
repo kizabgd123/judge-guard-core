@@ -36,6 +36,10 @@ NOTION_LOG = Path("./.cache/notion_queue.json")
 NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
 NOTION_DB_ID = os.getenv("NOTION_DATABASE_ID", "")
 
+# ⚡ Bolt: Pre-compiled regex for pattern extraction
+PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+# ⚡ Bolt: Priority marker mappings
+PRIORITY_MARKERS = {"🔥": "HIGH", "🟢": "LOW"}
 
 # === DATABASE SCHEMA ===
 SCHEMA = """
@@ -233,28 +237,27 @@ class ResearchPipeline:
         new_patterns = [] # (name, priority, doc_id)
         
         for doc in docs:
-            # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
-            lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
-            
-            for line in lines:
-                # Extract the title part before any dash
-                match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
-                if not match:
-                    continue
-
+            # ⚡ Bolt: Use finditer with pre-compiled regex for single-pass extraction
+            for match in re.finditer(PATTERN_RE, doc["content"]):
                 name = match.group(1).strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
-                # Determine priority and strip icons from name for consistent storage
+                # ⚡ Bolt: Optimized priority detection using pre-defined markers and efficient lookups
                 priority = "MEDIUM"
-                if "🔥" in name or "HIGH" in name.upper():
-                    priority = "HIGH"
-                    name = name.replace("🔥", "").strip()
-                elif "🟢" in name or "LOW" in name.upper():
-                    priority = "LOW"
-                    name = name.replace("🟢", "").strip()
+                name_upper = name.upper()
+
+                for marker, level in PRIORITY_MARKERS.items():
+                    if marker in name:
+                        priority = level
+                        name = name.replace(marker, "").strip()
+                        break
+
+                if priority == "MEDIUM":
+                    if "HIGH" in name_upper:
+                        priority = "HIGH"
+                    elif "LOW" in name_upper:
+                        priority = "LOW"
                 
                 new_patterns.append((name, priority, doc["id"]))
                 patterns_found += 1
