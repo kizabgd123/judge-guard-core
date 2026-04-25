@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import threading
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -15,6 +16,7 @@ class GuardianAgent:
     def __init__(self):
         self._notion = None
         self._gemini = None
+        self._lock = threading.Lock()
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
         
@@ -31,16 +33,20 @@ class GuardianAgent:
     def gemini(self):
         """⚡ Bolt: Lazy property to defer GeminiClient initialization."""
         if self._gemini is None:
-            from src.antigravity_core.gemini_client import GeminiClient
-            self._gemini = GeminiClient()
+            with self._lock:
+                if self._gemini is None:
+                    from src.antigravity_core.gemini_client import GeminiClient
+                    self._gemini = GeminiClient()
         return self._gemini
 
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization."""
         if self._notion is None:
-            from src.antigravity_core.notion_client import NotionClient
-            self._notion = NotionClient()
+            with self._lock:
+                if self._notion is None:
+                    from src.antigravity_core.notion_client import NotionClient
+                    self._notion = NotionClient()
         return self._notion
 
     def close(self):
@@ -120,11 +126,22 @@ class GuardianAgent:
     def process_logs(self):
         """Main execution loop."""
         logger.info("🛡️ Guardian Active: Fetching data...")
+
+        # ⚡ Bolt: Concurrent Gemini warmup to hide import/initialization latency (~1.2s)
+        # while waiting for high-latency Notion API calls (~0.5s).
+        self._executor.submit(lambda: self.gemini)
+
         # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency
         logs_future = self._executor.submit(self.fetch_unprocessed_logs)
         goals_future = self._executor.submit(self.fetch_active_goals)
 
         logs = logs_future.result()
+
+        # ⚡ Bolt: Early exit if no logs are found, avoiding unnecessary wait for goals or AI reasoning.
+        if not logs:
+            logger.info("No new logs to process. Standing down.")
+            return
+
         goals = goals_future.result()
 
         logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
