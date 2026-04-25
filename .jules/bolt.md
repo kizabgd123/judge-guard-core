@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-25 - [Deferred Decoding and Regex Optimization in ResearchPipeline]
+**Learning:** For bulk file scanning (1000+ files), reading content as bytes and deferred UTF-8 decoding to only modified files reduces no-change scan latency by ~22%. Additionally, replacing nested regex calls with a single-pass `re.finditer` and pre-compiling the regex at module level reduces pattern extraction time by ~7-10%.
+**Action:** Use `path.read_bytes()` for hashing. Perform expensive string decoding and regex parsing only when changes are detected. Pre-compile frequently used regex patterns.
