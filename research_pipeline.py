@@ -27,6 +27,10 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
+# ⚡ Bolt: Pre-compiled regex for performance
+TITLE_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
+PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+
 # === CONFIG ===
 DB_PATH = Path("./research.db")
 RESEARCH_DIR = Path("./research")
@@ -162,17 +166,21 @@ class ResearchPipeline:
         
         for md_path in md_files:
             filename_str = str(md_path)
-            content = md_path.read_text(encoding="utf-8")
-            content_hash = hashlib.md5(content.encode()).hexdigest()
+            # ⚡ Bolt: Use read_bytes() for hashing to avoid UTF-8 decoding for unchanged files
+            content_bytes = md_path.read_bytes()
+            content_hash = hashlib.md5(content_bytes).hexdigest()
             
             if filename_str in existing_hashes and existing_hashes[filename_str] == content_hash:
                 continue  # Skip unchanged files
+
+            # ⚡ Bolt: Only decode and process if the file has changed
+            content = content_bytes.decode(encoding="utf-8", errors="ignore")
 
             # Extract phase from path (e.g., phase0_scoping)
             phase = md_path.parent.name
             
             # Extract title from first # heading
-            title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
+            title_match = TITLE_RE.search(content)
             title = title_match.group(1) if title_match else md_path.stem
             
             # Upsert document and get ID
@@ -233,16 +241,8 @@ class ResearchPipeline:
         new_patterns = [] # (name, priority, doc_id)
         
         for doc in docs:
-            # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
-            lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
-            
-            for line in lines:
-                # Extract the title part before any dash
-                match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
-                if not match:
-                    continue
-
+            # ⚡ Bolt: Use finditer for a single-pass scan instead of findall + search
+            for match in PATTERN_RE.finditer(doc["content"]):
                 name = match.group(1).strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue
