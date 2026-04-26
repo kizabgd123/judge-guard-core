@@ -30,6 +30,15 @@ logger = logging.getLogger(__name__)
 # === CONFIG ===
 DB_PATH = Path("./research.db")
 RESEARCH_DIR = Path("./research")
+
+# ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
+PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+PRIORITY_MARKERS = {
+    "🔥": "HIGH",
+    "HIGH": "HIGH",
+    "🟢": "LOW",
+    "LOW": "LOW"
+}
 NOTION_LOG = Path("./.cache/notion_queue.json")
 
 # Notion API (user must set these)
@@ -162,12 +171,14 @@ class ResearchPipeline:
         
         for md_path in md_files:
             filename_str = str(md_path)
-            content = md_path.read_text(encoding="utf-8")
-            content_hash = hashlib.md5(content.encode()).hexdigest()
+            # ⚡ Bolt: Use read_bytes() for hashing to avoid UTF-8 decoding overhead
+            # and defer read_text() until we know the file has changed.
+            content_hash = hashlib.md5(md_path.read_bytes()).hexdigest()
             
             if filename_str in existing_hashes and existing_hashes[filename_str] == content_hash:
                 continue  # Skip unchanged files
 
+            content = md_path.read_text(encoding="utf-8")
             # Extract phase from path (e.g., phase0_scoping)
             phase = md_path.parent.name
             
@@ -233,28 +244,21 @@ class ResearchPipeline:
         new_patterns = [] # (name, priority, doc_id)
         
         for doc in docs:
-            # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
-            lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
-            
-            for line in lines:
-                # Extract the title part before any dash
-                match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
-                if not match:
-                    continue
-
+            # ⚡ Bolt: Single-pass scan using pre-compiled regex for O(N) extraction
+            for match in PATTERN_RE.finditer(doc["content"]):
                 name = match.group(1).strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue
                 
                 # Determine priority and strip icons from name for consistent storage
                 priority = "MEDIUM"
-                if "🔥" in name or "HIGH" in name.upper():
-                    priority = "HIGH"
-                    name = name.replace("🔥", "").strip()
-                elif "🟢" in name or "LOW" in name.upper():
-                    priority = "LOW"
-                    name = name.replace("🟢", "").strip()
+                name_upper = name.upper()
+
+                for marker, level in PRIORITY_MARKERS.items():
+                    if marker in (name if len(marker) == 1 else name_upper):
+                        priority = level
+                        name = name.replace(marker, "").strip()
+                        break
                 
                 new_patterns.append((name, priority, doc["id"]))
                 patterns_found += 1
