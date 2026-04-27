@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-20 - [Efficient Hashing and Regex Single-Pass]
+**Learning:** For I/O heavy pipelines like `ResearchPipeline`, the cost of string decoding (`read_text`) and multiple regex passes (`findall` + `search`) adds up. Using `read_bytes()` for MD5 hashing avoids unnecessary UTF-8 decoding for unchanged files (~9% win). Replacing two-pass regex with a single `re.finditer` scan with a pre-compiled regex significantly reduces extraction latency (~30-40% win).
+**Action:** Default to `read_bytes()` for file integrity checks and defer `decode()` until mutation is confirmed. Use `re.finditer` for complex multi-group extractions to avoid redundant scans.
