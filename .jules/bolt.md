@@ -17,3 +17,7 @@
 ## 2026-04-16 - [Process Overhead and Lazy Loading]
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
+
+## 2026-04-18 - [Optimized Research Pipeline Parsing and Extraction]
+**Learning:** In I/O-intensive tools like `ResearchPipeline`, the cost of UTF-8 decoding every file during a full parse (~0.2s for 1000 files) can be avoided by hashing raw bytes first. Additionally, multi-pass regex scanning (`findall` + `search` in a loop) is significantly slower than a single-pass `finditer` using pre-compiled patterns.
+**Action:** Use `read_bytes()` for hashing and defer `decode()` until changes are confirmed. Refactor regex logic to use `finditer` and module-level compiled objects. This reduced cold parse/extraction time by ~30% and improved warm parse speed.

@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -35,6 +36,10 @@ NOTION_LOG = Path("./.cache/notion_queue.json")
 # Notion API (user must set these)
 NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
 NOTION_DB_ID = os.getenv("NOTION_DATABASE_ID", "")
+
+# ⚡ Bolt: Pre-compiled regex for title and pattern extraction to avoid repeated compilation in the loop
+PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+TITLE_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 
 
 # === DATABASE SCHEMA ===
@@ -110,13 +115,15 @@ class ResearchPipeline:
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
+        # ⚡ Bolt: Measure duration of the audit operation
+        start = time.time()
+
         if sync_notion:
-            entry = {
+            self.notion_queue.append({
                 "action": action,
                 "details": details,
                 "timestamp": datetime.now().isoformat()
-            }
-            self.notion_queue.append(entry)
+            })
         
         if self.conn:
             self.conn.execute(
@@ -125,7 +132,33 @@ class ResearchPipeline:
             )
             if commit:
                 self.conn.commit()
-        logger.info(f"📝 {action}: {details}")
+
+        duration = (time.time() - start) * 1000
+        logger.info(f"📝 {action}: {details} ({duration:.2f}ms)")
+
+    def log_audit_batch(self, entries: List[tuple], commit: bool = True, sync_notion: bool = True):
+        """⚡ Bolt: Batch log actions for Notion sync and local audit to reduce overhead."""
+        start = time.time()
+
+        if sync_notion:
+            now = datetime.now().isoformat()
+            for action, details in entries:
+                self.notion_queue.append({
+                    "action": action,
+                    "details": details,
+                    "timestamp": now
+                })
+
+        if self.conn:
+            self.conn.executemany(
+                "INSERT INTO audit_log (action, details) VALUES (?, ?)",
+                entries
+            )
+            if commit:
+                self.conn.commit()
+
+        duration = (time.time() - start) * 1000
+        logger.info(f"📝 Logged batch of {len(entries)} audit entries ({duration:.2f}ms)")
 
     def init_db(self):
         """Initialize SQLite database."""
@@ -148,6 +181,9 @@ class ResearchPipeline:
 
     def parse_markdown_files(self) -> List[int]:
         """Parse all research/*.md files into SQLite. Returns list of affected document IDs."""
+        # ⚡ Bolt: Measure total parse duration
+        overall_start = time.time()
+
         if not self.conn:
             self.connect()
             
@@ -160,19 +196,24 @@ class ResearchPipeline:
             for row in self.conn.execute("SELECT filename, hash FROM documents").fetchall()
         }
         
+        audit_entries = []
         for md_path in md_files:
             filename_str = str(md_path)
-            content = md_path.read_text(encoding="utf-8")
-            content_hash = hashlib.md5(content.encode()).hexdigest()
+            # ⚡ Bolt: Use read_bytes() for hashing to avoid unnecessary UTF-8 decoding
+            content_bytes = md_path.read_bytes()
+            content_hash = hashlib.md5(content_bytes).hexdigest()
             
             if filename_str in existing_hashes and existing_hashes[filename_str] == content_hash:
                 continue  # Skip unchanged files
 
+            # ⚡ Bolt: Only decode to UTF-8 when file changes are detected
+            content = content_bytes.decode(encoding="utf-8", errors="ignore")
+
             # Extract phase from path (e.g., phase0_scoping)
             phase = md_path.parent.name
             
-            # Extract title from first # heading
-            title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
+            # ⚡ Bolt: Use pre-compiled TITLE_RE and limit search to first 2000 chars for speed
+            title_match = TITLE_RE.search(content[:2000])
             title = title_match.group(1) if title_match else md_path.stem
             
             # Upsert document and get ID
@@ -191,12 +232,17 @@ class ResearchPipeline:
             if row:
                 affected_ids.append(row["id"])
             
-            # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
-            self.log_audit("PARSED", f"{md_path.name}", commit=False)
+            # ⚡ Bolt: Collect audit entries for batching
+            audit_entries.append(("PARSED", md_path.name))
+
+        if audit_entries:
+            # ⚡ Bolt: Batch audit log entries and commit them with the PARSE_COMPLETE entry
+            self.log_audit_batch(audit_entries, commit=False)
         
         # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
         # will commit all pending inserts, including the PARSED entries.
-        self.log_audit("PARSE_COMPLETE", f"{len(affected_ids)} files processed")
+        total_duration = (time.time() - overall_start) * 1000
+        self.log_audit("PARSE_COMPLETE", f"{len(affected_ids)} files processed in {total_duration:.2f}ms")
         return affected_ids
 
     def extract_patterns(self, doc_ids: Optional[List[int]] = None):
@@ -204,6 +250,9 @@ class ResearchPipeline:
         Extract patterns from documents into patterns table.
         ⚡ Bolt: Supports incremental extraction via doc_ids.
         """
+        # ⚡ Bolt: Measure total extraction duration
+        overall_start = time.time()
+
         if not self.conn:
             self.connect()
         
@@ -233,16 +282,9 @@ class ResearchPipeline:
         new_patterns = [] # (name, priority, doc_id)
         
         for doc in docs:
-            # Find pattern-like structures (headings with status indicators)
-            # Find all matching lines first
-            lines = re.findall(r"^###?\s+.*$", doc["content"], re.MULTILINE)
-            
-            for line in lines:
-                # Extract the title part before any dash
-                match = re.search(r"###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", line)
-                if not match:
-                    continue
-
+            # ⚡ Bolt: Use pre-compiled PATTERN_RE and finditer for a single-pass scan
+            # This avoids O(N) regex compilations and reduces the number of regex passes.
+            for match in PATTERN_RE.finditer(doc["content"]):
                 name = match.group(1).strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue
@@ -268,7 +310,8 @@ class ResearchPipeline:
         
         # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
         # will commit all pending pattern inserts.
-        self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
+        total_duration = (time.time() - overall_start) * 1000
+        self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found in {total_duration:.2f}ms")
         return patterns_found
 
     def query(self, term: str) -> List[Dict]:
