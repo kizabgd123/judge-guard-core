@@ -29,9 +29,7 @@ class TestJudgeGuardSecurity(unittest.TestCase):
 
         # Ensure JudgeGuard uses our mocks for every test
         self.jg_patchers = [
-            patch('judge_guard.JUDGE_AVAILABLE', True),
-            patch('judge_guard.BRIDGE_AVAILABLE', True),
-            patch('judge_guard.bridge', mock_bridge_obj)
+            patch('src.antigravity_core.mobile_bridge.bridge', mock_bridge_obj)
         ]
         for p in self.jg_patchers:
             p.start()
