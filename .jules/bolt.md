@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Overlapping Heavy Imports with I/O-Bound Tasks]
+**Learning:** High-latency imports (e.g., `google-generativeai` at ~1.1s) can be overlapped with I/O-bound tasks (e.g., Notion API calls at ~0.5s) to reduce critical path latency. However, this requires thread-safe lazy loading to prevent race conditions when the background warmup and the main thread both attempt to initialize the same resource.
+**Action:** Use `threading.Lock` in lazy properties and trigger "warmup" calls in a background `ThreadPoolExecutor` at the start of high-latency methods. In `GuardianAgent.process_logs`, this reduced active path latency by ~48% (~1.2s vs ~2.3s baseline) by hiding the import overhead behind concurrent Notion queries.
