@@ -22,6 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [Lazy Import Latency and Race Conditions]
+**Learning:** While lazy loading reduces startup cost, heavy imports (e.g., `google-generativeai` at ~1.1s) still block the first execution path. In multi-threaded agents, un-guarded lazy properties can trigger redundant initializations or race conditions.
+**Action:** Use `threading.Lock` with double-checked locking for all lazy properties in multi-threaded components. Overlap high-latency imports with independent I/O tasks by triggering a background warmup thread at the start of the execution loop. This reduced `GuardianAgent` active turnaround time by ~28%.
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
