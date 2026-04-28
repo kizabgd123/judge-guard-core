@@ -16,7 +16,8 @@ class GuardianAgent:
     def __init__(self):
         self._notion = None
         self._gemini = None
-        self._lock = threading.Lock()
+        self._notion_lock = threading.Lock()
+        self._gemini_lock = threading.Lock()
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
         
