@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import threading
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -15,6 +16,8 @@ class GuardianAgent:
     def __init__(self):
         self._notion = None
         self._gemini = None
+        # ⚡ Bolt: Lock for thread-safe lazy initialization
+        self._init_lock = threading.Lock()
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
         
@@ -29,18 +32,22 @@ class GuardianAgent:
 
     @property
     def gemini(self):
-        """⚡ Bolt: Lazy property to defer GeminiClient initialization."""
+        """⚡ Bolt: Lazy property to defer GeminiClient initialization (thread-safe)."""
         if self._gemini is None:
-            from src.antigravity_core.gemini_client import GeminiClient
-            self._gemini = GeminiClient()
+            with self._init_lock:
+                if self._gemini is None:
+                    from src.antigravity_core.gemini_client import GeminiClient
+                    self._gemini = GeminiClient()
         return self._gemini
 
     @property
     def notion(self):
-        """⚡ Bolt: Lazy property to defer NotionClient initialization."""
+        """⚡ Bolt: Lazy property to defer NotionClient initialization (thread-safe)."""
         if self._notion is None:
-            from src.antigravity_core.notion_client import NotionClient
-            self._notion = NotionClient()
+            with self._init_lock:
+                if self._notion is None:
+                    from src.antigravity_core.notion_client import NotionClient
+                    self._notion = NotionClient()
         return self._notion
 
     def close(self):
@@ -119,23 +126,31 @@ class GuardianAgent:
 
     def process_logs(self):
         """Main execution loop."""
-        logger.info("🛡️ Guardian Active: Fetching data...")
-        # ⚡ Bolt: Fetch logs and goals in parallel to reduce initial latency
-        logs_future = self._executor.submit(self.fetch_unprocessed_logs)
+        logger.info("🛡️ Guardian Active: Fetching logs...")
+
+        # ⚡ Bolt: Fetch logs first to allow for an early exit.
+        logs = self.fetch_unprocessed_logs()
+
+        if not logs:
+            logger.info("No unprocessed logs found. Short-circuiting.")
+            return
+
+        # ⚡ Bolt: We have logs to process.
+        # Now trigger Gemini warmup (import-heavy) and Goals fetching (I/O-heavy) in parallel.
+        gemini_warmup = self._executor.submit(lambda: self.gemini)
         goals_future = self._executor.submit(self.fetch_active_goals)
 
-        logs = logs_future.result()
+        logger.info(f"Found {len(logs)} new logs. Fetching goals and finalizing warmup in parallel...")
+
         goals = goals_future.result()
+        gemini_warmup.result()
 
-        logger.info(f"Found {len(logs)} new logs and {len(goals)} active goals.")
+        logger.info(f"Processing logs against {len(goals)} active goals.")
 
-        # ⚡ Bolt: Pre-calculate goals context once to avoid redundant O(G) work in the loop
-        # ⚡ Bolt: Hoist goals_text construction out of the processing loop.
-        # This avoids O(L * G) complexity by pre-building the context once.
+        # ⚡ Bolt: Pre-calculate goals context once.
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
-        # ⚡ Bolt: Parallelize processing to reduce total turn-around time
-        # This overlaps the high-latency Gemini and Notion API calls.
+        # ⚡ Bolt: Parallelize processing to overlap Gemini and Notion API calls.
         list(self._executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
 
     def _mark_processed(self, page_id: str, processed: bool):

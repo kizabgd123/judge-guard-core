@@ -4,9 +4,9 @@
   "content": "Welcome to the Agent-Controlled PWA!",
   "components": [],
   "last_verdict": {
-    "action": "Valid Action",
+    "action": "Test action",
     "status": "PASSED",
-    "reason": "Approved (Unified Verification)",
+    "reason": "Approved (Cached)",
     "timestamp": "Now"
   }
 }
