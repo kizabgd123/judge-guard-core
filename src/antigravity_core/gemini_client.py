@@ -1,12 +1,14 @@
 import os
 import time
+import threading
 from typing import Optional, Dict
 import logging
 
 logger = logging.getLogger(__name__)
 
-# ⚡ Bolt: Lazy import holder
+# ⚡ Bolt: Lazy import holder and lock
 genai = None
+_import_lock = threading.Lock()
 
 class GeminiClient:
     """
@@ -56,10 +58,12 @@ class GeminiClient:
             logger.info("GeminiClient: Initialized in MOCK MODE")
             return
 
-        # ⚡ Bolt: Lazy import google-generativeai to reduce startup latency
+        # ⚡ Bolt: Lazy import google-generativeai to reduce startup latency (Thread-safe)
         global genai
         if genai is None:
-            import google.generativeai as genai
+            with _import_lock:
+                if genai is None:
+                    import google.generativeai as genai
 
         current_key = self.api_keys[self.current_key_index]
         genai.configure(api_key=current_key)

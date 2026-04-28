@@ -1,5 +1,6 @@
 import os
 import logging
+import threading
 from typing import Dict, List, Any, Optional
 from dotenv import load_dotenv
 
@@ -26,14 +27,17 @@ class NotionClient:
             "Content-Type": "application/json"
         }
         self._session = None
+        self._lock = threading.Lock()
 
     @property
     def session(self):
-        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        """⚡ Bolt: Lazy-load requests and initialize session on demand (Thread-safe)."""
         if self._session is None:
-            import requests
-            self._session = requests.Session()
-            self._session.headers.update(self.headers)
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
+                    self._session.headers.update(self.headers)
         return self._session
     
     def test_connection(self) -> Dict[str, Any]:
