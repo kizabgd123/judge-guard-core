@@ -22,6 +22,11 @@ class MobileBridge:
         }
         # ⚡ Bolt: Executor for offloading blocking disk I/O
         self._executor = ThreadPoolExecutor(max_workers=1)
+        # ⚡ Bolt: Offload initial setup and sync to background thread to avoid blocking module import
+        self._executor.submit(self._initial_setup)
+
+    def _initial_setup(self):
+        """⚡ Bolt: Perform one-time setup tasks in the background."""
         self._ensure_public_dir()
         self.sync_state()
 
