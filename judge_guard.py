@@ -157,9 +157,9 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor") and self._executor:
+        if self._executor:
             self._executor.shutdown(wait=False)
-        if hasattr(self, "_pipeline") and self._pipeline:
+        if self._pipeline:
             self._pipeline.close()
 
     def _discover_brain_path(self) -> Optional[str]:
