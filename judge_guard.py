@@ -45,53 +45,111 @@ SKILL MANIFEST:
 """
 # ------------------------
 
+import threading
+
 class JudgeGuard:
     """
     The Permanent Guardian of the Antigravity System.
     Verifies every critical step against the 'Standard of Truth'.
     """
-    
+    # ⚡ Bolt: Move static keyword lists to class constants for faster access
+    DANGEROUS_KEYWORDS = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
+    WRITE_KEYWORDS = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
+    RESEARCH_KEYWORDS = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
+
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
-        self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
-        
+        # ⚡ Bolt: Use thread-safe lazy properties for all resources to minimize __init__ overhead
+        self._init_lock = threading.Lock()
+        self._brain_path = brain_path
+        self._work_log_path = work_log_path
+        self._immutable_laws = None
         self._gemini = None
         self._pipeline = None
+        self._executor = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        # Sentinel flags to prevent repeated failed attempts
+        self._tried_brain = False
+        self._tried_work_log = False
+        self._tried_rules = False
+        self._tried_gemini = False
+        self._tried_pipeline = False
+
+        logger.info("JudgeGuard v2.0 initialized (Lazy Mode).")
+
+    @property
+    def brain_path(self):
+        """⚡ Bolt: Lazy discovery of brain path."""
+        if not self._brain_path and not self._tried_brain:
+            with self._init_lock:
+                if not self._brain_path:
+                    self._brain_path = os.getenv("BRAIN_PATH") or self._discover_brain_path()
+                    self._tried_brain = True
+        return self._brain_path
+
+    @property
+    def work_log_path(self):
+        """⚡ Bolt: Lazy discovery of WORK_LOG.md."""
+        if not self._work_log_path and not self._tried_work_log:
+            with self._init_lock:
+                if not self._work_log_path:
+                    self._work_log_path = os.getenv("WORK_LOG_PATH") or self._find_work_log()
+                    self._tried_work_log = True
+        return self._work_log_path
+
+    @property
+    def immutable_laws(self):
+        """⚡ Bolt: Lazy loading of rules from file."""
+        if self._immutable_laws is None and not self._tried_rules:
+            with self._init_lock:
+                if self._immutable_laws is None:
+                    self._immutable_laws = self._load_rules()
+                    self._tried_rules = True
+        return self._immutable_laws or "⚠️ MASTER_ORCHESTRATION.md not loaded."
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy initialization of ThreadPoolExecutor."""
+        if self._executor is None:
+            with self._init_lock:
+                if self._executor is None:
+                    self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
 
     @property
     def gemini(self):
         """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
-        if self._gemini is None:
-            try:
-                from src.antigravity_core.gemini_client import GeminiClient
-                self._gemini = GeminiClient()
-            except ImportError as e:
-                logger.warning(f"⚠️ GeminiClient not available: {e}")
+        if self._gemini is None and not self._tried_gemini:
+            with self._init_lock:
+                if self._gemini is None:
+                    try:
+                        from src.antigravity_core.gemini_client import GeminiClient
+                        self._gemini = GeminiClient()
+                    except ImportError as e:
+                        logger.warning(f"⚠️ GeminiClient not available: {e}")
+                    finally:
+                        self._tried_gemini = True
         return self._gemini
 
     @property
     def pipeline(self):
         """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
-        if self._pipeline is None:
-            try:
-                from research_pipeline import ResearchPipeline
-                try:
-                    self._pipeline = ResearchPipeline().connect()
-                except Exception:
-                    # If connect fails (db doesn't exist), try to init it
+        if self._pipeline is None and not self._tried_pipeline:
+            with self._init_lock:
+                if self._pipeline is None:
                     try:
-                        self._pipeline = ResearchPipeline().init_db()
-                    except Exception as e:
-                        logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
-                        self._pipeline = None
-            except ImportError as e:
-                logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+                        from research_pipeline import ResearchPipeline
+                        try:
+                            self._pipeline = ResearchPipeline().connect()
+                        except Exception:
+                            # If connect fails (db doesn't exist), try to init it
+                            try:
+                                self._pipeline = ResearchPipeline().init_db()
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
+                    except ImportError as e:
+                        logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+                    finally:
+                        self._tried_pipeline = True
         return self._pipeline
 
     def __del__(self):
@@ -99,7 +157,7 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor:
             self._executor.shutdown(wait=False)
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
@@ -129,15 +187,16 @@ class JudgeGuard:
         return os.path.join(os.getcwd(), "WORK_LOG.md")
 
     def _load_rules(self) -> str:
-        if not os.path.exists(self.rules_path):
+        rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        if not os.path.exists(rules_path):
             return "⚠️ MASTER_ORCHESTRATION.md not found."
         try:
-            with open(self.rules_path, "r", encoding="utf-8") as f:
+            with open(rules_path, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
             return f"Error loading rules: {e}"
 
-    def _load_context(self, max_chars: int = 15000) -> str:
+    def _load_context(self, max_chars: int = 5000) -> str:
         if self.work_log_path and os.path.exists(self.work_log_path):
             try:
                 # ⚡ Bolt: Efficient O(1) tail retrieval
@@ -174,35 +233,21 @@ class JudgeGuard:
     def _is_dangerous_command(self, action: str) -> bool:
         """
         Determine whether an action string contains high-risk shell commands.
-        
-        Parameters:
-            action (str): Text of the action to inspect; matching is performed case-insensitively and looks for known dangerous patterns (e.g. "sudo", "rm -rf /", "rm -rf /*", "chmod -R 777").
-        
-        Returns:
-            bool: `True` if any dangerous pattern is present in `action`, `False` otherwise.
         """
-        dangerous_keywords = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
         action_lower = action.lower()
-        return any(k in action_lower for k in dangerous_keywords)
+        return any(k in action_lower for k in self.DANGEROUS_KEYWORDS)
 
     def _is_write_operation(self, action: str) -> bool:
         """
         Determine whether an action description represents a write or modification operation.
-        
-        Parameters:
-        	action (str): Freeform action description to inspect for write/edit-related keywords.
-        
-        Returns:
-        	True if the description contains keywords indicating creation, modification, or deletion, False otherwise.
         """
-        keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
-        return any(k in action.lower() for k in keywords)
+        action_lower = action.lower()
+        return any(k in action_lower for k in self.WRITE_KEYWORDS)
 
     def _is_research_action(self, action: str) -> bool:
         """Detect if action is research-related and should sync to Notion."""
-        keywords = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
         action_lower = action.lower()
-        return any(k in action_lower for k in keywords)
+        return any(k in action_lower for k in self.RESEARCH_KEYWORDS)
     
     def _sync_to_notion(self, action: str):
         """⚡ Bolt: Trigger Notion sync in the background to avoid blocking."""

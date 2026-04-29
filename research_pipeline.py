@@ -34,6 +34,7 @@ NOTION_LOG = Path("./.cache/notion_queue.json")
 
 # ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
 PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+TITLE_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 
 # Notion API (user must set these)
 NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
@@ -179,7 +180,7 @@ class ResearchPipeline:
             phase = md_path.parent.name
             
             # Extract title from first # heading
-            title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
+            title_match = TITLE_RE.search(content)
             title = title_match.group(1) if title_match else md_path.stem
             
             # Upsert document and get ID

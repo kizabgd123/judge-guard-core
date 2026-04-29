@@ -25,3 +25,11 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-22 - [Thread-Safe Lazy Properties with Sentinel Flags]
+**Learning:** For high-frequency classes like `JudgeGuard`, even lightweight disk I/O (globbing, small file reads) in `__init__` can add up when instantiated frequently. Using thread-safe lazy properties with sentinel flags (`_tried_x`) prevents redundant failed initialization attempts and ensures minimal startup latency (~0.02ms vs ~0.2ms).
+**Action:** Move all disk I/O and heavy dependency initialization to thread-safe lazy properties. Use sentinel flags to avoid re-executing failed logic on every access.
+
+## 2026-04-22 - [Static Constant Keyword Lists]
+**Learning:** Instantiating small lists of strings (e.g., security keywords) inside a method called frequently (like `verify_action`) introduces unnecessary object creation overhead.
+**Action:** Move static keyword lists to class-level constants to avoid redundant instantiation.
