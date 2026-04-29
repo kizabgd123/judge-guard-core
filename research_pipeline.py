@@ -32,8 +32,9 @@ DB_PATH = Path("./research.db")
 RESEARCH_DIR = Path("./research")
 NOTION_LOG = Path("./.cache/notion_queue.json")
 
-# ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
+# ⚡ Bolt: Pre-compiled regex for efficient pattern and title extraction
 PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+TITLE_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 
 # Notion API (user must set these)
 NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
@@ -130,11 +131,30 @@ class ResearchPipeline:
                 self.conn.commit()
         logger.info(f"📝 {action}: {details}")
 
+    def log_audit_batch(self, entries: List[tuple], commit: bool = True):
+        """⚡ Bolt: Batch insert audit logs to reduce Python-to-C overhead and disk I/O."""
+        if self.conn:
+            self.conn.executemany(
+                "INSERT INTO audit_log (action, details) VALUES (?, ?)",
+                entries
+            )
+            if commit:
+                self.conn.commit()
+        for action, details in entries:
+            logger.info(f"📝 {action}: {details}")
+
+    def _apply_perf_settings(self):
+        """⚡ Bolt: Enable WAL mode and NORMAL synchronous for faster concurrent writes."""
+        if self.conn:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+
     def init_db(self):
         """Initialize SQLite database."""
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self._apply_perf_settings()
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +167,7 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self._apply_perf_settings()
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -156,6 +177,7 @@ class ResearchPipeline:
             
         md_files = list(RESEARCH_DIR.glob("**/*.md"))
         affected_ids = []
+        parsed_logs = []
 
         # ⚡ Bolt: Pre-fetch existing hashes in a single query to avoid O(N) database reads in the loop
         existing_hashes = {
@@ -179,7 +201,8 @@ class ResearchPipeline:
             phase = md_path.parent.name
             
             # Extract title from first # heading
-            title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
+            # ⚡ Bolt: Use pre-compiled TITLE_RE
+            title_match = TITLE_RE.search(content)
             title = title_match.group(1) if title_match else md_path.stem
             
             # Upsert document and get ID
@@ -198,10 +221,14 @@ class ResearchPipeline:
             if row:
                 affected_ids.append(row["id"])
             
-            # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
-            self.log_audit("PARSED", f"{md_path.name}", commit=False)
+            # ⚡ Bolt: Batch individual file logs to avoid flooding Notion queue and reducing I/O
+            parsed_logs.append(("PARSED", f"{md_path.name}"))
         
-        # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
+        if parsed_logs:
+            # Batch insert to audit_log without syncing to Notion (commit later)
+            self.log_audit_batch(parsed_logs, commit=False)
+
+        # ⚡ Bolt: The final log_audit call (with default commit=True)
         # will commit all pending inserts, including the PARSED entries.
         self.log_audit("PARSE_COMPLETE", f"{len(affected_ids)} files processed")
         return affected_ids
