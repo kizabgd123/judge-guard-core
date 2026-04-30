@@ -238,7 +238,7 @@ class JudgeGuard:
         except Exception as e:
             logger.error(f"⚠️ Notion background sync failed: {e}")
 
-    def _check_work_log(self, action_lower: str) -> bool:
+    def _check_work_log(self) -> bool:
         """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
         work_log_path = self.work_log_path
         if not work_log_path or not os.path.exists(work_log_path):
