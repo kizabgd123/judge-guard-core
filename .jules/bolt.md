@@ -25,3 +25,11 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-22 - [Metadata Overhead in JudgeGuard CLI]
+**Learning:** Performing disk-intensive operations like `glob.glob` for brain discovery and reading rules from `MASTER_ORCHESTRATION.md` in the constructor of `JudgeGuard` adds significant latency (~1ms) to every CLI invocation. This is wasteful for cache-hit paths which should be as close to O(1) as possible.
+**Action:** Refactor metadata and discovery logic into lazy properties. This ensures the CLI only performs expensive I/O when an actual LLM verification (the "cold" path) is required, while keeping the "hot" path (cache hits) extremely responsive.
+
+## 2026-04-22 - [Notion Queue Bloat in Bulk Parsing]
+**Learning:** Queuing a Notion API call for every individual file processed in `ResearchPipeline.parse_markdown_files` creates a massive bottleneck. For 100 files, the O(N) queue growth results in 100+ parallel API calls, clutters the Notion database, and slows down the summary "PARSE_COMPLETE" log.
+**Action:** Disable Notion synchronization (`sync_notion=False`) for high-frequency "PARSED" audit entries. Only sync summary logs or critical status changes to Notion to maintain a clean and performant audit trail.
