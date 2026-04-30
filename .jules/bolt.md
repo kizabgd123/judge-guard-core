@@ -25,3 +25,19 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-22 - [Notion API Bloat in Bulk Parsing]
+**Learning:** In bulk operations like , logging every individual file event to Notion creates significant network overhead and "noise" in the dashboard. For 100 files, this triggers 100+ sequential (or parallel) API calls, which can take several seconds and hit rate limits.
+**Action:** Use a `sync_notion=False` flag for granular events in bulk loops. Only sync the aggregate completion event (e.g., "PARSE_COMPLETE") to provide visibility without the performance penalty.
+
+## 2026-04-22 - [Lazy-Loading for CLI Startup]
+**Learning:** For CLI tools that are invoked frequently, any disk I/O during `__init__` (like `glob.glob`, `os.path.exists`, or file reading) adds measurable latency. Moving these to thread-safe lazy properties reduces initialization time from ~0.22ms to ~0.03ms (an 85% improvement), which is crucial for maintaining a "snappy" feel in the shell.
+**Action:** Always prefer lazy-loaded properties with `threading.Lock` for disk-bound or environment-dependent configuration in CLI-facing classes.
+
+## 2026-04-22 - [Notion API Bloat in Bulk Parsing]
+**Learning:** In bulk operations like `ResearchPipeline.parse_markdown_files`, logging every individual file event to Notion creates significant network overhead and "noise" in the dashboard. For 100 files, this triggers 100+ sequential (or parallel) API calls, which can take several seconds and hit rate limits.
+**Action:** Use a `sync_notion=False` flag for granular events in bulk loops. Only sync the aggregate completion event (e.g., "PARSE_COMPLETE") to provide visibility without the performance penalty.
+
+## 2026-04-22 - [Lazy-Loading for CLI Startup]
+**Learning:** For CLI tools that are invoked frequently, any disk I/O during `__init__` (like `glob.glob`, `os.path.exists`, or file reading) adds measurable latency. Moving these to thread-safe lazy properties reduces initialization time from ~0.22ms to ~0.03ms (an 85% improvement), which is crucial for maintaining a "snappy" feel in the shell.
+**Action:** Always prefer lazy-loaded properties with `threading.Lock` for disk-bound or environment-dependent configuration in CLI-facing classes.

@@ -198,8 +198,8 @@ class ResearchPipeline:
             if row:
                 affected_ids.append(row["id"])
             
-            # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
-            self.log_audit("PARSED", f"{md_path.name}", commit=False)
+            # ⚡ Bolt: Use commit=False and sync_notion=False to batch operations and reduce API bloat
+            self.log_audit("PARSED", f"{md_path.name}", commit=False, sync_notion=False)
         
         # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
         # will commit all pending inserts, including the PARSED entries.
