@@ -200,7 +200,8 @@ class JudgeGuard:
         """
         Determine whether an action description represents a write or modification operation.
         """
-        return any(k in action.lower() for k in self.WRITE_KEYWORDS)
+        action_lower = action.lower()
+        return any(k in action_lower for k in self.WRITE_KEYWORDS)
 
     def _is_research_action(self, action: str) -> bool:
         """Detect if action is research-related and should sync to Notion."""
