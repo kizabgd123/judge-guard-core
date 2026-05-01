@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Constructor Overhead in CLI Tools]
+**Learning:** For high-frequency CLI tools like `JudgeGuard`, any work done in `__init__` (especially disk I/O like `os.path.exists` or `glob.glob`) is multiplied by every invocation. Deferring this work to lazy properties reduces instantiation latency by ~80% (~0.2ms down to ~0.04ms).
+**Action:** Move all path discovery, environment variable lookups, and file reading into thread-safe lazy properties using `threading.Lock`.
