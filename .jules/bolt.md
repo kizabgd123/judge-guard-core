@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Lazy Initialization and Startup Overhead]
+**Learning:** Top-level imports of moderately heavy libraries like `dotenv` (~40-50ms) and `concurrent.futures` (~25ms) can account for >90% of the startup latency in high-frequency CLI tools. Eager disk I/O in `__init__` (e.g., globbing or rule loading) further penalizes every execution, even when those resources aren't needed for the specific command (e.g., a cached hit).
+**Action:** Move heavy imports and disk-intensive initialization into lazy properties or methods. Use class-level constants for keyword matching to avoid redundant allocations in hot loops. This reduced `JudgeGuard` startup latency by ~34% and initialization overhead by ~98%.
