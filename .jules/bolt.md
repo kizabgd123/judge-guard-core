@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-05-02 - [Property Overhead in High-Frequency Hot Paths]
+**Learning:** Even with lazy loading, accessing a property that includes a `threading.Lock` introduces measurable overhead (~0.005ms) in high-frequency loops. When the target latency for a cached verdict is <0.1ms, redundant property access can consume >10% of the time budget.
+**Action:** In methods performing multiple operations on a lazy-loaded attribute (e.g., `_check_work_log` using `self.work_log_path`), assign the property to a local variable once at the start of the method. This avoids repeated lock acquisition and property logic.
