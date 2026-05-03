@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Holistic Startup and Hot-path Optimization]
+**Learning:** Startup latency is often dominated by the sum of many small "convenience" operations (importing `glob`, discovering paths, loading config files). In `JudgeGuard`, these added ~20ms of overhead. Additionally, repeated string operations (lower-casing) and list instantiations in high-frequency loops (keyword checks) can add measurable microseconds to hot paths.
+**Action:** Move all disk-bound discovery and heavy imports into thread-safe lazy properties. Use class-level constants for keyword lists to avoid O(N) allocation overhead. Pre-process input strings (e.g., `.lower()`) once before entering verification loops. Offload non-critical initial I/O (like bridge state sync) to background threads.
