@@ -23,6 +23,10 @@ from typing import Optional, List, Dict
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
+# ⚡ Bolt: Load environment variables at module level to ensure constants like NOTION_TOKEN
+# are initialized correctly from .env file before they are used.
+load_dotenv()
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -34,6 +38,8 @@ NOTION_LOG = Path("./.cache/notion_queue.json")
 
 # ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
 PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+# ⚡ Bolt: Pre-compiled regex for document title extraction
+TITLE_RE = re.compile(r"^#\s+(.+)$", re.MULTILINE)
 
 # Notion API (user must set these)
 NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
@@ -86,8 +92,6 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
-        # ⚡ Bolt: Load environment variables once during initialization
-        load_dotenv()
         self.conn = None
         self.notion_queue = []
         self._session = None
@@ -135,6 +139,11 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+
+        # ⚡ Bolt: Optimize SQLite for speed
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +156,11 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+
+        # ⚡ Bolt: Optimize SQLite for speed
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -179,7 +193,7 @@ class ResearchPipeline:
             phase = md_path.parent.name
             
             # Extract title from first # heading
-            title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
+            title_match = TITLE_RE.search(content)
             title = title_match.group(1) if title_match else md_path.stem
             
             # Upsert document and get ID
@@ -198,8 +212,9 @@ class ResearchPipeline:
             if row:
                 affected_ids.append(row["id"])
             
-            # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
-            self.log_audit("PARSED", f"{md_path.name}", commit=False)
+            # ⚡ Bolt: Use commit=False and sync_notion=False to batch SQLite operations
+            # and skip redundant Notion queuing for individual file entries.
+            self.log_audit("PARSED", f"{md_path.name}", commit=False, sync_notion=False)
         
         # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
         # will commit all pending inserts, including the PARSED entries.

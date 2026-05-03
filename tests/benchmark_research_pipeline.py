@@ -1,65 +1,73 @@
 import time
-import unittest
-from unittest.mock import MagicMock, patch
 import os
 import sys
+import tempfile
+import shutil
+from pathlib import Path
 
-# Ensure current dir is in path
+# Ensure project root is in path
 sys.path.append(os.getcwd())
 
 from research_pipeline import ResearchPipeline
 
-class BenchmarkResearchPipeline(unittest.TestCase):
-    def setUp(self):
-        # Use a temporary DB for the benchmark
-        self.db_path = "benchmark_research.db"
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
+def setup_test_files(count=100):
+    temp_dir = tempfile.mkdtemp()
+    research_dir = Path(temp_dir) / "research"
+    research_dir.mkdir()
 
-        with patch('research_pipeline.DB_PATH', self.db_path):
-            self.pipeline = ResearchPipeline()
-            self.pipeline.init_db()
+    for i in range(count):
+        phase_dir = research_dir / f"phase_{i % 5}"
+        phase_dir.mkdir(exist_ok=True)
+        with open(phase_dir / f"test_doc_{i}.md", "w") as f:
+            f.write(f"# Test Document {i}\n\n")
+            f.write(f"This is test document number {i}.\n")
+            f.write(f"### Pattern {i} - High priority\n")
+            f.write("Some description here.\n")
 
-    def tearDown(self):
-        if hasattr(self.pipeline, 'conn') and self.pipeline.conn:
-            self.pipeline.conn.close()
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
-        if hasattr(self.pipeline, 'close'):
-            self.pipeline.close()
+    return temp_dir
 
-    @patch('requests.Session.post')
-    def test_sync_to_notion_latency(self, mock_post):
-        # Setup mocks
-        def slow_post(*args, **kwargs):
-            time.sleep(0.1) # Simulate 100ms Notion API latency
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_resp.text = "Success"
-            return mock_resp
+def run_benchmark():
+    print("--- ResearchPipeline Performance Baseline ---")
 
-        mock_post.side_effect = slow_post
+    temp_dir = setup_test_files(100)
+    db_path = Path(temp_dir) / "test_research.db"
+    research_dir = Path(temp_dir) / "research"
 
-        # Add 10 entries to the queue
-        for i in range(10):
-            self.pipeline.notion_queue.append({
-                "action": f"Action {i}",
-                "details": f"Details {i}",
-                "timestamp": "2023-01-01T00:00:00"
-            })
+    # Patch constants in research_pipeline
+    import research_pipeline
+    original_db_path = research_pipeline.DB_PATH
+    original_research_dir = research_pipeline.RESEARCH_DIR
+    research_pipeline.DB_PATH = db_path
+    research_pipeline.RESEARCH_DIR = research_dir
 
-        # Set environment variables so sync_to_notion tries to use requests
-        with patch.dict('os.environ', {'NOTION_TOKEN': 'secret', 'NOTION_DATABASE_ID': 'db_id'}):
-            print(f"\n--- Starting ResearchPipeline Benchmark ({len(self.pipeline.notion_queue)} entries) ---")
-            start_time = time.time()
-            self.pipeline.sync_to_notion()
-            end_time = time.time()
+    try:
+        pipeline = ResearchPipeline().init_db()
 
-            duration = end_time - start_time
-            print(f"Total duration: {duration:.4f}s")
+        # 1. Bulk Parse Baseline
+        start = time.time()
+        affected_ids = pipeline.parse_markdown_files()
+        end = time.time()
+        parse_time = end - start
+        print(f"Bulk Parse (100 files): {parse_time:.4f}s")
 
-            # For 10 entries, sequential should take ~1.0s
-            # Parallel (5 workers) should take ~0.2s
+        # 2. Pattern Extraction Baseline
+        start = time.time()
+        patterns = pipeline.extract_patterns(doc_ids=affected_ids)
+        end = time.time()
+        extract_time = end - start
+        print(f"Pattern Extraction (100 files): {extract_time:.4f}s")
+
+        # 3. Warm Parse (no changes)
+        start = time.time()
+        pipeline.parse_markdown_files()
+        end = time.time()
+        warm_parse_time = end - start
+        print(f"Warm Parse (no changes): {warm_parse_time:.4f}s")
+
+    finally:
+        research_pipeline.DB_PATH = original_db_path
+        research_pipeline.RESEARCH_DIR = original_research_dir
+        shutil.rmtree(temp_dir)
 
 if __name__ == "__main__":
-    unittest.main()
+    run_benchmark()

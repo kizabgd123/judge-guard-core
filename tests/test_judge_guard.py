@@ -20,8 +20,6 @@ class TestJudgeGuard(unittest.TestCase):
     def setUp(self):
         """
         Prepare test fixture by creating a dummy work log and instantiating a JudgeGuard with patched dependencies.
-        
-        Creates a temporary work log at /tmp/test_work_log.md containing the marker "🟡 Starting Valid Action", and patches module-level availability flags and external clients so that a JudgeGuard can be constructed with work_log_path pointing to the created file.
         """
         self.work_log_path = "/tmp/test_work_log_md"
         
@@ -31,6 +29,10 @@ class TestJudgeGuard(unittest.TestCase):
             
         # Patch dependencies for the JudgeGuard instance
         self.judge = JudgeGuard(work_log_path=self.work_log_path)
+
+        # ⚡ Bolt: Mock pipeline to avoid DB errors during tests
+        self.judge._pipeline = MagicMock()
+        self.judge._pipeline.get_cached_verdict.return_value = None
 
     @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate')
     @patch('src.antigravity_core.gemini_client.GeminiClient')
