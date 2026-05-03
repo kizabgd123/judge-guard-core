@@ -37,6 +37,9 @@ class TestJudgeGuardSecurity(unittest.TestCase):
         # Instantiate JudgeGuard
         # We need to mock judge_content on the instance's gemini object for some tests
         self.judge = JudgeGuard(work_log_path=self.work_log_path)
+        # ⚡ Bolt: Mock pipeline to avoid DB errors
+        self.judge._pipeline = MagicMock()
+        self.judge._pipeline.get_cached_verdict.return_value = None
 
     def tearDown(self):
         """
