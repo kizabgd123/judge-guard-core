@@ -22,6 +22,6 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
-## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
-**Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
-**Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+## 2026-04-20 - [Lazy Loading and Cold Start Optimization in JudgeGuard]
+**Learning:** For high-frequency CLI tools like `JudgeGuard`, even "light" standard library imports like `glob` (~12ms) or `concurrent.futures` (~16ms) and `dotenv` (~24ms) add significant cumulative overhead to the cold start. Deferring these until a cache miss occurs allows the hot path (cached hits) to run with minimal process-level latency.
+**Action:** Use `threading.RLock` with lazy properties to defer all non-essential imports and disk I/O (like path discovery or rules loading). Ensure the `__init__` method is lightweight (<1ms) to facilitate fast "no-op" or "cache-hit" execution.
