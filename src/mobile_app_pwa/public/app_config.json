@@ -4,7 +4,7 @@
   "content": "Welcome to the Agent-Controlled PWA!",
   "components": [],
   "last_verdict": {
-    "action": "Test action",
+    "action": "Test Action",
     "status": "PASSED",
     "reason": "Approved (Cached)",
     "timestamp": "Now"
