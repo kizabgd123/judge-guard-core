@@ -6,7 +6,6 @@ Writes state to a shared JSON file that the PWA watches/fetches.
 import json
 import os
 from typing import Dict, Any
-from concurrent.futures import ThreadPoolExecutor
 
 # Path to the PWA public directory
 PWA_PUBLIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mobile_app_pwa", "public")
@@ -21,9 +20,11 @@ class MobileBridge:
             "components": []
         }
         # ⚡ Bolt: Executor for offloading blocking disk I/O
+        from concurrent.futures import ThreadPoolExecutor
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._ensure_public_dir()
-        self.sync_state()
+        # ⚡ Bolt: Offload initial sync to background thread
+        self._executor.submit(self.sync_state)
 
     def __del__(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is shut down."""

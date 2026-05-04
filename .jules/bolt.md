@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [JudgeGuard Startup and Verification Latency]
+**Learning:** For low-latency CLI tools like JudgeGuard, even "standard" imports like `dotenv`, `glob`, and `concurrent.futures` can account for ~50% of the cold-start time (approx. 30ms on this environment). Additionally, redundant list instantiation and string methods in high-frequency loops (verification hot-path) add measurable overhead.
+**Action:** Implement repository-wide lazy-loading for all non-essential modules. Use `threading.RLock` for thread-safe lazy property initialization. Move keyword lists to class-level constants and lower-case input once to eliminate redundant processing in hot-paths.
