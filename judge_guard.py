@@ -50,7 +50,11 @@ class JudgeGuard:
     The Permanent Guardian of the Antigravity System.
     Verifies every critical step against the 'Standard of Truth'.
     """
-    
+    # ⚡ Bolt: Use class-level constants to avoid redundant list instantiation
+    DANGEROUS_KEYWORDS = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
+    WRITE_KEYWORDS = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
+    RESEARCH_KEYWORDS = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
+
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
         # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
         self._executor = ThreadPoolExecutor(max_workers=1)
@@ -59,6 +63,9 @@ class JudgeGuard:
         self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
         self.immutable_laws = self._load_rules()
         
+        # ⚡ Bolt: Cache for WORK_LOG.md to skip redundant I/O when unchanged
+        self._work_log_cache = {"mtime": 0, "tail": ""}
+
         self._gemini = None
         self._pipeline = None
 
@@ -137,7 +144,8 @@ class JudgeGuard:
         except Exception as e:
             return f"Error loading rules: {e}"
 
-    def _load_context(self, max_chars: int = 15000) -> str:
+    def _load_context(self, max_chars: int = 5000) -> str:
+        """⚡ Bolt: Reduced context window to 5000 chars for faster loading/decoding."""
         if self.work_log_path and os.path.exists(self.work_log_path):
             try:
                 # ⚡ Bolt: Efficient O(1) tail retrieval
@@ -171,38 +179,17 @@ class JudgeGuard:
             return "2"
         return "unknown"
 
-    def _is_dangerous_command(self, action: str) -> bool:
-        """
-        Determine whether an action string contains high-risk shell commands.
-        
-        Parameters:
-            action (str): Text of the action to inspect; matching is performed case-insensitively and looks for known dangerous patterns (e.g. "sudo", "rm -rf /", "rm -rf /*", "chmod -R 777").
-        
-        Returns:
-            bool: `True` if any dangerous pattern is present in `action`, `False` otherwise.
-        """
-        dangerous_keywords = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
-        action_lower = action.lower()
-        return any(k in action_lower for k in dangerous_keywords)
+    def _is_dangerous_command(self, action_lower: str) -> bool:
+        """⚡ Bolt: Use pre-lowered action string and class-level keywords."""
+        return any(k in action_lower for k in self.DANGEROUS_KEYWORDS)
 
-    def _is_write_operation(self, action: str) -> bool:
-        """
-        Determine whether an action description represents a write or modification operation.
-        
-        Parameters:
-        	action (str): Freeform action description to inspect for write/edit-related keywords.
-        
-        Returns:
-        	True if the description contains keywords indicating creation, modification, or deletion, False otherwise.
-        """
-        keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
-        return any(k in action.lower() for k in keywords)
+    def _is_write_operation(self, action_lower: str) -> bool:
+        """⚡ Bolt: Use pre-lowered action string and class-level keywords."""
+        return any(k in action_lower for k in self.WRITE_KEYWORDS)
 
-    def _is_research_action(self, action: str) -> bool:
-        """Detect if action is research-related and should sync to Notion."""
-        keywords = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
-        action_lower = action.lower()
-        return any(k in action_lower for k in keywords)
+    def _is_research_action(self, action_lower: str) -> bool:
+        """⚡ Bolt: Use pre-lowered action string and class-level keywords."""
+        return any(k in action_lower for k in self.RESEARCH_KEYWORDS)
     
     def _sync_to_notion(self, action: str):
         """⚡ Bolt: Trigger Notion sync in the background to avoid blocking."""
@@ -216,7 +203,7 @@ class JudgeGuard:
         except Exception as e:
             logger.error(f"⚠️ Notion background sync failed: {e}")
 
-    def _check_work_log(self, action: str) -> bool:
+    def _check_work_log(self, action_lower: str) -> bool:
         """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
         if not self.work_log_path or not os.path.exists(self.work_log_path):
             logger.error("🛑 WORK_LOG.md not found. Required for action verification.")
@@ -228,29 +215,36 @@ class JudgeGuard:
         now = time.time()
         age_seconds = now - mtime
         
-        # Read last few lines to check if action was logged
-        try:
-            # ⚡ Bolt: Efficient O(1) tail retrieval
-            with open(self.work_log_path, 'rb') as f:
-                f.seek(0, 2)
-                file_size = f.tell()
-                to_read = min(file_size, 1000)
-                f.seek(-to_read, 2)
-                last_lines = f.read().decode('utf-8', errors='ignore').lower()
-                
-                # Check if this action or 'starting' is in recent log
-                # We allow up to 120 seconds for slower API calls or manual logging
-                if '🟡' in last_lines or 'starting' in last_lines:
-                    if age_seconds < 120:
-                        return True
-                    else:
-                        logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
-                else:
-                    logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
+        # ⚡ Bolt: Use cached tail if mtime hasn't changed to skip disk I/O
+        if mtime == self._work_log_cache["mtime"]:
+            last_lines = self._work_log_cache["tail"]
+        else:
+            # Read last few lines to check if action was logged
+            try:
+                # ⚡ Bolt: Efficient O(1) tail retrieval
+                with open(self.work_log_path, 'rb') as f:
+                    f.seek(0, 2)
+                    file_size = f.tell()
+                    to_read = min(file_size, 1000)
+                    f.seek(-to_read, 2)
+                    last_lines = f.read().decode('utf-8', errors='ignore').lower()
 
-        except Exception as e:
-            logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
-            return False
+                    # Update cache
+                    self._work_log_cache["mtime"] = mtime
+                    self._work_log_cache["tail"] = last_lines
+            except Exception as e:
+                logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
+                return False
+
+        # Check if this action or 'starting' is in recent log
+        # We allow up to 120 seconds for slower API calls or manual logging
+        if '🟡' in last_lines or 'starting' in last_lines:
+            if age_seconds < 120:
+                return True
+            else:
+                logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
+        else:
+            logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
         
         print("🛑 WORK_LOG.md not updated recently. Required format:")
         print('   echo "🟡 Starting [ACTION]" >> WORK_LOG.md')
@@ -269,6 +263,9 @@ class JudgeGuard:
         Notes:
             May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
         """
+        # ⚡ Bolt: Single lower() call for all checks
+        action_lower = current_action.lower()
+
         # ⚡ Bolt: Lazy import bridge to avoid early 'requests' load
         try:
             from src.antigravity_core.mobile_bridge import bridge
@@ -277,7 +274,7 @@ class JudgeGuard:
             bridge_available = False
 
         # --- LAYER 00: Security Enforcement (Emergency Fix) ---
-        if self._is_dangerous_command(current_action):
+        if self._is_dangerous_command(action_lower):
             msg = "Security Violation: Action contains forbidden dangerous commands (sudo/root deletion)."
             logger.error(f"Layer 00 Block: {msg}")
             if bridge_available:
@@ -287,7 +284,7 @@ class JudgeGuard:
 
         # --- LAYER 0: Work Log Enforcement (NEW) ---
         # ⚡ Bolt: Fast-fail before expensive context loading/LLM calls
-        if not self._check_work_log(current_action):
+        if not self._check_work_log(action_lower):
             return False
 
         # --- LAYER 0.1: Verdict Caching (⚡ Bolt) ---
@@ -300,7 +297,7 @@ class JudgeGuard:
                     bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
 
                 # ⚡ Bolt: Still trigger Notion sync for research actions
-                if self._is_research_action(current_action):
+                if self._is_research_action(action_lower):
                     self._sync_to_notion(current_action)
                 return True
 
@@ -321,7 +318,7 @@ class JudgeGuard:
         # We assume 'run_command' is part of the action description if that tool is being used.
         # Or if the user explicitely typed "run_command" or represents a shell command.
         is_research_phase = phase in ["0", "1"]
-        is_shell_command = "run_command" in current_action or "shell" in current_action.lower()
+        is_shell_command = "run_command" in action_lower or "shell" in action_lower
         
         if is_research_phase and is_shell_command:
             msg = "Violation: You must use the Browser Agent for research tasks (Phase 0-1)."
@@ -332,7 +329,7 @@ class JudgeGuard:
             return False
 
         # --- CONSOLIDATED VERIFICATION (⚡ Bolt: Merge Layer 3 and Standard) ---
-        is_write = self._is_write_operation(current_action)
+        is_write = self._is_write_operation(action_lower)
         logger.info(f"Consolidated Verification (Write: {is_write})...")
 
         if bridge_available:
@@ -371,7 +368,7 @@ class JudgeGuard:
                 self.pipeline.cache_verdict(current_action, "PASSED")
 
             # ⚡ Bolt: Auto-sync to Notion if this is a research action (Fix: restored missing call)
-            if self._is_research_action(current_action):
+            if self._is_research_action(action_lower):
                 self._sync_to_notion(current_action)
             
             return True

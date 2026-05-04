@@ -135,6 +135,11 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+
+        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL for faster bulk writes
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +152,11 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+
+        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL for faster bulk writes
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
+
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -198,8 +208,9 @@ class ResearchPipeline:
             if row:
                 affected_ids.append(row["id"])
             
-            # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
-            self.log_audit("PARSED", f"{md_path.name}", commit=False)
+            # ⚡ Bolt: Use commit=False and sync_notion=False for individual PARSED entries
+            # to batch SQLite operations and avoid Notion API queue bloat.
+            self.log_audit("PARSED", f"{md_path.name}", commit=False, sync_notion=False)
         
         # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
         # will commit all pending inserts, including the PARSED entries.
