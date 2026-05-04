@@ -22,6 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [Hot-Path Caching and SQLite WAL Mode]
+**Learning:** In high-frequency verification loops (like `JudgeGuard.verify_action`), redundant disk I/O to `WORK_LOG.md` and repeated string `.lower()` calls on keyword lists dominate the non-AI latency. Caching the file tail based on `mtime` and using class-level constants reduces cached verification latency by ~37%. Additionally, default SQLite settings are too conservative for bulk research parsing; WAL mode and `synchronous=NORMAL` are essential for scaling.
+**Action:** Implement `mtime`-based caching for frequently read small files. Move keyword lists to class-level constants. Always enable WAL mode for research databases to support concurrent read/write and faster bulk insertions.
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
