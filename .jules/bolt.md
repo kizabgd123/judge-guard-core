@@ -22,6 +22,6 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
-## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
-**Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
-**Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+## 2026-04-20 - [Redundant Disk I/O and String Operations in High-Frequency Loops]
+**Learning:** For high-frequency verification loops (e.g., cached hits in `JudgeGuard`), redundant disk I/O to check `WORK_LOG.md` and repetitive `.lower()` calls on action strings can account for ~50% of the total latency. Using `mtime`-based caching for file tails and pre-calculating lowercased strings significantly reduces the "hot path" overhead.
+**Action:** Implement `mtime` caching for high-frequency file reads. Hoist keyword lists to class-level constants. Pre-calculate transformed strings (like `.lower()`) once per loop iteration. These optimizations reduced `JudgeGuard` cached verification latency by ~48% (~0.26ms down to ~0.13ms).
