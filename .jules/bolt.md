@@ -22,6 +22,6 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
-## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
-**Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
-**Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+## 2026-04-20 - [Lazy Loading and Hoisting for CLI Latency]
+**Learning:** High-frequency CLI tools like `JudgeGuard` suffer from "death by a thousand imports." Moving even standard library modules like `glob`, `concurrent.futures`, and `sqlite3` into lazy properties or local scopes reduced cold import time by >60% (~140ms to ~54ms). Additionally, hoisting keyword lists to class-level constants and utilizing single-call `lower()` on inputs optimized the cached "hot path" by ~40%.
+**Action:** Always prefer lazy initialization for heavy dependencies in CLI-bound components. Use `threading.RLock` to ensure thread-safety for lazy properties in multi-threaded agents.
