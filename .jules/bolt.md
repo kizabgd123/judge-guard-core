@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-05-06 - [Lazy Loading and mtime Caching in JudgeGuard]
+**Learning:** For high-frequency CLI or agent components like JudgeGuard, synchronous disk I/O and heavy imports dominate startup and hot-path latency. Implementing mtime-based caching for file tails and thread-safe lazy properties (using RLock) reduced cold import from ~51ms to ~33ms and non-cached verification from ~0.55ms to ~0.38ms.
+**Action:** Always prefer lazy properties for disk-bound or import-heavy attributes in core verification components. Use mtime-based invalidation for log files that are frequently polled but rarely changed within a single verification cycle.
