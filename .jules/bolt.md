@@ -22,6 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [Startup Bottlenecks in High-Frequency CLI Tools]
+**Learning:** For CLI tools like `JudgeGuard` where a cached hot-path execution takes ~0.25ms, the ~100ms penalty from top-level imports of `dotenv`, `glob`, and `concurrent.futures` is the dominant bottleneck. Process-level startup and initialization overhead can be reduced by ~50-75% through aggressive lazy loading and thread-safe lazy properties.
+**Action:** Move all heavy imports to method/property scopes. Implement mtime-based caching for frequently accessed file tails (like `WORK_LOG.md`) to avoid redundant disk I/O across multiple verification layers. Hoist keyword constants and normalize strings exactly once on the hot path.
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
