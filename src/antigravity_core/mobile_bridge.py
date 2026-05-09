@@ -23,7 +23,8 @@ class MobileBridge:
         # ⚡ Bolt: Executor for offloading blocking disk I/O
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._ensure_public_dir()
-        self.sync_state()
+        # ⚡ Bolt: Offload initial sync to background thread to avoid blocking startup
+        self._executor.submit(self.sync_state)
 
     def __del__(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is shut down."""
