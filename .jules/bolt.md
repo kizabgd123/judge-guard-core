@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-22 - [Thread-Safe Lazy Initialization and Mtime Caching]
+**Learning:** For performance-critical components used in multi-threaded contexts (like JudgeGuard), standard lazy initialization can lead to race conditions. Using `threading.RLock` with a double-checked locking pattern ensures safety without significant overhead. Additionally, `mtime`-based caching for disk-bound context retrieval (like WORK_LOG.md) reduces latency from ~2.5ms to <0.1ms for hot-path hits.
+**Action:** Implement `threading.RLock` for all lazy properties in multi-threaded agents. Use `os.path.getmtime` to invalidate context caches only when files actually change.
