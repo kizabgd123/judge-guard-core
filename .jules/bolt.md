@@ -22,6 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [Lazy Initialization with Nested Locks]
+**Learning:** For CLI tools like `JudgeGuard`, lazy loading dependencies and path discovery is critical for startup performance. However, using `threading.Lock` for lazy properties can cause deadlocks if properties are nested (e.g., a property calling `_ensure_dotenv` which also uses a lock).
+**Action:** Always use `threading.RLock` (re-entrant lock) for lazy properties in multi-threaded components to prevent deadlocks during nested initialization. This enabled safe lazy loading of environment variables and paths, reducing internal import time by ~65% (from ~49ms to ~17ms).
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
