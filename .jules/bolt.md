@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Optimizing Frequent CLI Tool Hot-Paths]
+**Learning:** For frequently invoked CLI tools like `JudgeGuard`, even minor overheads in import (~70ms) and redundant file I/O (~20ms) can degrade the user experience. Lazy loading heavy dependencies and implementing mtime-based caching for log tail retrieval can reduce total execution time for cached verdicts by >80%.
+**Action:** Use `threading.RLock` with lazy properties for thread-safe deferred initialization. Implement mtime-based caching for frequent reads of the same file tail. Hoist keyword constants to class level and normalize strings once to minimize redundant operations in verification loops.
