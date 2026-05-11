@@ -313,7 +313,8 @@ class JudgeGuard:
         context = self._load_context(max_chars=1000)
         last_lines = context.lower()
 
-        mtime = os.path.getmtime(path)
+        # ⚡ Bolt: Reuse mtime from cache to avoid redundant syscall
+        mtime = self._log_cache["mtime"]
         now = time.time()
         age_seconds = now - mtime
         
