@@ -22,6 +22,14 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [Deadlocks in Lazy Initialization]
+**Learning:** Using `threading.Lock` for lazy property initialization can lead to deadlocks if a property calls another method that also tries to acquire a lock (e.g., `_ensure_dotenv` called from `brain_path`).
+**Action:** Use `threading.RLock` (reentrant lock) for instance-level lazy initialization to allow the same thread to re-acquire the lock.
+
+## 2026-04-20 - [Mtime Caching for Log Files]
+**Learning:** Repeatedly reading the tail of a log file (e.g., `WORK_LOG.md`) for verification adds unnecessary disk I/O, even if small (~0.04ms per call). When called hundreds of times in a loop or high-frequency CLI, this adds up.
+**Action:** Implement `os.path.getmtime` based caching. Only re-read the file if the modification time has changed. This reduced log-check overhead to effectively zero for repeated checks.
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
