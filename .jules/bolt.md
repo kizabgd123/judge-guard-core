@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-05-12 - [Thread-Safe Lazy Initialization in JudgeGuard]
+**Learning:** For high-frequency components that may be accessed concurrently (like JudgeGuard in a multi-agent system), lazy initialization of heavy dependencies or I/O-bound properties must be thread-safe. Standard "if self._attr is None" checks can lead to race conditions where multiple threads attempt to import or discover paths simultaneously.
+**Action:** Use a combination of a global lock for shared imports (like dotenv) and instance-level `threading.RLock` for property-based lazy loading. Use `RLock` (Re-entrant Lock) instead of standard `Lock` to prevent deadlocks when one lazy property calls another during initialization.
