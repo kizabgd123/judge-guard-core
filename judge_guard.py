@@ -14,13 +14,23 @@ Environment Variables:
 import os
 import sys
 import time
-import glob
 import logging
+import threading
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
+# ⚡ Bolt: Global lock for thread-safe dotenv loading
+_dotenv_lock = threading.Lock()
+_dotenv_loaded = False
+
+def _ensure_dotenv():
+    """⚡ Bolt: Lazy-load and call load_dotenv exactly once."""
+    global _dotenv_loaded
+    if not _dotenv_loaded:
+        with _dotenv_lock:
+            if not _dotenv_loaded:
+                from dotenv import load_dotenv
+                load_dotenv()
+                _dotenv_loaded = True
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -52,46 +62,97 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
+        # ⚡ Bolt: Lock for thread-safe lazy property initialization
+        self._lock = threading.RLock()
         # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
+        from concurrent.futures import ThreadPoolExecutor
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
+
+        # Paths can be provided or discovered lazily
+        self._brain_path = brain_path
+        self._work_log_path = work_log_path
+        self._rules_path = None
+        self._immutable_laws = None
         
         self._gemini = None
         self._pipeline = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        # ⚡ Bolt: Context cache for WORK_LOG.md tail
+        self._context_cache = None
+        self._last_mtime = 0.0
+
+        logger.info("JudgeGuard v2.0 initialized (Lazy).")
+
+    @property
+    def brain_path(self) -> Optional[str]:
+        """⚡ Bolt: Lazy property for brain path discovery."""
+        if self._brain_path is None:
+            with self._lock:
+                if self._brain_path is None:
+                    _ensure_dotenv()
+                    self._brain_path = os.getenv("BRAIN_PATH") or self._discover_brain_path()
+        return self._brain_path
+
+    @property
+    def work_log_path(self) -> str:
+        """⚡ Bolt: Lazy property for work log path discovery."""
+        if self._work_log_path is None:
+            with self._lock:
+                if self._work_log_path is None:
+                    _ensure_dotenv()
+                    self._work_log_path = os.getenv("WORK_LOG_PATH") or self._find_work_log()
+        return self._work_log_path
+
+    @property
+    def rules_path(self) -> str:
+        """⚡ Bolt: Lazy property for rules path."""
+        if self._rules_path is None:
+            with self._lock:
+                if self._rules_path is None:
+                    self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        return self._rules_path
+
+    @property
+    def immutable_laws(self) -> str:
+        """⚡ Bolt: Lazy property for loading rules from disk."""
+        if self._immutable_laws is None:
+            with self._lock:
+                if self._immutable_laws is None:
+                    self._immutable_laws = self._load_rules()
+        return self._immutable_laws
 
     @property
     def gemini(self):
         """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
         if self._gemini is None:
-            try:
-                from src.antigravity_core.gemini_client import GeminiClient
-                self._gemini = GeminiClient()
-            except ImportError as e:
-                logger.warning(f"⚠️ GeminiClient not available: {e}")
+            with self._lock:
+                if self._gemini is None:
+                    try:
+                        from src.antigravity_core.gemini_client import GeminiClient
+                        self._gemini = GeminiClient()
+                    except ImportError as e:
+                        logger.warning(f"⚠️ GeminiClient not available: {e}")
         return self._gemini
 
     @property
     def pipeline(self):
         """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
         if self._pipeline is None:
-            try:
-                from research_pipeline import ResearchPipeline
-                try:
-                    self._pipeline = ResearchPipeline().connect()
-                except Exception:
-                    # If connect fails (db doesn't exist), try to init it
+            with self._lock:
+                if self._pipeline is None:
                     try:
-                        self._pipeline = ResearchPipeline().init_db()
-                    except Exception as e:
-                        logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
-                        self._pipeline = None
-            except ImportError as e:
-                logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+                        from research_pipeline import ResearchPipeline
+                        try:
+                            self._pipeline = ResearchPipeline().connect()
+                        except Exception:
+                            # If connect fails (db doesn't exist), try to init it
+                            try:
+                                self._pipeline = ResearchPipeline().init_db()
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
+                                self._pipeline = None
+                    except ImportError as e:
+                        logger.warning(f"⚠️ ResearchPipeline not available: {e}")
         return self._pipeline
 
     def __del__(self):
@@ -107,6 +168,7 @@ class JudgeGuard:
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
         try:
+            import glob
             base_path = os.path.expanduser("~/.gemini/antigravity/brain")
             if not os.path.exists(base_path):
                 return None
@@ -138,15 +200,34 @@ class JudgeGuard:
             return f"Error loading rules: {e}"
 
     def _load_context(self, max_chars: int = 15000) -> str:
+        """⚡ Bolt: Load log context with mtime-based caching."""
         if self.work_log_path and os.path.exists(self.work_log_path):
             try:
+                current_mtime = os.path.getmtime(self.work_log_path)
+
+                # Check if we can reuse the cache:
+                # 1. mtime hasn't changed.
+                # 2. We have a cache.
+                # 3. The cache is at least as large as what's requested (to avoid poisoning).
+                if (self._context_cache is not None and
+                    current_mtime == self._last_mtime and
+                    len(self._context_cache) >= max_chars):
+                    return self._context_cache[-max_chars:]
+
                 # ⚡ Bolt: Efficient O(1) tail retrieval
                 with open(self.work_log_path, "rb") as f:
                     f.seek(0, 2)
                     file_size = f.tell()
+
+                    # Read the requested amount
                     to_read = min(file_size, max_chars)
                     f.seek(-to_read, 2)
-                    return f.read().decode('utf-8', errors='ignore')
+                    content = f.read().decode('utf-8', errors='ignore')
+
+                    # Update cache
+                    self._context_cache = content
+                    self._last_mtime = current_mtime
+                    return content
             except Exception:
                 pass
         return "(No work log context)"
@@ -230,23 +311,18 @@ class JudgeGuard:
         
         # Read last few lines to check if action was logged
         try:
-            # ⚡ Bolt: Efficient O(1) tail retrieval
-            with open(self.work_log_path, 'rb') as f:
-                f.seek(0, 2)
-                file_size = f.tell()
-                to_read = min(file_size, 1000)
-                f.seek(-to_read, 2)
-                last_lines = f.read().decode('utf-8', errors='ignore').lower()
+            # ⚡ Bolt: Use the mtime-aware context cache for the check
+            last_lines = self._load_context(max_chars=1000).lower()
                 
-                # Check if this action or 'starting' is in recent log
-                # We allow up to 120 seconds for slower API calls or manual logging
-                if '🟡' in last_lines or 'starting' in last_lines:
-                    if age_seconds < 120:
-                        return True
-                    else:
-                        logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
+            # Check if this action or 'starting' is in recent log
+            # We allow up to 120 seconds for slower API calls or manual logging
+            if '🟡' in last_lines or 'starting' in last_lines:
+                if age_seconds < 120:
+                    return True
                 else:
-                    logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
+                    logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
+            else:
+                logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
 
         except Exception as e:
             logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
@@ -269,6 +345,7 @@ class JudgeGuard:
         Notes:
             May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
         """
+        _ensure_dotenv()
         # ⚡ Bolt: Lazy import bridge to avoid early 'requests' load
         try:
             from src.antigravity_core.mobile_bridge import bridge
