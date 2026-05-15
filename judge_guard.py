@@ -14,14 +14,23 @@ Environment Variables:
 import os
 import sys
 import time
-import glob
 import logging
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
+# ⚡ Bolt: Lazy import holders
+load_dotenv = None
+ThreadPoolExecutor = None
+glob = None
+
+def _ensure_dotenv():
+    """⚡ Bolt: Lazy-load dotenv only when needed to reduce startup latency."""
+    global load_dotenv
+    if load_dotenv is None:
+        from dotenv import load_dotenv as _load_dotenv
+        load_dotenv = _load_dotenv
+        load_dotenv()
+
+# Setup logger without global basicConfig to avoid import-time side effects
 logger = logging.getLogger(__name__)
 
 # --- DEPENDENCY INJECTION (Lazy) ---
@@ -52,8 +61,8 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
-        self._executor = ThreadPoolExecutor(max_workers=1)
+        _ensure_dotenv()
+        self._executor_instance = None
         self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
         self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
         self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
@@ -63,6 +72,17 @@ class JudgeGuard:
         self._pipeline = None
 
         logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor to reduce startup latency."""
+        global ThreadPoolExecutor
+        if self._executor_instance is None:
+            if ThreadPoolExecutor is None:
+                from concurrent.futures import ThreadPoolExecutor as _TPE
+                ThreadPoolExecutor = _TPE
+            self._executor_instance = ThreadPoolExecutor(max_workers=1)
+        return self._executor_instance
 
     @property
     def gemini(self):
@@ -99,13 +119,18 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor"):
-            self._executor.shutdown(wait=False)
+        if hasattr(self, "_executor_instance") and self._executor_instance:
+            self._executor_instance.shutdown(wait=False)
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
 
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
+        global glob
+        if glob is None:
+            import glob as _glob
+            glob = _glob
+
         try:
             base_path = os.path.expanduser("~/.gemini/antigravity/brain")
             if not os.path.exists(base_path):
@@ -212,7 +237,7 @@ class JudgeGuard:
         try:
             # ⚡ Bolt: Offload to background executor to skip subprocess overhead
             # and reuse existing ResearchPipeline instance.
-            self._executor.submit(self.pipeline.sync_to_notion)
+            self.executor.submit(self.pipeline.sync_to_notion)
         except Exception as e:
             logger.error(f"⚠️ Notion background sync failed: {e}")
 
@@ -383,6 +408,7 @@ class JudgeGuard:
             return False
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     if len(sys.argv) < 2:
         print("Usage: python3 judge_guard.py '<action_description>'")
         sys.exit(1)

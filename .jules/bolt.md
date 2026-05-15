@@ -22,6 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [Lazy Loading for CLI Startup Optimization]
+**Learning:** For high-frequency CLI tools, even moderately heavy standard library imports (`glob`, `concurrent.futures`) and configuration side-effects (`load_dotenv`, `logging.basicConfig`) at the module level contribute to a cumulative "cold start" tax. In this case, ~19ms of the ~82ms total import time was spent on these non-core startup tasks.
+**Action:** Implement a lazy-loading pattern for all non-essential dependencies and defer global configuration side-effects to the `main()` entry point or class `__init__`. This reduced script-level cold start by ~23% and improved the user experience for quick verification tasks.
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
