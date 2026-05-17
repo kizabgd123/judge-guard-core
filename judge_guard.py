@@ -14,19 +14,16 @@ Environment Variables:
 import os
 import sys
 import time
-import glob
 import logging
+import threading
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
+# ⚡ Bolt: Global lock for thread-safe dotenv loading
+_DOTENV_LOCK = threading.Lock()
+_DOTENV_LOADED = False
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# --- DEPENDENCY INJECTION (Lazy) ---
-# Dependencies are imported on demand to reduce CLI startup latency.
-# -----------------------------------
 
 # --- LAYER 3 CONSTANT ---
 PROJECT_ESSENCE = """
@@ -51,47 +48,120 @@ class JudgeGuard:
     Verifies every critical step against the 'Standard of Truth'.
     """
     
+    # ⚡ Bolt: Hoist keyword lists to class constants for O(1) initialization
+    DANGEROUS_KEYWORDS = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
+    WRITE_KEYWORDS = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
+    RESEARCH_KEYWORDS = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
+
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
-        self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
+        # ⚡ Bolt: Use threading.RLock for thread-safe lazy property initialization
+        self._lock = threading.RLock()
+        self._executor = None # Lazy loaded
+
+        # Internal storage for lazy properties
+        self._brain_path = brain_path
+        self._work_log_path = work_log_path
+        self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        self._immutable_laws = None
         
         self._gemini = None
         self._pipeline = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        # Sentinel flags to avoid repeated discovery if null
+        self._brain_path_searched = brain_path is not None
+        self._work_log_path_searched = work_log_path is not None
+
+        # ⚡ Bolt: Defer logging until discovery to keep init fast
+        # logger.info(f"JudgeGuard v2.0 initialized.")
+
+    def _ensure_dotenv(self):
+        """⚡ Bolt: Thread-safe deferred dotenv loading."""
+        global _DOTENV_LOADED
+        if not _DOTENV_LOADED:
+            with _DOTENV_LOCK:
+                if not _DOTENV_LOADED:
+                    try:
+                        from dotenv import load_dotenv
+                        load_dotenv()
+                    except ImportError:
+                        pass
+                    _DOTENV_LOADED = True
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
+
+    @property
+    def brain_path(self):
+        """⚡ Bolt: Lazy-load and discover brain path."""
+        if not self._brain_path_searched:
+            with self._lock:
+                if not self._brain_path_searched:
+                    self._ensure_dotenv()
+                    self._brain_path = os.getenv("BRAIN_PATH") or self._discover_brain_path()
+                    self._brain_path_searched = True
+        return self._brain_path
+
+    @property
+    def work_log_path(self):
+        """⚡ Bolt: Lazy-load and discover work log path."""
+        if not self._work_log_path_searched:
+            with self._lock:
+                if not self._work_log_path_searched:
+                    self._ensure_dotenv()
+                    self._work_log_path = os.getenv("WORK_LOG_PATH") or self._find_work_log()
+                    self._work_log_path_searched = True
+        return self._work_log_path
+
+    @property
+    def immutable_laws(self):
+        """⚡ Bolt: Lazy-load rules from disk."""
+        if self._immutable_laws is None:
+            with self._lock:
+                if self._immutable_laws is None:
+                    self._immutable_laws = self._load_rules()
+        return self._immutable_laws
 
     @property
     def gemini(self):
         """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
         if self._gemini is None:
-            try:
-                from src.antigravity_core.gemini_client import GeminiClient
-                self._gemini = GeminiClient()
-            except ImportError as e:
-                logger.warning(f"⚠️ GeminiClient not available: {e}")
+            with self._lock:
+                if self._gemini is None:
+                    self._ensure_dotenv()
+                    try:
+                        from src.antigravity_core.gemini_client import GeminiClient
+                        self._gemini = GeminiClient()
+                    except ImportError as e:
+                        logger.warning(f"⚠️ GeminiClient not available: {e}")
         return self._gemini
 
     @property
     def pipeline(self):
         """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
         if self._pipeline is None:
-            try:
-                from research_pipeline import ResearchPipeline
-                try:
-                    self._pipeline = ResearchPipeline().connect()
-                except Exception:
-                    # If connect fails (db doesn't exist), try to init it
+            with self._lock:
+                if self._pipeline is None:
+                    self._ensure_dotenv()
                     try:
-                        self._pipeline = ResearchPipeline().init_db()
-                    except Exception as e:
-                        logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
-                        self._pipeline = None
-            except ImportError as e:
-                logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+                        from research_pipeline import ResearchPipeline
+                        try:
+                            self._pipeline = ResearchPipeline().connect()
+                        except Exception:
+                            # If connect fails (db doesn't exist), try to init it
+                            try:
+                                self._pipeline = ResearchPipeline().init_db()
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
+                                self._pipeline = None
+                    except ImportError as e:
+                        logger.warning(f"⚠️ ResearchPipeline not available: {e}")
         return self._pipeline
 
     def __del__(self):
@@ -99,13 +169,14 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor:
             self._executor.shutdown(wait=False)
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
 
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
+        import glob
         try:
             base_path = os.path.expanduser("~/.gemini/antigravity/brain")
             if not os.path.exists(base_path):
@@ -129,19 +200,20 @@ class JudgeGuard:
         return os.path.join(os.getcwd(), "WORK_LOG.md")
 
     def _load_rules(self) -> str:
-        if not os.path.exists(self.rules_path):
+        if not os.path.exists(self._rules_path):
             return "⚠️ MASTER_ORCHESTRATION.md not found."
         try:
-            with open(self.rules_path, "r", encoding="utf-8") as f:
+            with open(self._rules_path, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
             return f"Error loading rules: {e}"
 
     def _load_context(self, max_chars: int = 15000) -> str:
-        if self.work_log_path and os.path.exists(self.work_log_path):
+        wlp = self.work_log_path
+        if wlp and os.path.exists(wlp):
             try:
                 # ⚡ Bolt: Efficient O(1) tail retrieval
-                with open(self.work_log_path, "rb") as f:
+                with open(wlp, "rb") as f:
                     f.seek(0, 2)
                     file_size = f.tell()
                     to_read = min(file_size, max_chars)
@@ -159,9 +231,8 @@ class JudgeGuard:
             context (str): Textual context (e.g., recent work log contents) to analyze.
         
         Returns:
-            str: `"0"`, `"1"`, or `"2"` when a matching phase is found; `"unknown"` otherwise.
+            str: "0", "1", or "2" when a matching phase is found; "unknown" otherwise.
         """
-        # Simple heuristic: scan last 2000 chars for explicit Phase declarations
         recent = context[-2000:].lower()
         if "phase 0" in recent or "scoping" in recent:
             return "0"
@@ -176,33 +247,31 @@ class JudgeGuard:
         Determine whether an action string contains high-risk shell commands.
         
         Parameters:
-            action (str): Text of the action to inspect; matching is performed case-insensitively and looks for known dangerous patterns (e.g. "sudo", "rm -rf /", "rm -rf /*", "chmod -R 777").
+            action (str): Text of the action to inspect.
         
         Returns:
-            bool: `True` if any dangerous pattern is present in `action`, `False` otherwise.
+            bool: True if any dangerous pattern is present, False otherwise.
         """
-        dangerous_keywords = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
         action_lower = action.lower()
-        return any(k in action_lower for k in dangerous_keywords)
+        return any(k in action_lower for k in self.DANGEROUS_KEYWORDS)
 
     def _is_write_operation(self, action: str) -> bool:
         """
         Determine whether an action description represents a write or modification operation.
         
         Parameters:
-        	action (str): Freeform action description to inspect for write/edit-related keywords.
+            action (str): Freeform action description to inspect.
         
         Returns:
-        	True if the description contains keywords indicating creation, modification, or deletion, False otherwise.
+            bool: True if keywords indicate creation, modification, or deletion, False otherwise.
         """
-        keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
-        return any(k in action.lower() for k in keywords)
+        action_lower = action.lower()
+        return any(k in action_lower for k in self.WRITE_KEYWORDS)
 
     def _is_research_action(self, action: str) -> bool:
         """Detect if action is research-related and should sync to Notion."""
-        keywords = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
         action_lower = action.lower()
-        return any(k in action_lower for k in keywords)
+        return any(k in action_lower for k in self.RESEARCH_KEYWORDS)
     
     def _sync_to_notion(self, action: str):
         """⚡ Bolt: Trigger Notion sync in the background to avoid blocking."""
@@ -212,26 +281,27 @@ class JudgeGuard:
         try:
             # ⚡ Bolt: Offload to background executor to skip subprocess overhead
             # and reuse existing ResearchPipeline instance.
-            self._executor.submit(self.pipeline.sync_to_notion)
+            self.executor.submit(self.pipeline.sync_to_notion)
         except Exception as e:
             logger.error(f"⚠️ Notion background sync failed: {e}")
 
     def _check_work_log(self, action: str) -> bool:
         """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
-        if not self.work_log_path or not os.path.exists(self.work_log_path):
+        wlp = self.work_log_path
+        if not wlp or not os.path.exists(wlp):
             logger.error("🛑 WORK_LOG.md not found. Required for action verification.")
             print("🛑 WORK_LOG.md not found. Update required before action.")
             return False
         
         # Check last modification time
-        mtime = os.path.getmtime(self.work_log_path)
+        mtime = os.path.getmtime(wlp)
         now = time.time()
         age_seconds = now - mtime
         
         # Read last few lines to check if action was logged
         try:
             # ⚡ Bolt: Efficient O(1) tail retrieval
-            with open(self.work_log_path, 'rb') as f:
+            with open(wlp, 'rb') as f:
                 f.seek(0, 2)
                 file_size = f.tell()
                 to_read = min(file_size, 1000)
@@ -239,7 +309,6 @@ class JudgeGuard:
                 last_lines = f.read().decode('utf-8', errors='ignore').lower()
                 
                 # Check if this action or 'starting' is in recent log
-                # We allow up to 120 seconds for slower API calls or manual logging
                 if '🟡' in last_lines or 'starting' in last_lines:
                     if age_seconds < 120:
                         return True
@@ -257,18 +326,7 @@ class JudgeGuard:
         return False
 
     def verify_action(self, current_action: str) -> bool:
-        """
-        Validate an action description through the JudgeGuard layered verification pipeline.
-        
-        Parameters:
-            current_action (str): The proposed action description to evaluate.
-        
-        Returns:
-            True if the action passes all verification layers and is approved, False otherwise.
-        
-        Notes:
-            May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
-        """
+        """Validate an action description through the JudgeGuard layered verification pipeline."""
         # ⚡ Bolt: Lazy import bridge to avoid early 'requests' load
         try:
             from src.antigravity_core.mobile_bridge import bridge
@@ -285,13 +343,11 @@ class JudgeGuard:
             print(f"🛑 JudgeGuard: {msg}")
             return False
 
-        # --- LAYER 0: Work Log Enforcement (NEW) ---
-        # ⚡ Bolt: Fast-fail before expensive context loading/LLM calls
+        # --- LAYER 0: Work Log Enforcement ---
         if not self._check_work_log(current_action):
             return False
 
-        # --- LAYER 0.1: Verdict Caching (⚡ Bolt) ---
-        # Skip redundant LLM calls if this action was already approved.
+        # --- LAYER 0.1: Verdict Caching ---
         if self.pipeline:
             cached_verdict = self.pipeline.get_cached_verdict(current_action)
             if cached_verdict == "PASSED":
@@ -299,12 +355,10 @@ class JudgeGuard:
                 if bridge_available:
                     bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
 
-                # ⚡ Bolt: Still trigger Notion sync for research actions
                 if self._is_research_action(current_action):
                     self._sync_to_notion(current_action)
                 return True
 
-        # Ensure we have the heavy dependencies before proceeding to AI layers
         if not self.gemini:
             print("🛑 JudgeGuard: Dependencies missing (GeminiClient).")
             return False
@@ -317,9 +371,6 @@ class JudgeGuard:
         phase = self._detect_phase(context)
         
         # --- LAYER 1: Tool Enforcement ---
-        # Rule: Phase 0/1 (Research) must NOT use run_command for research, must use browser.
-        # We assume 'run_command' is part of the action description if that tool is being used.
-        # Or if the user explicitely typed "run_command" or represents a shell command.
         is_research_phase = phase in ["0", "1"]
         is_shell_command = "run_command" in current_action or "shell" in current_action.lower()
         
@@ -331,7 +382,7 @@ class JudgeGuard:
             print(f"🛑 JudgeGuard: {msg}")
             return False
 
-        # --- CONSOLIDATED VERIFICATION (⚡ Bolt: Merge Layer 3 and Standard) ---
+        # --- CONSOLIDATED VERIFICATION ---
         is_write = self._is_write_operation(current_action)
         logger.info(f"Consolidated Verification (Write: {is_write})...")
 
@@ -339,7 +390,6 @@ class JudgeGuard:
             status_msg = "Verifying Rules & Essence..." if is_write else "Verifying Standard Rules..."
             bridge.push_verdict("Judging...", "PENDING", status_msg)
 
-        # Build unified criteria
         criteria_parts = [
             "You are the PERMANENT JUDGE GUARD.",
             f"\n1. IMMUTABLE LAWS (Master Orchestration):\n{self.immutable_laws}"
@@ -356,7 +406,6 @@ class JudgeGuard:
         
         criteria = "\n".join(criteria_parts)
         
-        # ⚡ Bolt: Single Gemini call for both Essence and Standard rules
         from src.antigravity_core.judge_flow import BlockJudge
         judge = BlockJudge(criteria, client=self.gemini)
         passed = judge.evaluate(f"ACTION: {current_action}")
@@ -366,11 +415,9 @@ class JudgeGuard:
             if bridge_available:
                 bridge.push_verdict(current_action, "PASSED", "Approved (Unified Verification)")
             
-            # ⚡ Bolt: Cache the verdict for future speed
             if self.pipeline:
                 self.pipeline.cache_verdict(current_action, "PASSED")
 
-            # ⚡ Bolt: Auto-sync to Notion if this is a research action (Fix: restored missing call)
             if self._is_research_action(current_action):
                 self._sync_to_notion(current_action)
             
