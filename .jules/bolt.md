@@ -22,6 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [Deferred Discovery and Tail Caching in JudgeGuard]
+**Learning:** Disk-intensive path discovery (e.g., `glob` scans) and rule loading in `JudgeGuard.__init__` create unnecessary overhead when the instance is only used for a cached verification hit. Furthermore, re-reading the `WORK_LOG.md` tail on every verification call dominates the hot path latency.
+**Action:** Implement thread-safe lazy properties for all disk-based attributes. Use boolean sentinel flags (e.g., `_brain_path_searched`) to prevent repeated expensive discovery when paths are null. Implement `mtime` + `size` based caching for the log tail to reduce verification overhead from ~0.25ms to ~0.15ms (~40% speedup).
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
