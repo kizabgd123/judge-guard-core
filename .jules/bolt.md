@@ -25,3 +25,11 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [CLI Startup and Hot-Path Optimization in JudgeGuard]
+**Learning:** CLI startup latency and hot-path verification overhead were dominated by eager environment loading (`dotenv`), expensive disk discovery (`glob`), and redundant file reads. Deferring these into thread-safe lazy properties and implementing `mtime`-based caching for `WORK_LOG.md` reduced initialization from ~120ms to ~0.2ms and cached verification overhead to ~0.15ms.
+**Action:** Use thread-safe lazy properties for environment and disk-bound configs. Implement `mtime`-based caching for high-frequency small file reads.
+
+## 2026-04-20 - [Process Anti-Pattern: Artifact Leakage and Destructive Tests]
+**Learning:** Including development artifacts (logs, temp DBs) in a PR creates noise, and test scripts with unconditional `os.remove()` on core project files (like `WORK_LOG.md`) are dangerous for local development environments.
+**Action:** Always verify `git status` before submission. Use guarded cleanup patterns in tests and avoid deleting files that aren't strictly temporary artifacts created by the test itself.
