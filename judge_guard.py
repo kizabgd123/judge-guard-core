@@ -14,13 +14,13 @@ Environment Variables:
 import os
 import sys
 import time
-import glob
 import logging
+import threading
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
+# ⚡ Bolt: Global lock for safe environment initialization
+_dotenv_lock = threading.Lock()
+_dotenv_loaded = False
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -52,17 +52,81 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
-        self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
+        # ⚡ Bolt: Thread-safe lazy initialization lock
+        self._lock = threading.RLock()
         
+        # Initial parameters
+        self._brain_path_arg = brain_path
+        self._work_log_path_arg = work_log_path
+
+        # Lazy property backing fields
+        self._brain_path = None
+        self._work_log_path = None
+        self._rules_path = None
+        self._immutable_laws = None
+        self._executor = None
         self._gemini = None
         self._pipeline = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        # ⚡ Bolt: mtime-based caching for WORK_LOG.md
+        self._cached_work_log_mtime = 0
+        self._cached_work_log_content = ""
+
+        # ⚡ Bolt: Minimal initialization to ensure sub-1ms hot path
+        logger.info("JudgeGuard v2.0 initialized (Lazy Mode).")
+
+    def _ensure_dotenv(self):
+        """⚡ Bolt: Thread-safe environment initialization."""
+        global _dotenv_loaded
+        if not _dotenv_loaded:
+            with _dotenv_lock:
+                if not _dotenv_loaded:
+                    from dotenv import load_dotenv
+                    load_dotenv()
+                    _dotenv_loaded = True
+
+    @property
+    def brain_path(self) -> Optional[str]:
+        if self._brain_path is None:
+            with self._lock:
+                if self._brain_path is None:
+                    self._ensure_dotenv()
+                    self._brain_path = self._brain_path_arg or os.getenv("BRAIN_PATH") or self._discover_brain_path()
+        return self._brain_path
+
+    @property
+    def work_log_path(self) -> str:
+        if self._work_log_path is None:
+            with self._lock:
+                if self._work_log_path is None:
+                    self._ensure_dotenv()
+                    self._work_log_path = self._work_log_path_arg or os.getenv("WORK_LOG_PATH") or self._find_work_log()
+        return self._work_log_path
+
+    @property
+    def rules_path(self) -> str:
+        if self._rules_path is None:
+            with self._lock:
+                if self._rules_path is None:
+                    self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        return self._rules_path
+
+    @property
+    def immutable_laws(self) -> str:
+        if self._immutable_laws is None:
+            with self._lock:
+                if self._immutable_laws is None:
+                    self._immutable_laws = self._load_rules()
+        return self._immutable_laws
+
+    @property
+    def executor(self):
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
 
     @property
     def gemini(self):
@@ -99,7 +163,7 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if self._executor:
             self._executor.shutdown(wait=False)
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
@@ -107,6 +171,7 @@ class JudgeGuard:
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
         try:
+            import glob
             base_path = os.path.expanduser("~/.gemini/antigravity/brain")
             if not os.path.exists(base_path):
                 return None
@@ -137,19 +202,35 @@ class JudgeGuard:
         except Exception as e:
             return f"Error loading rules: {e}"
 
+    def _get_cached_work_log(self, max_chars: int = 15000) -> str:
+        """⚡ Bolt: mtime-based caching for WORK_LOG.md content."""
+        if not self.work_log_path or not os.path.exists(self.work_log_path):
+            return ""
+
+        mtime = os.path.getmtime(self.work_log_path)
+        if mtime == self._cached_work_log_mtime and self._cached_work_log_content:
+            return self._cached_work_log_content
+
+        try:
+            # ⚡ Bolt: Efficient O(1) tail retrieval
+            with open(self.work_log_path, "rb") as f:
+                f.seek(0, 2)
+                file_size = f.tell()
+                to_read = min(file_size, max_chars)
+                f.seek(-to_read, 2)
+                content = f.read().decode('utf-8', errors='ignore')
+
+                # Update cache
+                self._cached_work_log_mtime = mtime
+                self._cached_work_log_content = content
+                return content
+        except Exception as e:
+            logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
+            return ""
+
     def _load_context(self, max_chars: int = 15000) -> str:
-        if self.work_log_path and os.path.exists(self.work_log_path):
-            try:
-                # ⚡ Bolt: Efficient O(1) tail retrieval
-                with open(self.work_log_path, "rb") as f:
-                    f.seek(0, 2)
-                    file_size = f.tell()
-                    to_read = min(file_size, max_chars)
-                    f.seek(-to_read, 2)
-                    return f.read().decode('utf-8', errors='ignore')
-            except Exception:
-                pass
-        return "(No work log context)"
+        content = self._get_cached_work_log(max_chars)
+        return content if content else "(No work log context)"
 
     def _detect_phase(self, context: str) -> str:
         """
@@ -212,7 +293,7 @@ class JudgeGuard:
         try:
             # ⚡ Bolt: Offload to background executor to skip subprocess overhead
             # and reuse existing ResearchPipeline instance.
-            self._executor.submit(self.pipeline.sync_to_notion)
+            self.executor.submit(self.pipeline.sync_to_notion)
         except Exception as e:
             logger.error(f"⚠️ Notion background sync failed: {e}")
 
@@ -230,14 +311,10 @@ class JudgeGuard:
         
         # Read last few lines to check if action was logged
         try:
-            # ⚡ Bolt: Efficient O(1) tail retrieval
-            with open(self.work_log_path, 'rb') as f:
-                f.seek(0, 2)
-                file_size = f.tell()
-                to_read = min(file_size, 1000)
-                f.seek(-to_read, 2)
-                last_lines = f.read().decode('utf-8', errors='ignore').lower()
-                
+            # ⚡ Bolt: Use cached content for O(1) check if available and fresh
+            last_lines = self._get_cached_work_log(1000).lower()
+
+            if last_lines:
                 # Check if this action or 'starting' is in recent log
                 # We allow up to 120 seconds for slower API calls or manual logging
                 if '🟡' in last_lines or 'starting' in last_lines:
