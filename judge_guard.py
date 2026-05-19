@@ -16,11 +16,10 @@ import sys
 import time
 import glob
 import logging
+import threading
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -50,19 +49,69 @@ class JudgeGuard:
     The Permanent Guardian of the Antigravity System.
     Verifies every critical step against the 'Standard of Truth'.
     """
+    # ⚡ Bolt: Hoist keywords to class constants for O(1) access and reduced allocation
+    DANGEROUS_KEYWORDS = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
+    WRITE_KEYWORDS = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
+    RESEARCH_KEYWORDS = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
     
+    _dotenv_loaded = False
+    _dotenv_lock = threading.Lock()
+
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
+        self._lock = threading.RLock()
         # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
         
+        # ⚡ Bolt: Defer path discovery and rule loading to lazy properties
+        self._brain_path = brain_path or os.getenv("BRAIN_PATH")
+        self._work_log_path = work_log_path or os.getenv("WORK_LOG_PATH")
+        self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        self._immutable_laws = None
+
+        self._brain_path_searched = False
+        self._work_log_path_searched = False
+
         self._gemini = None
         self._pipeline = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        logger.info("JudgeGuard v2.0 initialized.")
+
+    def _ensure_dotenv(self):
+        """⚡ Bolt: Thread-safe lazy loading of environment variables."""
+        if not JudgeGuard._dotenv_loaded:
+            with JudgeGuard._dotenv_lock:
+                if not JudgeGuard._dotenv_loaded:
+                    from dotenv import load_dotenv
+                    load_dotenv()
+                    JudgeGuard._dotenv_loaded = True
+
+    @property
+    def brain_path(self) -> Optional[str]:
+        """⚡ Bolt: Lazy discovery of brain path."""
+        with self._lock:
+            if self._brain_path is None and not self._brain_path_searched:
+                self._ensure_dotenv()
+                self._brain_path = os.getenv("BRAIN_PATH") or self._discover_brain_path()
+                self._brain_path_searched = True
+            return self._brain_path
+
+    @property
+    def work_log_path(self) -> str:
+        """⚡ Bolt: Lazy discovery of work log path."""
+        with self._lock:
+            if self._work_log_path is None and not self._work_log_path_searched:
+                self._ensure_dotenv()
+                self._work_log_path = os.getenv("WORK_LOG_PATH") or self._find_work_log()
+                self._work_log_path_searched = True
+            return self._work_log_path
+
+    @property
+    def immutable_laws(self) -> str:
+        """⚡ Bolt: Lazy loading of orchestration rules."""
+        with self._lock:
+            if self._immutable_laws is None:
+                self._immutable_laws = self._load_rules()
+            return self._immutable_laws
 
     @property
     def gemini(self):
@@ -129,10 +178,10 @@ class JudgeGuard:
         return os.path.join(os.getcwd(), "WORK_LOG.md")
 
     def _load_rules(self) -> str:
-        if not os.path.exists(self.rules_path):
+        if not os.path.exists(self._rules_path):
             return "⚠️ MASTER_ORCHESTRATION.md not found."
         try:
-            with open(self.rules_path, "r", encoding="utf-8") as f:
+            with open(self._rules_path, "r", encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
             return f"Error loading rules: {e}"
@@ -174,35 +223,21 @@ class JudgeGuard:
     def _is_dangerous_command(self, action: str) -> bool:
         """
         Determine whether an action string contains high-risk shell commands.
-        
-        Parameters:
-            action (str): Text of the action to inspect; matching is performed case-insensitively and looks for known dangerous patterns (e.g. "sudo", "rm -rf /", "rm -rf /*", "chmod -R 777").
-        
-        Returns:
-            bool: `True` if any dangerous pattern is present in `action`, `False` otherwise.
         """
-        dangerous_keywords = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
         action_lower = action.lower()
-        return any(k in action_lower for k in dangerous_keywords)
+        return any(k in action_lower for k in self.DANGEROUS_KEYWORDS)
 
     def _is_write_operation(self, action: str) -> bool:
         """
         Determine whether an action description represents a write or modification operation.
-        
-        Parameters:
-        	action (str): Freeform action description to inspect for write/edit-related keywords.
-        
-        Returns:
-        	True if the description contains keywords indicating creation, modification, or deletion, False otherwise.
         """
-        keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
-        return any(k in action.lower() for k in keywords)
+        action_lower = action.lower()
+        return any(k in action_lower for k in self.WRITE_KEYWORDS)
 
     def _is_research_action(self, action: str) -> bool:
         """Detect if action is research-related and should sync to Notion."""
-        keywords = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
         action_lower = action.lower()
-        return any(k in action_lower for k in keywords)
+        return any(k in action_lower for k in self.RESEARCH_KEYWORDS)
     
     def _sync_to_notion(self, action: str):
         """⚡ Bolt: Trigger Notion sync in the background to avoid blocking."""
