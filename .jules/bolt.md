@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Blocking I/O in Module Singletons and Lazy Initialization]
+**Learning:** Initializing singletons at the module level (like `bridge = MobileBridge()`) that perform synchronous disk I/O in `__init__` can significantly delay the import of that module. Furthermore, performing expensive path discovery (`glob`) and environment loading (`load_dotenv`) during every class instantiation adds unnecessary overhead to "hot paths" (like cache hits) where these resources aren't needed.
+**Action:** Offload initial I/O in singletons to background executors. Implement thread-safe lazy properties for disk-intensive or slow-to-calculate attributes. Defer `load_dotenv` until the first environment variable is actually requested. This reduced `JudgeGuard` initialization latency by ~44% (0.34ms to 0.19ms).
