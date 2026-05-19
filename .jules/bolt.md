@@ -22,6 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [Initialization Latency in High-Frequency Agents]
+**Learning:** For agents like `JudgeGuard` that are instantiated frequently (e.g., once per action verification), the overhead of `load_dotenv()` (~20ms), `glob.glob` scans (~0.5ms), and disk-bound rule loading (~0.3ms) adds up to significant latency. This is especially noticeable in CLI tools where every millisecond affects responsiveness.
+**Action:** Move all disk-bound and environment-dependent initialization into thread-safe lazy properties. Use a global sentinel for `load_dotenv` to ensure it only runs once across all instances.
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
