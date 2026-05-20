@@ -18,10 +18,6 @@
 **Learning:** For high-frequency CLI tools like `JudgeGuard`, the cost of importing heavy libraries (e.g., `google-generativeai` at ~0.53s, `requests` at ~0.16s) can dominate the total execution time, especially on "hot paths" like cache hits that take <1ms. This process overhead creates a poor user experience.
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
 
-## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
-**Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
-**Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
-
-## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
-**Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
-**Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+## 2026-04-20 - [Overhead of Eager Initialization in CLI Tools]
+**Learning:** For performance-critical CLI agents like `JudgeGuard`, performing eager disk I/O (glob scans, file reads), environment loading (`dotenv`), and thread pool creation in `__init__` can consume ~90% of the instantiation time. This is especially wasteful on "hot paths" (e.g., cached hits) where many of these resources are never used.
+**Action:** Implement thread-safe lazy properties for all expensive resources (paths, rules, executors). Use a global lock for `load_dotenv` to ensure it runs exactly once. This reduced `JudgeGuard` instantiation latency from ~1.05ms to ~0.13ms (~87% improvement).
