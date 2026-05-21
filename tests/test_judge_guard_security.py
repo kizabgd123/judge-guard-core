@@ -66,6 +66,10 @@ class TestJudgeGuardSecurity(unittest.TestCase):
         with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True),              patch.object(self.judge.gemini, 'judge_content', return_value=True):
 
             action = "ls -la"
+            # Log the action first to satisfy _check_work_log
+            with open(self.work_log_path, "a") as f:
+                f.write(f"🟡 Starting {action}\n")
+
             result = self.judge.verify_action(action)
             self.assertTrue(result)
 
