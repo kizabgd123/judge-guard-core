@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import os
-import sys
 
 # Patch dependencies globally
 mock_gemini_class = MagicMock()
@@ -12,7 +11,6 @@ with patch.dict('sys.modules', {
     'src.antigravity_core.gemini_client': MagicMock(GeminiClient=mock_gemini_class),
     'src.antigravity_core.mobile_bridge': MagicMock(bridge=mock_bridge_obj)
 }):
-    import judge_guard
     from judge_guard import JudgeGuard
 
 class TestJudgeGuardSecurity(unittest.TestCase):
@@ -63,9 +61,14 @@ class TestJudgeGuardSecurity(unittest.TestCase):
 
     def test_safe_command(self):
         # For safe commands, we need to mock deeper layers
-        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True),              patch.object(self.judge.gemini, 'judge_content', return_value=True):
+        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True), \
+             patch.object(self.judge.gemini, 'judge_content', return_value=True):
 
             action = "ls -la"
+            # Update work log to match action for correctness
+            with open(self.work_log_path, "a") as f:
+                f.write(f"🟡 Starting {action}\n")
+
             result = self.judge.verify_action(action)
             self.assertTrue(result)
 

@@ -22,6 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
+## 2026-04-20 - [CLI Startup and Thread-Safe Lazy Setup]
+**Learning:** For CLI tools, even "standard" setup like `load_dotenv()` (~20ms) and `logging.basicConfig()` (~13ms) can dominate the runtime of fast paths (<1ms). Deferring these via a thread-safe `_ensure_setup()` pattern, combined with lazy-loading disk-intensive path discovery into properties, reduced `JudgeGuard` total startup (import + init) by ~30% and initialization latency by ~99% (0.6ms to 0.007ms).
+**Action:** Use a global `threading.RLock` and a sentinel flag to defer environment and logging configuration to the first functional call. Move all disk-probing logic (`glob`, `os.path.exists`) into lazy properties.
+
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.

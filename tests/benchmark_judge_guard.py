@@ -10,19 +10,14 @@ sys.path.append(os.getcwd())
 sys.modules['google'] = MagicMock()
 sys.modules['google.generativeai'] = MagicMock()
 sys.modules['requests'] = MagicMock()
-sys.modules['dotenv'] = MagicMock()
-
-# Now we can import things
-import src.antigravity_core.judge_flow
-import src.antigravity_core.gemini_client
-import src.antigravity_core.mobile_bridge
+# sys.modules['dotenv'] = MagicMock() # We want real dotenv if possible or just mock it
 
 # Create a temporary WORK_LOG.md for testing
 WORK_LOG_PATH = "TEST_WORK_LOG.md"
 
 def setup_test_env():
     with open(WORK_LOG_PATH, "w") as f:
-        f.write("🟡 Starting Benchmark Action\n")
+        f.write("🟡 Starting benchmarked action\n")
 
 def cleanup_test_env():
     if os.path.exists(WORK_LOG_PATH):
@@ -43,9 +38,7 @@ def run_benchmark():
         mock_judge.return_value = True
 
         from judge_guard import JudgeGuard
-        # We need to force JUDGE_AVAILABLE to be true in the judge_guard module
-        import judge_guard
-        judge_guard.JUDGE_AVAILABLE = True
+        # We need to force JUDGE_AVAILABLE to be true in the judge_guard module if it existed
 
         guard = JudgeGuard(work_log_path=WORK_LOG_PATH)
 
@@ -59,7 +52,7 @@ def run_benchmark():
         end = time.time()
         print(f"Cold Call duration: {end - start:.4f}s (Result: {res1})")
 
-        # Second call (Warm - currently should still be slow)
+        # Second call (Warm - should be fast due to caching)
         start = time.time()
         res2 = guard.verify_action(action)
         end = time.time()
