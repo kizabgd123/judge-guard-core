@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-05-25 - [Deferred Setup and Initialization Logic]
+**Learning:** Deferring `load_dotenv()` and `logging` setup to a lazy `_ensure_setup()` method reduces import latency by ~20ms, but it must be called in ALL properties that depend on environment variables (not just lazy-discovery ones). If a user provides paths directly to the constructor, the setup might be skipped if not explicitly triggered in properties like `gemini` or `pipeline`.
+**Action:** Always call `_ensure_setup()` (or equivalent) in every lazy property or method that requires environment context or logging to ensure correctness regardless of initialization parameters.
