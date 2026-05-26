@@ -21,6 +21,9 @@ def test_mobile_bridge_init(temp_pwa_dir, monkeypatch):
          patch('src.antigravity_core.mobile_bridge.CONFIG_FILE', str(temp_pwa_dir / "public" / "app_config.json")):
 
         bridge = MobileBridge()
+        # ⚡ Bolt: Wait for background initialization sync
+        bridge._executor.shutdown(wait=True)
+
         assert bridge.app_state["title"] == "Antigravity Mobile"
         assert os.path.exists(str(temp_pwa_dir / "public" / "app_config.json"))
 
