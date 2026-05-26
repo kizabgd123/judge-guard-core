@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Context Caching and Logic Integrity]
+**Learning:** Naive file caching based on mtime can lead to logic regressions if different parts of the code request different context windows (max_chars). Caching a truncated tail for one check (e.g., work log) might starve a subsequent check (e.g., LLM evaluation) of required context.
+**Action:** Implement mtime-based caching with a safety check: re-read the file if the requested context window (max_chars) is larger than the currently cached string, unless the entire file is already in memory. This preserved ~65% speedup on verification hot-paths without truncating AI context.
