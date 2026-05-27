@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Lazy-Loading Sentinel Anti-Pattern]
+**Learning:** In high-frequency CLI tools, lazy properties that return `None` on failure (e.g., missing config files or failed imports) must use an explicit boolean sentinel (e.g., `_tried_loading`). Without a sentinel, the expensive discovery/import logic re-runs on every access even after a known failure, negating the performance benefits of lazy loading in failure scenarios.
+**Action:** Always use a `self._property_tried = False` flag alongside thread-safe locks when implementing lazy initialization for components that might legitimately be missing.
