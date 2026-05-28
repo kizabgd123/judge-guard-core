@@ -21,10 +21,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 # === CONFIG ===
@@ -86,13 +84,17 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
-        # ⚡ Bolt: Load environment variables once during initialization
-        load_dotenv()
         self.conn = None
         self.notion_queue = []
         self._session = None
         # ⚡ Bolt: Executor for parallelizing Notion API calls
         self._executor = ThreadPoolExecutor(max_workers=5)
+
+    def _ensure_setup(self):
+        """⚡ Bolt: Lazy-load environment to reduce import overhead."""
+        from dotenv import load_dotenv
+        load_dotenv()
+        logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
     @property
     def session(self):
@@ -113,6 +115,7 @@ class ResearchPipeline:
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
+        self._ensure_setup()
         if sync_notion:
             entry = {
                 "action": action,
@@ -132,6 +135,7 @@ class ResearchPipeline:
 
     def init_db(self):
         """Initialize SQLite database."""
+        self._ensure_setup()
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
@@ -142,6 +146,7 @@ class ResearchPipeline:
     
     def connect(self):
         """Connect to existing database."""
+        self._ensure_setup()
         if not DB_PATH.exists():
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
@@ -314,6 +319,7 @@ class ResearchPipeline:
 
     def cache_verdict(self, action: str, verdict: str):
         """Cache JudgeGuard verdict to avoid repeated API calls."""
+        self._ensure_setup()
         if not self.conn:
             self.connect()
         
@@ -331,6 +337,7 @@ class ResearchPipeline:
 
     def get_cached_verdict(self, action: str) -> Optional[str]:
         """Check if verdict is cached."""
+        self._ensure_setup()
         if not self.conn:
             self.connect()
         
@@ -440,6 +447,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Research Pipeline")
+    # Ensure setup when running as CLI
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     parser.add_argument("--init", action="store_true", help="Initialize database")
     parser.add_argument("--parse", action="store_true", help="Parse MD files to SQLite")
     parser.add_argument("--query", type=str, help="Search patterns/documents")

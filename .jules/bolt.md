@@ -25,3 +25,11 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-05-20 - [Lazy-loading Module Setup for CLI Performance]
+**Learning:** For Python CLI tools, even small top-level calls like `load_dotenv()` or `logging.basicConfig()` contribute measurably to startup latency (~40-60ms). Deferring these to a thread-safe "ensure setup" method called only when an action is actually being processed significantly improves responsiveness for the "hot path" (e.g., cache hits).
+**Action:** Move environment and logging setup into a lazy `_ensure_setup()` method. Use `threading.RLock` to ensure it runs exactly once. Defer heavy imports (like `glob`) to the method scope where they are used.
+
+## 2026-05-20 - [Lazy Property Pattern for Configuration Discovery]
+**Learning:** Performing disk-intensive configuration discovery (like `glob.glob` for "brain" directories or file reads for "immutable laws") in `__init__` forces a performance penalty on every instantiation, even for simple status checks.
+**Action:** Refactor all configuration discovery into lazy properties. Use a boolean sentinel (e.g., `_searched`) to handle cases where a search returns `None` and should not be repeated.
