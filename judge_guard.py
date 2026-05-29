@@ -16,13 +16,27 @@ import sys
 import time
 import glob
 import logging
+import threading
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
+# ⚡ Bolt: Defer environment and logging setup to a lazy call to reduce import overhead.
 logger = logging.getLogger(__name__)
+_setup_done = False
+_global_lock = threading.RLock()
+
+
+def _ensure_setup():
+    """⚡ Bolt: Thread-safe lazy setup for environment and logging."""
+    global _setup_done
+    if not _setup_done:
+        with _global_lock:
+            if not _setup_done:
+                from dotenv import load_dotenv
+                load_dotenv()
+                logging.basicConfig(level=logging.INFO)
+                _setup_done = True
+
 
 # --- DEPENDENCY INJECTION (Lazy) ---
 # Dependencies are imported on demand to reduce CLI startup latency.
@@ -52,46 +66,112 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
-        self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
+        _ensure_setup()
+        self._provided_brain_path = brain_path
+        self._provided_work_log_path = work_log_path
         
-        self._gemini = None
-        self._pipeline = None
+        # Lazy storage
+        self._brain_path = None
+        self._brain_path_searched = False
+        self._work_log_path = None
+        self._work_log_path_searched = False
+        self._rules_path = None
+        self._rules_path_searched = False
+        self._immutable_laws = None
+        self._laws_loaded = False
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        self._executor = None
+        self._gemini = None
+        self._gemini_tried = False
+        self._pipeline = None
+        self._pipeline_tried = False
+        self._lock = threading.RLock()
+
+        logger.info("JudgeGuard v2.0 initialized.")
+
+    @property
+    def brain_path(self) -> Optional[str]:
+        """⚡ Bolt: Lazy-load brain path from environment or discovery."""
+        if not self._brain_path_searched:
+            with self._lock:
+                if not self._brain_path_searched:
+                    self._brain_path = self._provided_brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
+                    self._brain_path_searched = True
+        return self._brain_path
+
+    @property
+    def work_log_path(self) -> str:
+        """⚡ Bolt: Lazy-load work log path from environment or discovery."""
+        if not self._work_log_path_searched:
+            with self._lock:
+                if not self._work_log_path_searched:
+                    self._work_log_path = self._provided_work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
+                    self._work_log_path_searched = True
+        return self._work_log_path
+
+    @property
+    def rules_path(self) -> str:
+        """⚡ Bolt: Lazy-load rules path."""
+        if not self._rules_path_searched:
+            with self._lock:
+                if not self._rules_path_searched:
+                    self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+                    self._rules_path_searched = True
+        return self._rules_path
+
+    @property
+    def immutable_laws(self) -> str:
+        """⚡ Bolt: Lazy-load immutable laws from disk."""
+        if not self._laws_loaded:
+            with self._lock:
+                if not self._laws_loaded:
+                    self._immutable_laws = self._load_rules()
+                    self._laws_loaded = True
+        return self._immutable_laws
+
+    @property
+    def executor(self) -> ThreadPoolExecutor:
+        """⚡ Bolt: Lazy-initialize background executor."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
 
     @property
     def gemini(self):
         """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
-        if self._gemini is None:
-            try:
-                from src.antigravity_core.gemini_client import GeminiClient
-                self._gemini = GeminiClient()
-            except ImportError as e:
-                logger.warning(f"⚠️ GeminiClient not available: {e}")
+        if not self._gemini_tried:
+            with self._lock:
+                if not self._gemini_tried:
+                    try:
+                        from src.antigravity_core.gemini_client import GeminiClient
+                        self._gemini = GeminiClient()
+                    except (ImportError, Exception) as e:
+                        logger.warning(f"⚠️ GeminiClient not available: {e}")
+                    self._gemini_tried = True
         return self._gemini
 
     @property
     def pipeline(self):
         """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
-        if self._pipeline is None:
-            try:
-                from research_pipeline import ResearchPipeline
-                try:
-                    self._pipeline = ResearchPipeline().connect()
-                except Exception:
-                    # If connect fails (db doesn't exist), try to init it
+        if not self._pipeline_tried:
+            with self._lock:
+                if not self._pipeline_tried:
                     try:
-                        self._pipeline = ResearchPipeline().init_db()
-                    except Exception as e:
-                        logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
-                        self._pipeline = None
-            except ImportError as e:
-                logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+                        from research_pipeline import ResearchPipeline
+                        try:
+                            self._pipeline = ResearchPipeline().connect()
+                        except Exception:
+                            # If connect fails (db doesn't exist), try to init it
+                            try:
+                                self._pipeline = ResearchPipeline().init_db()
+                            except Exception as e:
+                                logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
+                                self._pipeline = None
+                    except (ImportError, Exception) as e:
+                        logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+                    self._pipeline_tried = True
         return self._pipeline
 
     def __del__(self):
@@ -99,7 +179,7 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if self._executor:
             self._executor.shutdown(wait=False)
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
@@ -212,7 +292,7 @@ class JudgeGuard:
         try:
             # ⚡ Bolt: Offload to background executor to skip subprocess overhead
             # and reuse existing ResearchPipeline instance.
-            self._executor.submit(self.pipeline.sync_to_notion)
+            self.executor.submit(self.pipeline.sync_to_notion)
         except Exception as e:
             logger.error(f"⚠️ Notion background sync failed: {e}")
 
