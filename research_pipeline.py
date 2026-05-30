@@ -21,7 +21,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -87,6 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 class ResearchPipeline:
     def __init__(self):
         # ⚡ Bolt: Load environment variables once during initialization
+        from dotenv import load_dotenv
         load_dotenv()
         self.conn = None
         self.notion_queue = []
