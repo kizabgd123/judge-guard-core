@@ -16,13 +16,26 @@ import sys
 import time
 import glob
 import logging
+import threading
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
+# --- LAZY SETUP ---
+# Environment and logging are deferred to reduce CLI startup overhead.
+_setup_done = False
+_global_lock = threading.RLock()
 logger = logging.getLogger(__name__)
+
+def _ensure_setup():
+    """⚡ Bolt: Thread-safe deferred initialization of environment and logging."""
+    global _setup_done
+    if not _setup_done:
+        with _global_lock:
+            if not _setup_done:
+                from dotenv import load_dotenv
+                load_dotenv()
+                logging.basicConfig(level=logging.INFO)
+                _setup_done = True
 
 # --- DEPENDENCY INJECTION (Lazy) ---
 # Dependencies are imported on demand to reduce CLI startup latency.
@@ -54,15 +67,57 @@ class JudgeGuard:
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
         # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
+
+        # ⚡ Bolt: Offload path discovery and rule loading to lazy properties
+        self._brain_path = brain_path
+        self._work_log_path = work_log_path
+        self._rules_path = None
+        self._immutable_laws = None
         
         self._gemini = None
         self._pipeline = None
+        self._lock = threading.RLock()
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        # ⚡ Bolt: Defer heavy setup calls
+        _ensure_setup()
+        # logger.info(f"JudgeGuard v2.0 initialized.") # Moved to lazy brain_path
+
+    @property
+    def brain_path(self):
+        """⚡ Bolt: Lazy-load brain path discovery."""
+        if self._brain_path is None:
+            with self._lock:
+                if self._brain_path is None:
+                    self._brain_path = os.getenv("BRAIN_PATH") or self._discover_brain_path()
+                    logger.info(f"JudgeGuard v2.0 initialized. Brain: {self._brain_path}")
+        return self._brain_path
+
+    @property
+    def work_log_path(self):
+        """⚡ Bolt: Lazy-load work log path discovery."""
+        if self._work_log_path is None:
+            with self._lock:
+                if self._work_log_path is None:
+                    self._work_log_path = os.getenv("WORK_LOG_PATH") or self._find_work_log()
+        return self._work_log_path
+
+    @property
+    def rules_path(self):
+        """⚡ Bolt: Lazy property for MASTER_ORCHESTRATION.md path."""
+        if self._rules_path is None:
+            with self._lock:
+                if self._rules_path is None:
+                    self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        return self._rules_path
+
+    @property
+    def immutable_laws(self):
+        """⚡ Bolt: Lazy property for loading immutable laws."""
+        if self._immutable_laws is None:
+            with self._lock:
+                if self._immutable_laws is None:
+                    self._immutable_laws = self._load_rules()
+        return self._immutable_laws
 
     @property
     def gemini(self):
