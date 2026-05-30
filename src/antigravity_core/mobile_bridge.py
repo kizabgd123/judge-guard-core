@@ -5,6 +5,7 @@ Writes state to a shared JSON file that the PWA watches/fetches.
 
 import json
 import os
+import threading
 from typing import Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
@@ -22,7 +23,10 @@ class MobileBridge:
         }
         # ⚡ Bolt: Executor for offloading blocking disk I/O
         self._executor = ThreadPoolExecutor(max_workers=1)
+        self._lock = threading.RLock()
         self._ensure_public_dir()
+
+        # Keep initial sync synchronous to maintain object contract and avoid race conditions
         self.sync_state()
 
     def __del__(self):
@@ -37,7 +41,8 @@ class MobileBridge:
 
     def update_state(self, new_state: Dict[str, Any]) -> Dict[str, Any]:
         """Update the mobile app state and sync to file."""
-        self.app_state.update(new_state)
+        with self._lock:
+            self.app_state.update(new_state)
         # ⚡ Bolt: Offload blocking disk I/O to background thread
         self._executor.submit(self.sync_state)
         return self.app_state
@@ -46,7 +51,8 @@ class MobileBridge:
         """Write current state to app_config.json."""
         try:
             # Create a snapshot to avoid race conditions during serialization
-            state_snapshot = self.app_state.copy()
+            with self._lock:
+                state_snapshot = self.app_state.copy()
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(state_snapshot, f, indent=2)
             # Use logger or print with caution in threads
