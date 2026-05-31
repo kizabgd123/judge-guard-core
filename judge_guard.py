@@ -16,12 +16,26 @@ import sys
 import time
 import glob
 import logging
+import threading
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
+# Global lock and sentinel for thread-safe lazy setup
+_global_lock = threading.RLock()
+_setup_done = False
+
+def _ensure_setup():
+    """⚡ Bolt: Lazy-load environment and configure logging exactly once."""
+    global _setup_done
+    if _setup_done:
+        return
+    with _global_lock:
+        if not _setup_done:
+            from dotenv import load_dotenv
+            load_dotenv()
+            logging.basicConfig(level=logging.INFO)
+            _setup_done = True
+
 logger = logging.getLogger(__name__)
 
 # --- DEPENDENCY INJECTION (Lazy) ---
@@ -52,17 +66,50 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
+        # ⚡ Bolt: Ensure environment and logging are configured
+        _ensure_setup()
+
         # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
+        self._brain_path = brain_path
+        self._work_log_path = work_log_path
+        self._rules_path = None
+        self._immutable_laws = None
         
         self._gemini = None
         self._pipeline = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        logger.info("JudgeGuard v2.0 initialized.")
+
+    @property
+    def brain_path(self):
+        """⚡ Bolt: Lazy-load brain path via glob search."""
+        if not hasattr(self, "_brain_path_searched"):
+            self._brain_path = self._brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
+            self._brain_path_searched = True
+        return self._brain_path
+
+    @property
+    def work_log_path(self):
+        """⚡ Bolt: Lazy-load work log path."""
+        if not hasattr(self, "_work_log_path_searched"):
+            self._work_log_path = self._work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
+            self._work_log_path_searched = True
+        return self._work_log_path
+
+    @property
+    def rules_path(self):
+        """⚡ Bolt: Lazy-load rules path."""
+        if self._rules_path is None:
+            self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        return self._rules_path
+
+    @property
+    def immutable_laws(self):
+        """⚡ Bolt: Lazy-load rules from file."""
+        if self._immutable_laws is None:
+            self._immutable_laws = self._load_rules()
+        return self._immutable_laws
 
     @property
     def gemini(self):
