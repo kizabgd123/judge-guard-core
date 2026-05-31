@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-05-20 - [Lazy Setup for CLI Responsiveness]
+**Learning:** For CLI tools like `JudgeGuard`, module-level setup calls like `load_dotenv()` and `logging.basicConfig()` contribute ~30-40ms to pure import time, which is significant for high-frequency checks. Synchronous disk I/O in `__init__` (globbing, file reads) adds further latency that can be avoided if the specific paths or rules aren't needed for every execution path (e.g., cached hits).
+**Action:** Implement a lazy `_ensure_setup()` method for one-time environment/logging configuration and refactor path discovery into thread-safe lazy properties. This ensures that the "pure import" cost is minimized and I/O is deferred until absolutely necessary.
