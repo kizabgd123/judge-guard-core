@@ -54,15 +54,44 @@ class JudgeGuard:
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
         # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
+        # ⚡ Bolt: Lazy property initialization to avoid sync disk I/O on startup
+        self._brain_path = brain_path
+        self._work_log_path = work_log_path
+        self._rules_path = None
+        self._immutable_laws = None
         
         self._gemini = None
         self._pipeline = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        logger.info("JudgeGuard v2.0 initialized.")
+
+    @property
+    def brain_path(self):
+        """⚡ Bolt: Lazy-load brain path from env or discovery."""
+        if self._brain_path is None:
+            self._brain_path = os.getenv("BRAIN_PATH") or self._discover_brain_path()
+        return self._brain_path
+
+    @property
+    def work_log_path(self):
+        """⚡ Bolt: Lazy-load work log path from env or discovery."""
+        if self._work_log_path is None:
+            self._work_log_path = os.getenv("WORK_LOG_PATH") or self._find_work_log()
+        return self._work_log_path
+
+    @property
+    def rules_path(self):
+        """⚡ Bolt: Lazy-load rules path."""
+        if self._rules_path is None:
+            self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        return self._rules_path
+
+    @property
+    def immutable_laws(self):
+        """⚡ Bolt: Lazy-load immutable laws from disk."""
+        if self._immutable_laws is None:
+            self._immutable_laws = self._load_rules()
+        return self._immutable_laws
 
     @property
     def gemini(self):
