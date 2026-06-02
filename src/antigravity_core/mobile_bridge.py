@@ -5,6 +5,7 @@ Writes state to a shared JSON file that the PWA watches/fetches.
 
 import json
 import os
+import threading
 from typing import Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
@@ -20,10 +21,12 @@ class MobileBridge:
             "content": "Welcome to the Agent-Controlled PWA!",
             "components": []
         }
+        # ⚡ Bolt: Thread-safe lock for state updates
+        self._lock = threading.RLock()
         # ⚡ Bolt: Executor for offloading blocking disk I/O
         self._executor = ThreadPoolExecutor(max_workers=1)
-        self._ensure_public_dir()
-        self.sync_state()
+        # ⚡ Bolt: Removed synchronous sync_state() from __init__ to improve startup time.
+        # The first update or push_verdict will trigger a background sync.
 
     def __del__(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is shut down."""
@@ -37,20 +40,25 @@ class MobileBridge:
 
     def update_state(self, new_state: Dict[str, Any]) -> Dict[str, Any]:
         """Update the mobile app state and sync to file."""
-        self.app_state.update(new_state)
+        with self._lock:
+            self.app_state.update(new_state)
+            # ⚡ Bolt: Take snapshot inside the lock
+            state_snapshot = self.app_state.copy()
+
         # ⚡ Bolt: Offload blocking disk I/O to background thread
-        self._executor.submit(self.sync_state)
+        self._executor.submit(self.sync_state, state_snapshot)
         return self.app_state
 
-    def sync_state(self):
+    def sync_state(self, state_snapshot: Dict[str, Any] = None):
         """Write current state to app_config.json."""
         try:
-            # Create a snapshot to avoid race conditions during serialization
-            state_snapshot = self.app_state.copy()
+            self._ensure_public_dir()
+            if state_snapshot is None:
+                with self._lock:
+                    state_snapshot = self.app_state.copy()
+
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(state_snapshot, f, indent=2)
-            # Use logger or print with caution in threads
-            # print(f"✅ Bridge: Synced state to {CONFIG_FILE}")
         except Exception as e:
             print(f"❌ Bridge Error: Failed to sync state: {e}")
 

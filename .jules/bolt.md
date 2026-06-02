@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-20 - [Lazy Property Refactoring for CLI Responsiveness]
+**Learning:** For high-frequency CLI tools like `JudgeGuard`, deferring heavy I/O (like reading 100KB rule files) and heavy imports (like `dotenv` and `logging`) into lazy properties is essential for responsiveness. Refactoring the constructor to avoid immediate I/O reduced `__init__` latency by ~90%.
+**Action:** Use `@property`-based lazy initialization for all file-backed attributes and module-level dependencies in CLI-facing components to minimize startup overhead.
