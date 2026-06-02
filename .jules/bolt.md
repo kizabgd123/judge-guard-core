@@ -25,3 +25,7 @@
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
+
+## 2026-04-22 - [Thread-Safety in Lazy Property Initialization]
+**Learning:** When refactoring eager initialization to lazy properties in a multi-threaded environment (e.g., background Notion/Bridge syncing), lack of synchronization (locking) can lead to race conditions where redundant instances are created or shared state is corrupted. Furthermore, background serialization of mutable state (like `app_state` in `MobileBridge`) must be preceded by a snapshot (`copy()`) taken under a lock on the main thread to avoid `RuntimeError` during iteration.
+**Action:** Always use `threading.RLock` to guard lazy property initialization and state snapshots. Ensure `copy()` is called before submitting tasks to background executors to maintain thread-safe state persistence.

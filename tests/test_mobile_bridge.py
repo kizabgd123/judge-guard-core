@@ -22,6 +22,9 @@ def test_mobile_bridge_init(temp_pwa_dir, monkeypatch):
 
         bridge = MobileBridge()
         assert bridge.app_state["title"] == "Antigravity Mobile"
+
+        # ⚡ Bolt: Trigger sync manually or via update to test file creation
+        bridge.sync_state()
         assert os.path.exists(str(temp_pwa_dir / "public" / "app_config.json"))
 
 def test_update_state(temp_pwa_dir):
