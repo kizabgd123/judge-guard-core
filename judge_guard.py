@@ -14,15 +14,28 @@ Environment Variables:
 import os
 import sys
 import time
-import glob
-import logging
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# ⚡ Bolt: Defer heavy imports and initialization to reduce CLI latency
+_setup_done = False
+_logger = None
+
+def _ensure_setup():
+    """⚡ Bolt: Lazy-load dotenv and configure logging only when needed."""
+    global _setup_done, _logger
+    if not _setup_done:
+        from dotenv import load_dotenv
+        import logging
+        load_dotenv()
+        # Only configure logging if it hasn't been configured yet
+        if not logging.getLogger().hasHandlers():
+            logging.basicConfig(level=logging.INFO)
+        _logger = logging.getLogger(__name__)
+        _setup_done = True
+
+def get_logger():
+    _ensure_setup()
+    return _logger
 
 # --- DEPENDENCY INJECTION (Lazy) ---
 # Dependencies are imported on demand to reduce CLI startup latency.
@@ -52,17 +65,55 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
-        self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
-        
+        # ⚡ Bolt: Defer initialization of properties to avoid synchronous I/O
+        self._brain_path = brain_path
+        self._work_log_path = work_log_path
+        self._rules_path = None
+        self._immutable_laws = None
+        self._executor = None
         self._gemini = None
         self._pipeline = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        # ⚡ Bolt: Avoid accessing self.brain_path here to keep __init__ near 0ms
+        get_logger().info("JudgeGuard v2.0 initialized.")
+
+    @property
+    def brain_path(self) -> Optional[str]:
+        """⚡ Bolt: Lazy-load brain path via environment or discovery."""
+        if self._brain_path is None:
+            _ensure_setup() # Ensure os.getenv works with .env
+            self._brain_path = os.getenv("BRAIN_PATH") or self._discover_brain_path()
+        return self._brain_path
+
+    @property
+    def work_log_path(self) -> str:
+        """⚡ Bolt: Lazy-load work log path."""
+        if self._work_log_path is None:
+            _ensure_setup()
+            self._work_log_path = os.getenv("WORK_LOG_PATH") or self._find_work_log()
+        return self._work_log_path
+
+    @property
+    def rules_path(self) -> str:
+        """⚡ Bolt: Lazy property for rules path."""
+        if self._rules_path is None:
+            self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        return self._rules_path
+
+    @property
+    def immutable_laws(self) -> str:
+        """⚡ Bolt: Lazy-load rules from disk."""
+        if self._immutable_laws is None:
+            self._immutable_laws = self._load_rules()
+        return self._immutable_laws
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
+        if self._executor is None:
+            from concurrent.futures import ThreadPoolExecutor
+            self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
 
     @property
     def gemini(self):
@@ -72,7 +123,7 @@ class JudgeGuard:
                 from src.antigravity_core.gemini_client import GeminiClient
                 self._gemini = GeminiClient()
             except ImportError as e:
-                logger.warning(f"⚠️ GeminiClient not available: {e}")
+                get_logger().warning(f"⚠️ GeminiClient not available: {e}")
         return self._gemini
 
     @property
@@ -88,10 +139,10 @@ class JudgeGuard:
                     try:
                         self._pipeline = ResearchPipeline().init_db()
                     except Exception as e:
-                        logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
+                        get_logger().warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
                         self._pipeline = None
             except ImportError as e:
-                logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+                get_logger().warning(f"⚠️ ResearchPipeline not available: {e}")
         return self._pipeline
 
     def __del__(self):
@@ -99,7 +150,7 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor:
             self._executor.shutdown(wait=False)
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
@@ -107,6 +158,7 @@ class JudgeGuard:
     def _discover_brain_path(self) -> Optional[str]:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
         try:
+            import glob
             base_path = os.path.expanduser("~/.gemini/antigravity/brain")
             if not os.path.exists(base_path):
                 return None
@@ -212,26 +264,27 @@ class JudgeGuard:
         try:
             # ⚡ Bolt: Offload to background executor to skip subprocess overhead
             # and reuse existing ResearchPipeline instance.
-            self._executor.submit(self.pipeline.sync_to_notion)
+            self.executor.submit(self.pipeline.sync_to_notion)
         except Exception as e:
-            logger.error(f"⚠️ Notion background sync failed: {e}")
+            get_logger().error(f"⚠️ Notion background sync failed: {e}")
 
     def _check_work_log(self, action: str) -> bool:
         """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
-        if not self.work_log_path or not os.path.exists(self.work_log_path):
-            logger.error("🛑 WORK_LOG.md not found. Required for action verification.")
+        work_path = self.work_log_path
+        if not work_path or not os.path.exists(work_path):
+            get_logger().error("🛑 WORK_LOG.md not found. Required for action verification.")
             print("🛑 WORK_LOG.md not found. Update required before action.")
             return False
         
         # Check last modification time
-        mtime = os.path.getmtime(self.work_log_path)
+        mtime = os.path.getmtime(work_path)
         now = time.time()
         age_seconds = now - mtime
         
         # Read last few lines to check if action was logged
         try:
             # ⚡ Bolt: Efficient O(1) tail retrieval
-            with open(self.work_log_path, 'rb') as f:
+            with open(work_path, 'rb') as f:
                 f.seek(0, 2)
                 file_size = f.tell()
                 to_read = min(file_size, 1000)
@@ -244,12 +297,12 @@ class JudgeGuard:
                     if age_seconds < 120:
                         return True
                     else:
-                        logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
+                        get_logger().warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
                 else:
-                    logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
+                    get_logger().warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
 
         except Exception as e:
-            logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
+            get_logger().error(f"⚠️ Error reading WORK_LOG.md: {e}")
             return False
         
         print("🛑 WORK_LOG.md not updated recently. Required format:")
@@ -279,7 +332,7 @@ class JudgeGuard:
         # --- LAYER 00: Security Enforcement (Emergency Fix) ---
         if self._is_dangerous_command(current_action):
             msg = "Security Violation: Action contains forbidden dangerous commands (sudo/root deletion)."
-            logger.error(f"Layer 00 Block: {msg}")
+            get_logger().error(f"Layer 00 Block: {msg}")
             if bridge_available:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
             print(f"🛑 JudgeGuard: {msg}")
@@ -325,7 +378,7 @@ class JudgeGuard:
         
         if is_research_phase and is_shell_command:
             msg = "Violation: You must use the Browser Agent for research tasks (Phase 0-1)."
-            logger.warning(f"Layer 1 Block: {msg}")
+            get_logger().warning(f"Layer 1 Block: {msg}")
             if bridge_available:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
             print(f"🛑 JudgeGuard: {msg}")
@@ -333,7 +386,7 @@ class JudgeGuard:
 
         # --- CONSOLIDATED VERIFICATION (⚡ Bolt: Merge Layer 3 and Standard) ---
         is_write = self._is_write_operation(current_action)
-        logger.info(f"Consolidated Verification (Write: {is_write})...")
+        get_logger().info(f"Consolidated Verification (Write: {is_write})...")
 
         if bridge_available:
             status_msg = "Verifying Rules & Essence..." if is_write else "Verifying Standard Rules..."
