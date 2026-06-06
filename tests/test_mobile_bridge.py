@@ -3,6 +3,7 @@ from unittest.mock import patch
 import os
 import json
 import shutil
+import time
 from src.antigravity_core.mobile_bridge import MobileBridge
 
 @pytest.fixture
@@ -12,17 +13,20 @@ def temp_pwa_dir(tmp_path):
     public_dir.mkdir(parents=True)
     return pwa_dir
 
-def test_mobile_bridge_init(temp_pwa_dir, monkeypatch):
-    # Set the base directory for MobileBridge to find the public dir relative to its own path
-    # MobileBridge uses os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    # We'll mock the module level constant or just test the logic with a fresh instance
+def test_mobile_bridge_init(temp_pwa_dir):
+    # Mock paths
+    public_dir = str(temp_pwa_dir / "public")
+    config_file = str(temp_pwa_dir / "public" / "app_config.json")
 
-    with patch('src.antigravity_core.mobile_bridge.PWA_PUBLIC_DIR', str(temp_pwa_dir / "public")), \
-         patch('src.antigravity_core.mobile_bridge.CONFIG_FILE', str(temp_pwa_dir / "public" / "app_config.json")):
+    with patch('src.antigravity_core.mobile_bridge.PWA_PUBLIC_DIR', public_dir), \
+         patch('src.antigravity_core.mobile_bridge.CONFIG_FILE', config_file):
 
         bridge = MobileBridge()
         assert bridge.app_state["title"] == "Antigravity Mobile"
-        assert os.path.exists(str(temp_pwa_dir / "public" / "app_config.json"))
+
+        # In lazy mode, __init__ doesn't sync. We trigger it manually for the test or wait for update.
+        bridge.sync_state()
+        assert os.path.exists(config_file)
 
 def test_update_state(temp_pwa_dir):
     config_file = str(temp_pwa_dir / "public" / "app_config.json")
@@ -33,7 +37,7 @@ def test_update_state(temp_pwa_dir):
         bridge.update_state({"theme": "dark", "content": "Updated content"})
 
         # ⚡ Bolt: Wait for background sync to complete
-        bridge._executor.shutdown(wait=True)
+        bridge.executor.shutdown(wait=True)
 
         assert bridge.app_state["theme"] == "dark"
         assert bridge.app_state["content"] == "Updated content"
@@ -52,7 +56,7 @@ def test_push_verdict(temp_pwa_dir):
         bridge.push_verdict("TestAction", "PASSED", "All good")
 
         # ⚡ Bolt: Wait for background sync to complete
-        bridge._executor.shutdown(wait=True)
+        bridge.executor.shutdown(wait=True)
 
         assert "last_verdict" in bridge.app_state
         assert bridge.app_state["last_verdict"]["action"] == "TestAction"
