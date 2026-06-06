@@ -16,12 +16,25 @@ import sys
 import time
 import glob
 import logging
+import threading
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-load_dotenv()
-logging.basicConfig(level=logging.INFO)
+# --- GLOBAL SETUP LOCK ---
+_setup_lock = threading.RLock()
+_setup_done = False
+
+def _ensure_setup():
+    """⚡ Bolt: Thread-safe lazy setup for environment and logging."""
+    global _setup_done
+    if not _setup_done:
+        with _setup_lock:
+            if not _setup_done:
+                from dotenv import load_dotenv
+                load_dotenv()
+                logging.basicConfig(level=logging.INFO)
+                _setup_done = True
+
 logger = logging.getLogger(__name__)
 
 # --- DEPENDENCY INJECTION (Lazy) ---
@@ -52,22 +65,70 @@ class JudgeGuard:
     """
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
-        # ⚡ Bolt: Executor for background tasks (e.g., Notion synchronization)
-        self._executor = ThreadPoolExecutor(max_workers=1)
-        self.brain_path = brain_path or os.getenv("BRAIN_PATH") or self._discover_brain_path()
-        self.work_log_path = work_log_path or os.getenv("WORK_LOG_PATH") or self._find_work_log()
-        self.rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
-        self.immutable_laws = self._load_rules()
+        # ⚡ Bolt: Store constructor arguments for lazy resolution
+        self._brain_path_arg = brain_path
+        self._work_log_path_arg = work_log_path
         
+        # ⚡ Bolt: Lazy property backends
+        self._brain_path = None
+        self._work_log_path = None
+        self._rules_path = None
+        self._immutable_laws = None
+        self._executor = None
         self._gemini = None
         self._pipeline = None
 
-        logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
+        # ⚡ Bolt: Minimal __init__ to reduce startup latency.
+        # logger.info is deferred until first use of a property or verify_action.
+
+    @property
+    def brain_path(self) -> Optional[str]:
+        """⚡ Bolt: Lazy-load brain path."""
+        if self._brain_path is None:
+            _ensure_setup()
+            path = self._brain_path_arg or os.getenv("BRAIN_PATH") or self._discover_brain_path()
+            if path:
+                logger.info(f"JudgeGuard v2.0 initialized. Brain: {path}")
+            self._brain_path = path or "" # Use empty string to cache "None/Not found"
+        return self._brain_path or None
+
+    @property
+    def work_log_path(self) -> str:
+        """⚡ Bolt: Lazy-load work log path."""
+        if self._work_log_path is None:
+            _ensure_setup()
+            self._work_log_path = self._work_log_path_arg or os.getenv("WORK_LOG_PATH") or self._find_work_log()
+        return self._work_log_path
+
+    @property
+    def rules_path(self) -> str:
+        """⚡ Bolt: Lazy-load rules path."""
+        if self._rules_path is None:
+            _ensure_setup()
+            self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+        return self._rules_path
+
+    @property
+    def immutable_laws(self) -> str:
+        """⚡ Bolt: Lazy-load immutable laws."""
+        if self._immutable_laws is None:
+            _ensure_setup()
+            self._immutable_laws = self._load_rules()
+        return self._immutable_laws
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
+        if self._executor is None:
+            _ensure_setup()
+            self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
 
     @property
     def gemini(self):
         """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
         if self._gemini is None:
+            _ensure_setup()
             try:
                 from src.antigravity_core.gemini_client import GeminiClient
                 self._gemini = GeminiClient()
@@ -79,6 +140,7 @@ class JudgeGuard:
     def pipeline(self):
         """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
         if self._pipeline is None:
+            _ensure_setup()
             try:
                 from research_pipeline import ResearchPipeline
                 try:
@@ -99,9 +161,9 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if self._executor:
             self._executor.shutdown(wait=False)
-        if hasattr(self, "_pipeline") and self._pipeline:
+        if self._pipeline:
             self._pipeline.close()
 
     def _discover_brain_path(self) -> Optional[str]:
@@ -212,7 +274,7 @@ class JudgeGuard:
         try:
             # ⚡ Bolt: Offload to background executor to skip subprocess overhead
             # and reuse existing ResearchPipeline instance.
-            self._executor.submit(self.pipeline.sync_to_notion)
+            self.executor.submit(self.pipeline.sync_to_notion)
         except Exception as e:
             logger.error(f"⚠️ Notion background sync failed: {e}")
 
@@ -269,6 +331,8 @@ class JudgeGuard:
         Notes:
             May push verdicts to an external bridge, consult Gemini/BlockJudge for semantic and rules checks, and sync research actions to Notion when approved.
         """
+        _ensure_setup()
+
         # ⚡ Bolt: Lazy import bridge to avoid early 'requests' load
         try:
             from src.antigravity_core.mobile_bridge import bridge
