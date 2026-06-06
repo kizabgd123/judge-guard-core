@@ -3,10 +3,9 @@ Mobile Bridge - The connection between Antigravity Agents and the Mobile PWA.
 Writes state to a shared JSON file that the PWA watches/fetches.
 """
 
-import json
 import os
+import threading
 from typing import Dict, Any
-from concurrent.futures import ThreadPoolExecutor
 
 # Path to the PWA public directory
 PWA_PUBLIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mobile_app_pwa", "public")
@@ -20,14 +19,22 @@ class MobileBridge:
             "content": "Welcome to the Agent-Controlled PWA!",
             "components": []
         }
-        # ⚡ Bolt: Executor for offloading blocking disk I/O
-        self._executor = ThreadPoolExecutor(max_workers=1)
-        self._ensure_public_dir()
-        self.sync_state()
+        self._lock = threading.RLock()
+        self._executor = None
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=1)
+        return self._executor
 
     def __del__(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor:
             self._executor.shutdown(wait=False)
 
     def _ensure_public_dir(self):
@@ -37,16 +44,20 @@ class MobileBridge:
 
     def update_state(self, new_state: Dict[str, Any]) -> Dict[str, Any]:
         """Update the mobile app state and sync to file."""
-        self.app_state.update(new_state)
+        with self._lock:
+            self.app_state.update(new_state)
         # ⚡ Bolt: Offload blocking disk I/O to background thread
-        self._executor.submit(self.sync_state)
+        self.executor.submit(self.sync_state)
         return self.app_state
 
     def sync_state(self):
         """Write current state to app_config.json."""
         try:
+            import json
+            self._ensure_public_dir()
             # Create a snapshot to avoid race conditions during serialization
-            state_snapshot = self.app_state.copy()
+            with self._lock:
+                state_snapshot = self.app_state.copy()
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(state_snapshot, f, indent=2)
             # Use logger or print with caution in threads
@@ -56,7 +67,8 @@ class MobileBridge:
 
     def get_state(self) -> Dict[str, Any]:
         """Get current state."""
-        return self.app_state
+        with self._lock:
+            return self.app_state
 
     def push_verdict(self, action: str, status: str, reason: str):
         """
