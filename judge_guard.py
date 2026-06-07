@@ -163,7 +163,9 @@ class JudgeGuard:
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
         if hasattr(self, "_executor") and self._executor:
-            self._executor.shutdown(wait=False)
+            # ⚡ Bolt: Wait for pending background tasks (like verdict caching)
+            # to finish before closing resources like the database.
+            self._executor.shutdown(wait=True)
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
 
@@ -435,7 +437,8 @@ class JudgeGuard:
             
             # ⚡ Bolt: Cache the verdict for future speed
             if self.pipeline:
-                self.pipeline.cache_verdict(current_action, "PASSED")
+                # ⚡ Bolt: Offload blocking database write to background thread.
+                self.executor.submit(self.pipeline.cache_verdict, current_action, "PASSED")
 
             # ⚡ Bolt: Auto-sync to Notion if this is a research action (Fix: restored missing call)
             if self._is_research_action(current_action):

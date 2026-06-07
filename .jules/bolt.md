@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [SQLite Write Latency and Threading Race Conditions]
+**Learning:** Default SQLite configuration (journal_mode=DELETE, synchronous=FULL) can make simple writes take ~8-10ms, which is a bottleneck for high-frequency auditing. Furthermore, offloading these writes to a background thread requires changing `executor.shutdown(wait=False)` to `wait=True` to prevent the main thread from closing the database connection before the background worker finishes its task, which can lead to segmentation faults or operational errors.
+**Action:** Use SQLite WAL mode and `synchronous=NORMAL` for ~20-60x faster writes. Always ensure background executors are shut down with `wait=True` if they depend on resources (like DB connections) that are closed immediately after.
