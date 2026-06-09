@@ -29,3 +29,11 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Cumulative Import Overhead in Dependency Chains]
+**Learning:** Even if the main CLI module (`judge_guard.py`) is optimized, heavy imports in its dependencies (`research_pipeline.py`) still contribute to the total process startup time. Deferring imports in support modules is just as critical.
+**Action:** Apply lazy-loading patterns (deferred imports, thread-safe setup) across the entire dependency tree of high-frequency CLI tools. This reduced the cumulative import overhead of the `ResearchPipeline` dependency by ~64%.
+
+## 2026-04-22 - [SQLite WAL Mode for Background Audit Logs]
+**Learning:** Default SQLite settings (DELETE journal, FULL sync) can make even simple `INSERT` operations take 10-20ms due to disk sync. This is a significant bottleneck for "fast-path" actions that use background threads for auditing.
+**Action:** Enable `journal_mode=WAL` and `synchronous=NORMAL` for audit databases. This allows background writes to complete without blocking subsequent main-thread operations or slowing down the overall process exit.
