@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-05-15 - [Race Condition in Shutdown with Background Tasks]
+**Learning:** Offloading SQLite writes to a background thread improves main-thread latency but introduces a race condition during process exit. If the database connection is closed before the background thread finishes its last write, a segmentation fault or 'database is closed' error occurs.
+**Action:** Always use `executor.shutdown(wait=True)` in the `close()` or `__del__` method BEFORE closing dependent resources like database connections. Ensure the executor itself is checked for existence to avoid triggering lazy loads during teardown.
