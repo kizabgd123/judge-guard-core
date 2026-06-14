@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Multimedia Import Bottleneck and Resource Deferral]
+**Learning:** Importing `requests` at the module level in `multimedia.py` added ~190ms of overhead to the Gradio app startup. Additionally, initializing `ThreadPoolExecutor` in `__init__` of `KaggleAgent` consumes resources even if no background tasks are executed.
+**Action:** Implement thread-safe lazy loading for `requests.Session` and `ThreadPoolExecutor`. Deferring these reduced `multimedia.py` import time by ~75% (259ms -> 65ms).
