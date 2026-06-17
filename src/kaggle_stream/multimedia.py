@@ -1,5 +1,4 @@
 import os
-import threading
 
 class MultimediaManager:
     """
@@ -15,6 +14,7 @@ class MultimediaManager:
         # ⚡ Bolt: Internal state for lazy properties
         self._session = None
         self._logger = None
+        import threading
         self._lock = threading.Lock()
 
         # ⚡ Bolt: Updated to the new recommended router endpoint

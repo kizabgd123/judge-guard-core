@@ -1,5 +1,4 @@
 import os
-import threading
 
 class KaggleAgent:
     """
@@ -15,6 +14,7 @@ class KaggleAgent:
         self._notion = None
         self._logger = None
         self._executor = None
+        import threading
         self._lock = threading.Lock()
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
