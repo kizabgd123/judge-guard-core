@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Strict Schema Validation in Mobile PWA]
 **Learning:** The Mobile PWA test suite (Vitest) implements strict schema validation for `public/app_config.json`, including checks for exact key counts. Adding "unauthorized" metadata keys (like `last_verdict`) during backend state sync can break frontend CI/CD pipelines (e.g., `browser-worker` build) even if the application logic handles them gracefully.
 **Action:** Respect existing frontend schemas when modifying shared configuration files. Use `npm test` in `src/mobile_app_pwa` to verify changes to shared artifacts before submission.
+
+## 2026-04-22 - [SSR/Worker Safety in React Components]
+**Learning:** React components that use browser-only globals like `document` or `window` outside of `useEffect` or without guards will crash during server-side rendering (SSR) or when executed in restricted environments like Cloudflare Workers (e.g., the `browser-worker` build).
+**Action:** Always guard access to `document` and `window` with `typeof document !== 'undefined'` checks. Use `globalThis` for platform-agnostic timing functions (`setInterval`, `clearInterval`).
