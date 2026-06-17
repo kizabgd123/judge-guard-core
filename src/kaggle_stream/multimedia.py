@@ -1,4 +1,5 @@
 import os
+import threading
 from typing import Optional
 
 class MultimediaManager:
@@ -15,6 +16,7 @@ class MultimediaManager:
         # ⚡ Bolt: Defer session initialization to lazy property
         self._session = None
         self._logger = None
+        self._lock = threading.RLock()
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -28,17 +30,21 @@ class MultimediaManager:
     def logger(self):
         """⚡ Bolt: Lazy property to defer logging initialization."""
         if self._logger is None:
-            import logging
-            self._logger = logging.getLogger(__name__)
+            with self._lock:
+                if self._logger is None:
+                    import logging
+                    self._logger = logging.getLogger(__name__)
         return self._logger
 
     @property
     def session(self):
         """⚡ Bolt: Lazy property to defer requests initialization."""
         if self._session is None:
-            import requests
-            self._session = requests.Session()
-            self._session.headers.update(self.headers)
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
+                    self._session.headers.update(self.headers)
         return self._session
 
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
