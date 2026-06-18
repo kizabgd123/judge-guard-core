@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Startup Latency from Heavy Third-Party Modules]
+**Learning:** Importing heavy libraries like `requests` (~300ms overhead) and `concurrent.futures` in the global scope of frequently instantiated classes (like `MultimediaManager` and `KaggleAgent`) significantly degrades application startup and component initialization time.
+**Action:** Implement lazy properties with thread-safe double-checked locking for heavy resources (sessions, executors). Initialize `threading.Lock` in `__init__` (as it's lightweight) to avoid race conditions during lazy initialization of other properties. This reduced `multimedia.py` import time by ~94% (320ms -> 18ms).
