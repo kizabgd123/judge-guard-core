@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Thread-Safe Lazy Initialization Pattern]
+**Learning:** Attempting to lazily initialize a `threading.Lock` within a lazy property (to avoid importing `threading` at module level) creates a "bootstrapping" race condition where multiple threads might create multiple locks.
+**Action:** Initialize `self._lock = threading.Lock()` in `__init__`. While `threading` module import has a small cost (~7ms), it ensures true thread-safety for subsequent lazy property initializations (like `requests.Session` or `ThreadPoolExecutor`) using a standard double-checked locking pattern.

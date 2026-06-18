@@ -2,10 +2,12 @@ import os
 import logging
 import json
 import random
-from concurrent.futures import ThreadPoolExecutor
+import threading
 from typing import List, Dict, Any, Optional
 
-logger = logging.getLogger(__name__)
+# ⚡ Bolt: Defer heavy imports (GeminiClient, NotionClient, ThreadPoolExecutor) to lazy properties
+# to minimize module import overhead and improve startup performance.
+# Standard library imports are kept at module level for readability and minimal overhead.
 
 class KaggleAgent:
     """
@@ -19,10 +21,21 @@ class KaggleAgent:
         self.demo_mode = False
         self._gemini = None
         self._notion = None
+        self._logger = logging.getLogger(__name__)
+        self._executor = None
+        self._lock = threading.Lock()
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
-        # ⚡ Bolt: Executor for offloading synchronous Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=2)
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load concurrent.futures and initialize ThreadPoolExecutor on demand."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=2)
+        return self._executor
 
     @property
     def gemini(self):
@@ -32,7 +45,7 @@ class KaggleAgent:
                 from src.antigravity_core.gemini_client import GeminiClient
                 self._gemini = GeminiClient()
             except Exception as e:
-                logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
+                self._logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
                 self.demo_mode = True
                 self._gemini = None
         return self._gemini
@@ -58,8 +71,8 @@ class KaggleAgent:
         self.close()
 
     def close(self):
-        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
+        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down if it was initialized."""
+        if getattr(self, "_executor", None):
             self._executor.shutdown(wait=True)
 
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
@@ -74,7 +87,7 @@ class KaggleAgent:
             response_raw = response_raw.replace("```json", "").replace("```", "").strip()
             data = json.loads(response_raw)
         except Exception as e:
-            logger.warning(f"Gemini API call failed: {e}. Falling back to Demo Data.")
+            self._logger.warning(f"Gemini API call failed: {e}. Falling back to Demo Data.")
             return self._get_demo_data()
 
         self._update_state(data)
@@ -116,7 +129,7 @@ class KaggleAgent:
     def _log_to_notion(self, data: Dict[str, Any]):
         if self.notion and self.notion_db_id and self.notion_db_id != "demo":
             # ⚡ Bolt: Offload blocking Notion API call to background thread
-            self._executor.submit(self._execute_notion_append, data)
+            self.executor.submit(self._execute_notion_append, data)
 
     def _execute_notion_append(self, data: Dict[str, Any]):
         try:
@@ -130,4 +143,4 @@ class KaggleAgent:
             }
             self.notion.append_to_database(self.notion_db_id, properties)
         except Exception:
-            logger.exception("Error calling Notion API in _execute_notion_append")
+            self._logger.exception("Error calling Notion API in _execute_notion_append")
