@@ -1,10 +1,9 @@
 import os
 import logging
 from typing import Dict, List, Any, Optional
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# ⚡ Bolt: Defer heavy imports (requests, dotenv) to lazy properties or
+# local scopes to minimize module import overhead.
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +14,7 @@ class NotionClient:
     """
     
     def __init__(self, api_key: Optional[str] = None):
+        self._ensure_setup()
         self.api_key = api_key or os.getenv("NOTION_API_KEY")
         if not self.api_key:
             raise ValueError("NOTION_API_KEY not found. Set it in .env or pass as argument.")
@@ -27,6 +27,14 @@ class NotionClient:
         }
         self._session = None
 
+    def _ensure_setup(self):
+        """⚡ Bolt: Lazy-load environment variables."""
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            pass
+
     @property
     def session(self):
         """⚡ Bolt: Lazy-load requests and initialize session on demand."""
@@ -38,6 +46,7 @@ class NotionClient:
     
     def test_connection(self) -> Dict[str, Any]:
         """Test the connection by listing accessible pages."""
+        import requests
         try:
             response = self.session.post(
                 f"{self.base_url}/search",

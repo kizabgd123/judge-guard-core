@@ -1,7 +1,6 @@
 import gradio as gr
 import os
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from src.kaggle_stream.kaggle_agent import KaggleAgent
 from src.kaggle_stream.multimedia import MultimediaManager
 from src.kaggle_stream.log_streamer import LogStreamer
@@ -13,7 +12,15 @@ logger = logging.getLogger(__name__)
 agent_alpha = KaggleAgent(name="Eagle-Alpha")
 agent_beta = KaggleAgent(name="Falcon-Beta")
 multimedia = MultimediaManager()
-executor = ThreadPoolExecutor(max_workers=4)
+
+# ⚡ Bolt: Global executor moved to a lazy getter for restricted environments
+_executor = None
+def get_executor():
+    global _executor
+    if _executor is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _executor = ThreadPoolExecutor(max_workers=4)
+    return _executor
 
 def run_agent_turn(agent, task, context="", return_futures=False):
     """
@@ -25,6 +32,7 @@ def run_agent_turn(agent, task, context="", return_futures=False):
     mood = data.get("mood", "thinking")
 
     # ⚡ Bolt: Parallelize multimedia generation to reduce latency
+    executor = get_executor()
     audio_future = executor.submit(multimedia.generate_audio, message, f"{agent.name}_speech.mp3")
     image_future = executor.submit(multimedia.generate_mood_image, f"{mood} mascot", f"{agent.name}_mood.png")
 
