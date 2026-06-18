@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [SQLite Write Performance and Deferred Setup]
+**Learning:** Default SQLite configurations (delete-mode journaling and synchronous=FULL) can make synchronous writes extremely slow (~4-10ms per commit). Additionally, module-level `logging.basicConfig` and eager `load_dotenv` calls contribute to cumulative import overhead across the system.
+**Action:** Enable `PRAGMA journal_mode=WAL` and `PRAGMA synchronous=NORMAL` for SQLite connections to achieve ~95% faster writes. Implement a thread-safe `_ensure_setup` method to lazily load environment variables and configure logging only upon first resource access, reducing module import time by ~40-50%.
