@@ -1,5 +1,4 @@
 import os
-import threading
 from typing import List, Dict, Any, Optional
 
 class KaggleAgent:
@@ -19,8 +18,22 @@ class KaggleAgent:
         # ⚡ Bolt: Lazy property backend
         self._executor = None
         self._logger = None
-        # Initialize lock in __init__ as it's lightweight and avoids race conditions for other lazy properties.
-        self._lock = threading.Lock()
+        self._lock = None
+
+    @property
+    def lock(self):
+        """⚡ Bolt: Lazy property for threading.Lock. Defer import to support restricted environments."""
+        if self._lock is None:
+            try:
+                import threading
+                self._lock = threading.Lock()
+            except (ImportError, RuntimeError):
+                # Fallback for environments without thread support (e.g. certain Cloudflare Workers)
+                class DummyLock:
+                    def __enter__(self): pass
+                    def __exit__(self, *args): pass
+                self._lock = DummyLock()
+        return self._lock
 
     @property
     def logger(self):
@@ -34,7 +47,7 @@ class KaggleAgent:
     def executor(self):
         """⚡ Bolt: Lazy property for ThreadPoolExecutor."""
         if self._executor is None:
-            with self._lock:
+            with self.lock:
                 if self._executor is None:
                     from concurrent.futures import ThreadPoolExecutor
                     self._executor = ThreadPoolExecutor(max_workers=2)

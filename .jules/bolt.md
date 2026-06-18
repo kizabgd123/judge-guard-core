@@ -32,4 +32,4 @@
 
 ## 2026-04-22 - [Startup Latency from Heavy Third-Party Modules]
 **Learning:** Importing heavy libraries like `requests` (~300ms overhead) and `concurrent.futures` in the global scope of frequently instantiated classes (like `MultimediaManager` and `KaggleAgent`) significantly degrades application startup and component initialization time.
-**Action:** Implement lazy properties with thread-safe double-checked locking for heavy resources (sessions, executors). Initialize `threading.Lock` in `__init__` (as it's lightweight) to avoid race conditions during lazy initialization of other properties. This reduced `multimedia.py` import time by ~94% (320ms -> 18ms).
+**Action:** Implement lazy properties with thread-safe double-checked locking for heavy resources (sessions, executors). Initialize `threading.Lock` via a lazy property with a `DummyLock` fallback (as it's lightweight) to avoid race conditions during lazy initialization of other properties. This reduced `multimedia.py` import time by ~94% (320ms -> 18ms).

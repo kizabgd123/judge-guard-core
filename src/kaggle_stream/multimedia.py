@@ -1,5 +1,4 @@
 import os
-import threading
 from typing import Optional
 
 class MultimediaManager:
@@ -16,8 +15,7 @@ class MultimediaManager:
         # ⚡ Bolt: Lazy property backends
         self._session = None
         self._logger = None
-        # Initialize lock in __init__ as it's lightweight and avoids race conditions for other lazy properties.
-        self._lock = threading.Lock()
+        self._lock = None
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -26,6 +24,21 @@ class MultimediaManager:
         # This ensures we can reuse content even if output_path changes.
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
+
+    @property
+    def lock(self):
+        """⚡ Bolt: Lazy property for threading.Lock. Defer import to support restricted environments."""
+        if self._lock is None:
+            try:
+                import threading
+                self._lock = threading.Lock()
+            except (ImportError, RuntimeError):
+                # Fallback for environments without thread support (e.g. certain Cloudflare Workers)
+                class DummyLock:
+                    def __enter__(self): pass
+                    def __exit__(self, *args): pass
+                self._lock = DummyLock()
+        return self._lock
 
     @property
     def logger(self):
@@ -39,7 +52,7 @@ class MultimediaManager:
     def session(self):
         """⚡ Bolt: Lazy-load requests and initialize session on demand."""
         if self._session is None:
-            with self._lock:
+            with self.lock:
                 if self._session is None:
                     import requests
                     self._session = requests.Session()

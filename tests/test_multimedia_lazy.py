@@ -7,14 +7,15 @@ class TestMultimediaLazy(unittest.TestCase):
     def test_lazy_initialization(self):
         manager = MultimediaManager(hf_token="test_token")
 
-        # Backend attributes should be None initially (except lock)
+        # Backend attributes should be None initially
         self.assertIsNone(manager._session)
         self.assertIsNone(manager._logger)
-        self.assertIsNotNone(manager._lock)
+        self.assertIsNone(manager._lock)
 
-        # Accessing session should initialize session
+        # Accessing session should initialize session and lock
         _ = manager.session
         self.assertIsNotNone(manager._session)
+        self.assertIsNotNone(manager._lock)
         self.assertIsNone(manager._logger) # Still None
 
         # Accessing logger should initialize it
