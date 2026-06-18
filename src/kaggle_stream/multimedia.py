@@ -1,10 +1,10 @@
 import os
-import threading
 import logging
 from typing import Optional
 
 # ⚡ Bolt: Defer heavy imports (requests) to lazy properties for faster startup.
-# Lightweight imports (threading, logging) are moved back to module level for simplicity.
+# ⚡ Bolt: Also defer threading and lock creation for compatibility with restricted
+# environments like Cloudflare Workers.
 
 class MultimediaManager:
     """
@@ -17,10 +17,10 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Thread-safe initialization
+        # ⚡ Bolt: Lazy state holders
         self._session = None
         self._logger = logging.getLogger(__name__)
-        self._lock = threading.Lock()
+        self._lock = None
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -31,10 +31,20 @@ class MultimediaManager:
         self._image_cache = {}  # {mood: bytes}
 
     @property
+    def lock(self):
+        """⚡ Bolt: Lazy-load threading and initialize lock on demand."""
+        if self._lock is None:
+            import threading
+            self._lock = threading.Lock()
+        return self._lock
+
+    @property
     def session(self):
         """⚡ Bolt: Lazy-load requests and initialize session on demand."""
         if self._session is None:
-            with self._lock:
+            # Note: Minimal race condition risk here; double-checked lock
+            # uses the property itself to bootstrap.
+            with self.lock:
                 if self._session is None:
                     import requests
                     self._session = requests.Session()

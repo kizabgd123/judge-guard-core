@@ -2,12 +2,11 @@ import os
 import logging
 import json
 import random
-import threading
 from typing import List, Dict, Any, Optional
 
-# ⚡ Bolt: Defer heavy imports (GeminiClient, NotionClient, ThreadPoolExecutor) to lazy properties
-# to minimize module import overhead and improve startup performance.
-# Standard library imports are kept at module level for readability and minimal overhead.
+# ⚡ Bolt: Defer heavy imports (GeminiClient, NotionClient, ThreadPoolExecutor) to lazy properties.
+# ⚡ Bolt: Also defer threading and lock creation for compatibility with restricted
+# environments like Cloudflare Workers.
 
 class KaggleAgent:
     """
@@ -23,15 +22,23 @@ class KaggleAgent:
         self._notion = None
         self._logger = logging.getLogger(__name__)
         self._executor = None
-        self._lock = threading.Lock()
+        self._lock = None
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
+
+    @property
+    def lock(self):
+        """⚡ Bolt: Lazy-load threading and initialize lock on demand."""
+        if self._lock is None:
+            import threading
+            self._lock = threading.Lock()
+        return self._lock
 
     @property
     def executor(self):
         """⚡ Bolt: Lazy-load concurrent.futures and initialize ThreadPoolExecutor on demand."""
         if self._executor is None:
-            with self._lock:
+            with self.lock:
                 if self._executor is None:
                     from concurrent.futures import ThreadPoolExecutor
                     self._executor = ThreadPoolExecutor(max_workers=2)
@@ -41,24 +48,28 @@ class KaggleAgent:
     def gemini(self):
         """⚡ Bolt: Lazy property to defer GeminiClient initialization."""
         if self._gemini is None and not self.demo_mode:
-            try:
-                from src.antigravity_core.gemini_client import GeminiClient
-                self._gemini = GeminiClient()
-            except Exception as e:
-                self._logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
-                self.demo_mode = True
-                self._gemini = None
+            with self.lock:
+                if self._gemini is None:
+                    try:
+                        from src.antigravity_core.gemini_client import GeminiClient
+                        self._gemini = GeminiClient()
+                    except Exception as e:
+                        self._logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
+                        self.demo_mode = True
+                        self._gemini = None
         return self._gemini
 
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization."""
         if self._notion is None:
-            try:
-                from src.antigravity_core.notion_client import NotionClient
-                self._notion = NotionClient()
-            except Exception:
-                self._notion = None
+            with self.lock:
+                if self._notion is None:
+                    try:
+                        from src.antigravity_core.notion_client import NotionClient
+                        self._notion = NotionClient()
+                    except Exception:
+                        self._notion = None
         return self._notion
 
     def __enter__(self):
