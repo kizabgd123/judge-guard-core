@@ -17,14 +17,14 @@ class TestMultimediaManager(unittest.TestCase):
 
     def test_lazy_session(self):
         # Initial state
-        self.assertIsNone(self.manager._session)
+        self.assertFalse(hasattr(self.manager._local, "session"))
         # Access property
         with patch('requests.Session') as mock_session_cls:
             mock_session = MagicMock()
             mock_session_cls.return_value = mock_session
 
             session = self.manager.session
-            self.assertIsNotNone(self.manager._session)
+            self.assertTrue(hasattr(self.manager._local, "session"))
             mock_session_cls.assert_called_once()
             mock_session.headers.update.assert_called_with({"Authorization": "Bearer test_token"})
 
