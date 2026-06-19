@@ -11,7 +11,8 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    // SSR/Worker Safety: Check if document is defined
+    if (typeof document === 'undefined' || document.visibilityState !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
@@ -43,6 +44,11 @@ function App() {
   useEffect(() => {
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
+
+    // SSR/Worker Safety: Check if document is defined
+    if (typeof document === 'undefined') {
+      return () => clearInterval(interval);
+    }
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
