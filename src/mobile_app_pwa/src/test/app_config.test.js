@@ -22,8 +22,9 @@ describe('app_config.json', () => {
     expect(Array.isArray(appConfig.components)).toBe(true);
   });
 
-  it('does not contain last_verdict (removed in this PR)', () => {
-    expect(appConfig).not.toHaveProperty('last_verdict');
+  it('contains a last_verdict object', () => {
+    expect(appConfig).toHaveProperty('last_verdict');
+    expect(typeof appConfig.last_verdict).toBe('object');
   });
 
   it('has components as an empty array by default', () => {
@@ -34,9 +35,9 @@ describe('app_config.json', () => {
     expect(appConfig.title).toBe('Antigravity Mobile');
   });
 
-  it('has exactly 4 top-level keys (title, theme, content, components)', () => {
+  it('has exactly 5 top-level keys (title, theme, content, components, last_verdict)', () => {
     const keys = Object.keys(appConfig);
-    expect(keys).toEqual(expect.arrayContaining(['title', 'theme', 'content', 'components']));
-    expect(keys).toHaveLength(4);
+    expect(keys).toEqual(expect.arrayContaining(['title', 'theme', 'content', 'components', 'last_verdict']));
+    expect(keys).toHaveLength(5);
   });
 });
