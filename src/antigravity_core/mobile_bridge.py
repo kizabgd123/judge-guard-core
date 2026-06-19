@@ -4,7 +4,6 @@ Writes state to a shared JSON file that the PWA watches/fetches.
 """
 
 import os
-import threading
 from typing import Dict, Any
 
 # Path to the PWA public directory
@@ -19,14 +18,22 @@ class MobileBridge:
             "content": "Welcome to the Agent-Controlled PWA!",
             "components": []
         }
-        self._lock = threading.RLock()
+        self._lock = None
         self._executor = None
+
+    @property
+    def lock(self):
+        """⚡ Bolt: Lazy-load threading and initialize lock on demand for restricted environments."""
+        if self._lock is None:
+            import threading
+            self._lock = threading.RLock()
+        return self._lock
 
     @property
     def executor(self):
         """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
         if self._executor is None:
-            with self._lock:
+            with self.lock:
                 if self._executor is None:
                     from concurrent.futures import ThreadPoolExecutor
                     self._executor = ThreadPoolExecutor(max_workers=1)
@@ -44,7 +51,7 @@ class MobileBridge:
 
     def update_state(self, new_state: Dict[str, Any]) -> Dict[str, Any]:
         """Update the mobile app state and sync to file."""
-        with self._lock:
+        with self.lock:
             self.app_state.update(new_state)
         # ⚡ Bolt: Offload blocking disk I/O to background thread
         self.executor.submit(self.sync_state)
@@ -56,7 +63,7 @@ class MobileBridge:
             import json
             self._ensure_public_dir()
             # Create a snapshot to avoid race conditions during serialization
-            with self._lock:
+            with self.lock:
                 state_snapshot = self.app_state.copy()
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(state_snapshot, f, indent=2)
@@ -67,7 +74,7 @@ class MobileBridge:
 
     def get_state(self) -> Dict[str, Any]:
         """Get current state."""
-        with self._lock:
+        with self.lock:
             return self.app_state
 
     def push_verdict(self, action: str, status: str, reason: str):

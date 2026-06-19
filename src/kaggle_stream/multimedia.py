@@ -1,9 +1,10 @@
 import os
-import requests
 import logging
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+# ⚡ Bolt: Defer heavy imports (requests) to lazy properties for faster startup.
+# ⚡ Bolt: Also defer threading and lock creation for compatibility with restricted
+# environments like Cloudflare Workers.
 
 class MultimediaManager:
     """
@@ -16,9 +17,10 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Lazy state holders
+        self._session = None
+        self._logger = logging.getLogger(__name__)
+        self._lock = None
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -28,19 +30,40 @@ class MultimediaManager:
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
 
+    @property
+    def lock(self):
+        """⚡ Bolt: Lazy-load threading and initialize lock on demand."""
+        if self._lock is None:
+            import threading
+            self._lock = threading.Lock()
+        return self._lock
+
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        if self._session is None:
+            # Note: Minimal race condition risk here; double-checked lock
+            # uses the property itself to bootstrap.
+            with self.lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
+                    self._session.headers.update(self.headers)
+        return self._session
+
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
         # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
         if text in self._audio_cache:
-            logger.info(f"⚡ Bolt: Reusing cached audio for: {text[:30]}...")
+            self._logger.info(f"⚡ Bolt: Reusing cached audio for: {text[:30]}...")
             try:
                 with open(output_path, "wb") as f:
                     f.write(self._audio_cache[text])
                 return output_path
             except Exception as e:
-                logger.error(f"Failed to write cached audio: {e}")
+                self._logger.error(f"Failed to write cached audio: {e}")
 
         if not self.hf_token or self.hf_token == "dummy":
-            logger.info("MOCK: Skipping real Audio generation (HF_TOKEN missing).")
+            self._logger.info("MOCK: Skipping real Audio generation (HF_TOKEN missing).")
             return None
 
         API_URL = f"{self.api_base}/{self.tts_model}"
@@ -60,16 +83,16 @@ class MultimediaManager:
     def generate_mood_image(self, mood: str, output_path: str = "mood.png"):
         # ⚡ Bolt: Cache check - if mood icon was already generated, write cached bytes to new path
         if mood in self._image_cache:
-            logger.info(f"⚡ Bolt: Reusing cached image for mood: {mood}")
+            self._logger.info(f"⚡ Bolt: Reusing cached image for mood: {mood}")
             try:
                 with open(output_path, "wb") as f:
                     f.write(self._image_cache[mood])
                 return output_path
             except Exception as e:
-                logger.error(f"Failed to write cached image: {e}")
+                self._logger.error(f"Failed to write cached image: {e}")
 
         if not self.hf_token or self.hf_token == "dummy":
-            logger.info("MOCK: Skipping real Image generation (HF_TOKEN missing).")
+            self._logger.info("MOCK: Skipping real Image generation (HF_TOKEN missing).")
             # We could return a local placeholder if we had one, but None is safer
             return None
 

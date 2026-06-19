@@ -14,9 +14,10 @@ Environment Variables:
 import os
 import sys
 import time
-import threading
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
+
+# ⚡ Bolt: Defer heavy imports (threading, concurrent.futures, dotenv, logging)
+# to lazy properties or thread-safe setup methods to minimize module import overhead.
 
 # --- LAYER 3 CONSTANT ---
 PROJECT_ESSENCE = """
@@ -43,7 +44,8 @@ class JudgeGuard:
     
     def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
         # ⚡ Bolt: Use a lock for thread-safe lazy initialization
-        self._lock = threading.RLock()
+        # ⚡ Bolt: Defer threading to a property for restricted environments (Workers).
+        self._lock = None
         self._setup_done = False
         self._logger = None
         self._executor = None
@@ -63,10 +65,18 @@ class JudgeGuard:
         # ⚡ Bolt: No longer logging in __init__ to avoid early logging setup/disk I/O.
         # logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
 
+    @property
+    def lock(self):
+        """⚡ Bolt: Lazy-load threading and initialize lock on demand."""
+        if self._lock is None:
+            import threading
+            self._lock = threading.RLock()
+        return self._lock
+
     def _ensure_setup(self):
         """⚡ Bolt: Lazy setup of environment and logging."""
         if not self._setup_done:
-            with self._lock:
+            with self.lock:
                 if not self._setup_done:
                     from dotenv import load_dotenv
                     import logging
@@ -84,15 +94,16 @@ class JudgeGuard:
     def executor(self):
         """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
         if self._executor is None:
-            with self._lock:
+            with self.lock:
                 if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
                     self._executor = ThreadPoolExecutor(max_workers=1)
         return self._executor
 
     @property
     def brain_path(self) -> Optional[str]:
         if self._brain_path is None:
-            with self._lock:
+            with self.lock:
                 if self._brain_path is None:
                     self._ensure_setup()
                     self._brain_path = self._brain_path_arg or os.getenv("BRAIN_PATH") or self._discover_brain_path()
@@ -101,7 +112,7 @@ class JudgeGuard:
     @property
     def work_log_path(self) -> str:
         if self._work_log_path is None:
-            with self._lock:
+            with self.lock:
                 if self._work_log_path is None:
                     self._ensure_setup()
                     self._work_log_path = self._work_log_path_arg or os.getenv("WORK_LOG_PATH") or self._find_work_log()
@@ -110,7 +121,7 @@ class JudgeGuard:
     @property
     def rules_path(self) -> str:
         if self._rules_path is None:
-            with self._lock:
+            with self.lock:
                 if self._rules_path is None:
                     self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
         return self._rules_path
@@ -118,7 +129,7 @@ class JudgeGuard:
     @property
     def immutable_laws(self) -> str:
         if self._immutable_laws is None:
-            with self._lock:
+            with self.lock:
                 if self._immutable_laws is None:
                     self._immutable_laws = self._load_rules()
         return self._immutable_laws
@@ -127,7 +138,7 @@ class JudgeGuard:
     def gemini(self):
         """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
         if self._gemini is None:
-            with self._lock:
+            with self.lock:
                 if self._gemini is None:
                     try:
                         from src.antigravity_core.gemini_client import GeminiClient
@@ -140,7 +151,7 @@ class JudgeGuard:
     def pipeline(self):
         """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
         if self._pipeline is None:
-            with self._lock:
+            with self.lock:
                 if self._pipeline is None:
                     try:
                         from research_pipeline import ResearchPipeline
@@ -162,9 +173,9 @@ class JudgeGuard:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
-        if hasattr(self, "_executor") and self._executor:
+        if getattr(self, "_executor", None):
             self._executor.shutdown(wait=False)
-        if hasattr(self, "_pipeline") and self._pipeline:
+        if getattr(self, "_pipeline", None):
             self._pipeline.close()
 
     def _discover_brain_path(self) -> Optional[str]:
