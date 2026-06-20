@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-06-11 - [Mocking requests.Session vs requests.post]
+**Learning:** Refactoring to use `requests.Session` for performance (connection pooling) breaks existing tests that mock `requests.post` globally. The `Session` object bypasses the global `requests.post` function.
+**Action:** When transitioning to `requests.Session`, ensure all related tests are updated to mock `requests.Session.post` (or the specific session method) to maintain test integrity and prevent accidental real network calls.
