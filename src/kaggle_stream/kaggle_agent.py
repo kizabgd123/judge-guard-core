@@ -1,11 +1,4 @@
 import os
-import logging
-import json
-import random
-from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Any, Optional
-
-logger = logging.getLogger(__name__)
 
 class KaggleAgent:
     """
@@ -19,10 +12,30 @@ class KaggleAgent:
         self.demo_mode = False
         self._gemini = None
         self._notion = None
+        self._logger = None
+        self._executor = None
+        import threading
+        self._lock = threading.Lock()
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
-        # ⚡ Bolt: Executor for offloading synchronous Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=2)
+
+    @property
+    def logger(self):
+        """⚡ Bolt: Lazy property to defer logging initialization."""
+        if self._logger is None:
+            import logging
+            self._logger = logging.getLogger(__name__)
+        return self._logger
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy property to defer ThreadPoolExecutor initialization."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=2)
+        return self._executor
 
     @property
     def gemini(self):
@@ -32,7 +45,7 @@ class KaggleAgent:
                 from src.antigravity_core.gemini_client import GeminiClient
                 self._gemini = GeminiClient()
             except Exception as e:
-                logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
+                self.logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
                 self.demo_mode = True
                 self._gemini = None
         return self._gemini
@@ -59,29 +72,31 @@ class KaggleAgent:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if self._executor:
             self._executor.shutdown(wait=True)
 
-    def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
+    def step(self, task: str, context: str = None) -> dict:
         # If Gemini is present but API key is dummy/invalid, it might still fail at runtime
         if self.demo_mode or not self.gemini:
             return self._get_demo_data()
 
         prompt = f"You are agent {self.name}. Task: {task}. Context: {context}. Return JSON: thought, message, mood, status, accuracy, progress_increment."
         try:
+            import json
             # ⚡ Bolt: Use max_output_tokens=512 for structured reasoning output
             response_raw = self.gemini.generate_content(prompt, generation_config={"max_output_tokens": 512})
             response_raw = response_raw.replace("```json", "").replace("```", "").strip()
             data = json.loads(response_raw)
         except Exception as e:
-            logger.warning(f"Gemini API call failed: {e}. Falling back to Demo Data.")
+            self.logger.warning(f"Gemini API call failed: {e}. Falling back to Demo Data.")
             return self._get_demo_data()
 
         self._update_state(data)
         self._log_to_notion(data)
         return data
 
-    def _get_demo_data(self) -> Dict[str, Any]:
+    def _get_demo_data(self) -> dict:
+        import random
         thoughts = [
             f"{self.name} is checking for null values in the dataset.",
             f"{self.name} is applying a Random Forest regressor with cross-validation.",
@@ -108,17 +123,17 @@ class KaggleAgent:
         self._log_to_notion(data)
         return data
 
-    def _update_state(self, data: Dict[str, Any]):
+    def _update_state(self, data: dict):
         self.last_score = data.get("accuracy", self.last_score)
         self.progress = min(100, self.progress + data.get("progress_increment", 0))
         data["total_progress"] = self.progress
 
-    def _log_to_notion(self, data: Dict[str, Any]):
+    def _log_to_notion(self, data: dict):
         if self.notion and self.notion_db_id and self.notion_db_id != "demo":
             # ⚡ Bolt: Offload blocking Notion API call to background thread
-            self._executor.submit(self._execute_notion_append, data)
+            self.executor.submit(self._execute_notion_append, data)
 
-    def _execute_notion_append(self, data: Dict[str, Any]):
+    def _execute_notion_append(self, data: dict):
         try:
             properties = {
                 "Agent": {"title": [{"text": {"content": self.name}}]},
@@ -130,4 +145,4 @@ class KaggleAgent:
             }
             self.notion.append_to_database(self.notion_db_id, properties)
         except Exception:
-            logger.exception("Error calling Notion API in _execute_notion_append")
+            self.logger.exception("Error calling Notion API in _execute_notion_append")
