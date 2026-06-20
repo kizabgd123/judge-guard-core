@@ -5,14 +5,16 @@ import os
 class TestKaggleAgentLifecycle(unittest.TestCase):
     def test_executor_shutdown_on_close(self):
         agent = KaggleAgent(name="LifecycleTest")
-        executor = agent._executor
+        # ⚡ Bolt: Trigger lazy executor initialization for testing
+        executor = agent.executor
         self.assertFalse(executor._shutdown)
         agent.close()
         self.assertTrue(executor._shutdown)
 
     def test_context_manager_shutdown(self):
         with KaggleAgent(name="ContextTest") as agent:
-            executor = agent._executor
+            # ⚡ Bolt: Trigger lazy executor initialization for testing
+            executor = agent.executor
             self.assertFalse(executor._shutdown)
         self.assertTrue(executor._shutdown)
 
