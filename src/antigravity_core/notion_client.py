@@ -38,6 +38,8 @@ class NotionClient:
     
     def test_connection(self) -> Dict[str, Any]:
         """Test the connection by listing accessible pages."""
+        # ⚡ Bolt: Ensure requests is in scope for the exception handler
+        import requests
         try:
             response = self.session.post(
                 f"{self.base_url}/search",
