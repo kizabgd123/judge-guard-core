@@ -22,10 +22,10 @@
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
-## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
-**Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
-**Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
-
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Module-Level Lazy Loading with PEP 562]
+**Learning:** Even with method-level imports, module-level constants (like `Path` objects or compiled regexes) can still trigger heavy module loads (like `pathlib` or `re`) on every import. Module-level `__getattr__` allows for truly deferred loading of these attributes. However, without caching, `__getattr__` becomes a bottleneck if these constants are accessed frequently.
+**Action:** Use module-level `__getattr__` to defer heavy constant initialization. Always memoize the result in the module's global namespace (`setattr(sys.modules[__name__], name, val)`) to ensure subsequent accesses are as fast as standard attribute lookup, effectively eliminating the `__getattr__` overhead after the first call.
