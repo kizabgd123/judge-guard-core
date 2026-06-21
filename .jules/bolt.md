@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Module-Level Lazy Loading via PEP 562]
+**Learning:** Traditional @property descriptors are only for classes. For high-performance module-level lazy loading in Python 3.7+, `__getattr__` (PEP 562) is the standard. Memoizing the result in `globals()` ensures subsequent accesses are as fast as regular global lookups.
+**Action:** Use `__getattr__` with `globals()[name] = val` for lazy module-level constants and heavy imports. This maintains a clean API for external consumers (e.g., Path objects in tests) while deferring the import cost until use.

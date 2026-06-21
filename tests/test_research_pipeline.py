@@ -8,8 +8,8 @@ from research_pipeline import ResearchPipeline
 @pytest.fixture
 def temp_db(tmp_path):
     db_path = tmp_path / "test_research.db"
-    # Overwrite the constant in research_pipeline
-    with patch('research_pipeline.DB_PATH', db_path):
+    # Overwrite the constant string in research_pipeline
+    with patch('research_pipeline.DB_PATH_STR', str(db_path)):
         yield db_path
 
 def test_init_db(temp_db):
@@ -33,7 +33,8 @@ def test_parse_markdown_files(temp_db, tmp_path):
     pipeline = ResearchPipeline()
     pipeline.init_db()
 
-    with patch('research_pipeline.RESEARCH_DIR', research_dir):
+    # Use the property-based patching for RESEARCH_DIR_STR
+    with patch('research_pipeline.RESEARCH_DIR_STR', str(research_dir)):
         pipeline.parse_markdown_files()
 
     conn = sqlite3.connect(temp_db)
@@ -44,9 +45,17 @@ def test_parse_markdown_files(temp_db, tmp_path):
     assert "Test content" in row[1]
 
 def test_extract_patterns(temp_db, tmp_path):
+    # Clear any existing file at test_research.db if it exists
+    if temp_db.exists():
+        temp_db.unlink()
+
     # Insert a document manually
     pipeline = ResearchPipeline()
     pipeline.init_db()
+
+    # Clear documents and patterns to ensure clean state
+    pipeline.conn.execute("DELETE FROM documents")
+    pipeline.conn.execute("DELETE FROM patterns")
 
     # We MUST use the connection from the pipeline to ensure Row factory and visibility
     pipeline.conn.execute("INSERT INTO documents (phase, filename, title, content) VALUES (?, ?, ?, ?)",

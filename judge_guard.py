@@ -380,7 +380,8 @@ class JudgeGuard:
         if bridge_available:
             bridge.push_verdict("Thinking...", "PENDING", "Analyzing against Phase rules...")
 
-        context = self._load_context()
+        # ⚡ Bolt: Load only as much context as needed (5000 chars) to reduce prompt token overhead.
+        context = self._load_context(max_chars=5000)
         phase = self._detect_phase(context)
         
         # --- LAYER 1: Tool Enforcement ---
