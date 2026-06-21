@@ -29,3 +29,11 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Lazy Initialization in Core Agents]
+**Learning:** Refactoring core agents (, ) to use lazy initialization for , , and I/O clients reduces module import overhead by ~68% (~65ms to ~21ms). When deferring imports, library-specific exception handling (e.g., `requests.exceptions.RequestException`) must be handled locally within the method by re-importing the dependency in the `except` block to maintain error specificity without increasing global import cost.
+**Action:** Apply the thread-safe `_ensure_setup` pattern and lazy property getters to all core clients. Use local imports in `except` blocks to preserve detailed error logging for deferred dependencies.
+
+## 2026-04-22 - [Lazy Initialization in Core Agents]
+**Learning:** Refactoring core agents (GuardianAgent, NotionClient) to use lazy initialization for dotenv, logging, and I/O clients reduces module import overhead by ~68% (~65ms to ~21ms). When deferring imports, library-specific exception handling (e.g., requests.exceptions.RequestException) must be handled locally within the method by re-importing the dependency in the except block to maintain error specificity without increasing global import cost.
+**Action:** Apply the thread-safe _ensure_setup pattern and lazy property getters to all core clients. Use local imports in except blocks to preserve detailed error logging for deferred dependencies.

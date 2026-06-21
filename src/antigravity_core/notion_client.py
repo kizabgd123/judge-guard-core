@@ -1,12 +1,20 @@
 import os
-import logging
+import threading
 from typing import Dict, List, Any, Optional
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# ⚡ Bolt: Global setup state and lock
+_setup_lock = threading.RLock()
+_setup_done = False
 
-logger = logging.getLogger(__name__)
+def _ensure_setup():
+    """⚡ Bolt: Lazy setup of environment."""
+    global _setup_done
+    if not _setup_done:
+        with _setup_lock:
+            if not _setup_done:
+                from dotenv import load_dotenv
+                load_dotenv()
+                _setup_done = True
 
 class NotionClient:
     """
@@ -15,6 +23,7 @@ class NotionClient:
     """
     
     def __init__(self, api_key: Optional[str] = None):
+        _ensure_setup()
         self.api_key = api_key or os.getenv("NOTION_API_KEY")
         if not self.api_key:
             raise ValueError("NOTION_API_KEY not found. Set it in .env or pass as argument.")
@@ -26,6 +35,15 @@ class NotionClient:
             "Content-Type": "application/json"
         }
         self._session = None
+        self._logger = None
+
+    @property
+    def logger(self):
+        """⚡ Bolt: Lazy-loaded logger."""
+        if self._logger is None:
+            import logging
+            self._logger = logging.getLogger(__name__)
+        return self._logger
 
     @property
     def session(self):
@@ -44,10 +62,14 @@ class NotionClient:
                 json={"page_size": 1}
             )
             response.raise_for_status()
-            logger.info("✅ Notion connection successful!")
+            self.logger.info("✅ Notion connection successful!")
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"❌ Notion connection failed: {e}")
+        except Exception as e:
+            import requests
+            if isinstance(e, requests.exceptions.RequestException):
+                self.logger.error(f"❌ Notion connection failed: {e}")
+            else:
+                self.logger.error(f"❌ Unexpected error in Notion connection: {e}")
             raise
     
     def create_page(self, parent_id: str, title: str, content: str) -> Dict[str, Any]:
@@ -118,6 +140,7 @@ class NotionClient:
         )
         response.raise_for_status()
         return response.json().get("results", [])
+
     def update_page_properties(self, page_id: str, properties: Dict[str, Any]) -> Dict[str, Any]:
         """Update properties of an existing page."""
         payload = {"properties": properties}
