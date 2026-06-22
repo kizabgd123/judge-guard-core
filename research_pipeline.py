@@ -14,6 +14,7 @@ Usage:
 import os
 import sqlite3
 import hashlib
+import threading
 import json
 import re
 import logging
@@ -88,6 +89,7 @@ class ResearchPipeline:
     def __init__(self):
         # ⚡ Bolt: Load environment variables once during initialization
         load_dotenv()
+        self._lock = threading.RLock()
         self.conn = None
         self.notion_queue = []
         self._session = None
@@ -119,24 +121,34 @@ class ResearchPipeline:
                 "details": details,
                 "timestamp": datetime.now().isoformat()
             }
-            self.notion_queue.append(entry)
+            with self._lock:
+                self.notion_queue.append(entry)
         
         if self.conn:
-            self.conn.execute(
-                "INSERT INTO audit_log (action, details) VALUES (?, ?)",
-                (action, details)
-            )
-            if commit:
-                self.conn.commit()
+            with self._lock:
+                self.conn.execute(
+                    "INSERT INTO audit_log (action, details) VALUES (?, ?)",
+                    (action, details)
+                )
+                if commit:
+                    self.conn.commit()
         logger.info(f"📝 {action}: {details}")
+
+    def _apply_optimizations(self):
+        """⚡ Bolt: Centralized SQLite configuration for performance and consistency."""
+        self.conn.row_factory = sqlite3.Row
+        with self._lock:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
 
     def init_db(self):
         """Initialize SQLite database."""
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.executescript(SCHEMA)
-        self.conn.commit()
+        self._apply_optimizations()
+        with self._lock:
+            self.conn.executescript(SCHEMA)
+            self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
         return self
     
@@ -146,7 +158,7 @@ class ResearchPipeline:
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+        self._apply_optimizations()
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -158,10 +170,11 @@ class ResearchPipeline:
         affected_ids = []
 
         # ⚡ Bolt: Pre-fetch existing hashes in a single query to avoid O(N) database reads in the loop
-        existing_hashes = {
-            row["filename"]: row["hash"]
-            for row in self.conn.execute("SELECT filename, hash FROM documents").fetchall()
-        }
+        with self._lock:
+            existing_hashes = {
+                row["filename"]: row["hash"]
+                for row in self.conn.execute("SELECT filename, hash FROM documents").fetchall()
+            }
         
         for md_path in md_files:
             filename_str = str(md_path)
@@ -184,17 +197,18 @@ class ResearchPipeline:
             
             # Upsert document and get ID
             # ⚡ Bolt: Use RETURNING id to efficiently track modified documents
-            cursor = self.conn.execute("""
-                INSERT INTO documents (phase, filename, title, content, hash, updated_at)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(filename) DO UPDATE SET
-                    content = excluded.content,
-                    hash = excluded.hash,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id
-            """, (phase, filename_str, title, content, content_hash))
+            with self._lock:
+                cursor = self.conn.execute("""
+                    INSERT INTO documents (phase, filename, title, content, hash, updated_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(filename) DO UPDATE SET
+                        content = excluded.content,
+                        hash = excluded.hash,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING id
+                """, (phase, filename_str, title, content, content_hash))
 
-            row = cursor.fetchone()
+                row = cursor.fetchone()
             if row:
                 affected_ids.append(row["id"])
             
@@ -222,19 +236,21 @@ class ResearchPipeline:
             for i in range(0, len(doc_ids), 999):
                 chunk = doc_ids[i:i + 999]
                 placeholders = ",".join(["?"] * len(chunk))
-                docs.extend(self.conn.execute(
-                    f"SELECT id, content FROM documents WHERE id IN ({placeholders})",
-                    chunk
-                ).fetchall())
-                # Clear existing patterns for these documents to avoid duplicates
-                self.conn.execute(
-                    f"DELETE FROM patterns WHERE doc_id IN ({placeholders})",
-                    chunk
-                )
+                with self._lock:
+                    docs.extend(self.conn.execute(
+                        f"SELECT id, content FROM documents WHERE id IN ({placeholders})",
+                        chunk
+                    ).fetchall())
+                    # Clear existing patterns for these documents to avoid duplicates
+                    self.conn.execute(
+                        f"DELETE FROM patterns WHERE doc_id IN ({placeholders})",
+                        chunk
+                    )
         else:
             # Full extraction (legacy/fallback)
-            docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
-            self.conn.execute("DELETE FROM patterns")
+            with self._lock:
+                docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
+                self.conn.execute("DELETE FROM patterns")
 
         patterns_found = 0
         new_patterns = [] # (name, priority, doc_id)
@@ -260,10 +276,11 @@ class ResearchPipeline:
 
         if new_patterns:
             # ⚡ Bolt: Use executemany for batch insertions
-            self.conn.executemany("""
-                INSERT INTO patterns (name, priority, doc_id)
-                VALUES (?, ?, ?)
-            """, new_patterns)
+            with self._lock:
+                self.conn.executemany("""
+                    INSERT INTO patterns (name, priority, doc_id)
+                    VALUES (?, ?, ?)
+                """, new_patterns)
         
         # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
         # will commit all pending pattern inserts.
@@ -278,12 +295,13 @@ class ResearchPipeline:
         results = []
         
         # Search patterns
-        patterns = self.conn.execute("""
-            SELECT p.name, p.priority, d.filename, d.phase
-            FROM patterns p
-            JOIN documents d ON p.doc_id = d.id
-            WHERE p.name LIKE ?
-        """, (f"%{term}%",)).fetchall()
+        with self._lock:
+            patterns = self.conn.execute("""
+                SELECT p.name, p.priority, d.filename, d.phase
+                FROM patterns p
+                JOIN documents d ON p.doc_id = d.id
+                WHERE p.name LIKE ?
+            """, (f"%{term}%",)).fetchall()
         
         for p in patterns:
             results.append({
@@ -295,11 +313,12 @@ class ResearchPipeline:
             })
         
         # Search document content
-        docs = self.conn.execute("""
-            SELECT title, filename, phase
-            FROM documents
-            WHERE content LIKE ?
-        """, (f"%{term}%",)).fetchall()
+        with self._lock:
+            docs = self.conn.execute("""
+                SELECT title, filename, phase
+                FROM documents
+                WHERE content LIKE ?
+            """, (f"%{term}%",)).fetchall()
         
         for d in docs:
             results.append({
@@ -319,14 +338,16 @@ class ResearchPipeline:
         
         action_hash = hashlib.md5(action.encode()).hexdigest()
         
-        self.conn.execute("""
-            INSERT INTO verdicts (action, action_hash, verdict)
-            VALUES (?, ?, ?)
-            ON CONFLICT(action) DO UPDATE SET
-                verdict = excluded.verdict,
-                timestamp = CURRENT_TIMESTAMP
-        """, (action, action_hash, verdict))
-        self.conn.commit()
+        with self._lock:
+            self.conn.execute("""
+                INSERT INTO verdicts (action, action_hash, verdict)
+                VALUES (?, ?, ?)
+                ON CONFLICT(action) DO UPDATE SET
+                    verdict = excluded.verdict,
+                    timestamp = CURRENT_TIMESTAMP
+            """, (action, action_hash, verdict))
+            # ⚡ Bolt: WAL mode makes an explicit commit very cheap; keep it for better logic isolation
+            self.conn.commit()
         self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}")
 
     def get_cached_verdict(self, action: str) -> Optional[str]:
@@ -335,10 +356,11 @@ class ResearchPipeline:
             self.connect()
         
         action_hash = hashlib.md5(action.encode()).hexdigest()
-        result = self.conn.execute(
-            "SELECT verdict FROM verdicts WHERE action_hash = ?",
-            (action_hash,)
-        ).fetchone()
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT verdict FROM verdicts WHERE action_hash = ?",
+                (action_hash,)
+            ).fetchone()
         
         if result:
             # ⚡ Bolt: Removed log_audit here to eliminate synchronous SQLite write
@@ -427,12 +449,13 @@ class ResearchPipeline:
         if not self.conn:
             self.connect()
         
-        stats = {
-            "documents": self.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
-            "patterns": self.conn.execute("SELECT COUNT(*) FROM patterns").fetchone()[0],
-            "verdicts": self.conn.execute("SELECT COUNT(*) FROM verdicts").fetchone()[0],
-            "audit_entries": self.conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0],
-        }
+        with self._lock:
+            stats = {
+                "documents": self.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
+                "patterns": self.conn.execute("SELECT COUNT(*) FROM patterns").fetchone()[0],
+                "verdicts": self.conn.execute("SELECT COUNT(*) FROM verdicts").fetchone()[0],
+                "audit_entries": self.conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0],
+            }
         return stats
 
 
