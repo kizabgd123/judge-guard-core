@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Import Overhead of Network Libraries]
+**Learning:** The `requests` library and its sub-dependencies can add >300ms to module import time. For classes like `MultimediaManager` that are instantiated frequently or in latency-sensitive paths (like a Gradio app startup or agent initialization), this overhead is significant even if no network calls are immediately made.
+**Action:** Implement a thread-safe lazy `session` property for `requests.Session()`. This reduced `MultimediaManager` module import time by ~89% (from ~325ms to ~35ms). Always ensure `close()` is called to release connection pools.
