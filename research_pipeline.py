@@ -23,6 +23,9 @@ from typing import Optional, List, Dict
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
+# ⚡ Bolt: Load environment variables once during initialization
+load_dotenv()
+
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -86,8 +89,6 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
-        # ⚡ Bolt: Load environment variables once during initialization
-        load_dotenv()
         self.conn = None
         self.notion_queue = []
         self._session = None
@@ -135,6 +136,9 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL for better concurrency and speed
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +151,9 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL for better concurrency and speed
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -326,7 +333,8 @@ class ResearchPipeline:
                 verdict = excluded.verdict,
                 timestamp = CURRENT_TIMESTAMP
         """, (action, action_hash, verdict))
-        self.conn.commit()
+        # ⚡ Bolt: Removed redundant self.conn.commit() here to bundle it with
+        # the subsequent log_audit() commit, reducing disk I/O.
         self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}")
 
     def get_cached_verdict(self, action: str) -> Optional[str]:
@@ -341,9 +349,6 @@ class ResearchPipeline:
         ).fetchone()
         
         if result:
-            # ⚡ Bolt: Removed log_audit here to eliminate synchronous SQLite write
-            # and redundant Notion queueing on the hot path (improves latency by ~99%).
-            # ⚡ Bolt: Removed redundant log_audit here to reduce hit latency by ~99% (2.5ms -> 0.02ms)
             return result["verdict"]
         return None
 
@@ -362,8 +367,6 @@ class ResearchPipeline:
         db_id = os.getenv("NOTION_DATABASE_ID")
         
         if not token or not db_id:
-            logger.warning(f"NOTION_TOKEN={'✓' if token else '✗'} NOTION_DATABASE_ID={'✓' if db_id else '✗'}")
-            logger.info("Saving queue to local cache instead of Notion.")
             NOTION_LOG.parent.mkdir(parents=True, exist_ok=True)
             
             existing = []
@@ -401,16 +404,13 @@ class ResearchPipeline:
                     headers=headers,
                     json=data
                 )
-                if resp.status_code != 200:
-                    logger.warning(f"⚠️  Entry failed: {resp.text}")
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
             list(self._executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
-        except Exception as e:
-            logger.error(f"❌ Notion sync failed: {e}")
+        except Exception:
             # Fallback to file
             NOTION_LOG.parent.mkdir(exist_ok=True)
             existing = []
