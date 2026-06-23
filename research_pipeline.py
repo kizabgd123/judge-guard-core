@@ -17,14 +17,12 @@ import hashlib
 import json
 import re
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 # === CONFIG ===
@@ -35,9 +33,6 @@ NOTION_LOG = Path("./.cache/notion_queue.json")
 # ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
 PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
 
-# Notion API (user must set these)
-NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
-NOTION_DB_ID = os.getenv("NOTION_DATABASE_ID", "")
 
 
 # === DATABASE SCHEMA ===
@@ -86,13 +81,33 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
-        # ⚡ Bolt: Load environment variables once during initialization
-        load_dotenv()
+        # ⚡ Bolt: Initialize lock for thread-safe lazy loading
+        self._lock = threading.RLock()
+        self._setup_done = False
         self.conn = None
         self.notion_queue = []
         self._session = None
-        # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        self._executor = None
+
+    def _ensure_setup(self):
+        """⚡ Bolt: Lazy-load environment and logging setup."""
+        if not self._setup_done:
+            with self._lock:
+                if not self._setup_done:
+                    from dotenv import load_dotenv
+                    load_dotenv()
+                    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+                    self._setup_done = True
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
@@ -104,7 +119,7 @@ class ResearchPipeline:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor:
             self._executor.shutdown(wait=True)
         if hasattr(self, "_session") and self._session:
             self._session.close()
@@ -113,6 +128,7 @@ class ResearchPipeline:
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
+        self._ensure_setup()
         if sync_notion:
             entry = {
                 "action": action,
@@ -132,6 +148,7 @@ class ResearchPipeline:
 
     def init_db(self):
         """Initialize SQLite database."""
+        self._ensure_setup()
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
@@ -142,6 +159,7 @@ class ResearchPipeline:
     
     def connect(self):
         """Connect to existing database."""
+        self._ensure_setup()
         if not DB_PATH.exists():
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
@@ -272,6 +290,7 @@ class ResearchPipeline:
 
     def query(self, term: str) -> List[Dict]:
         """Search patterns and documents."""
+        self._ensure_setup()
         if not self.conn:
             self.connect()
         
@@ -351,6 +370,7 @@ class ResearchPipeline:
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
         """
+        self._ensure_setup()
         # ⚡ Bolt: Snapshot and clear queue immediately to prevent leaks and race conditions
         current_queue = self.notion_queue[:]
         self.notion_queue = []
@@ -358,7 +378,8 @@ class ResearchPipeline:
         if not current_queue:
             return
 
-        token = os.getenv("NOTION_TOKEN")
+        # ⚡ Bolt: Use local os.getenv to avoid module-level global state
+        token = os.getenv("NOTION_TOKEN") or os.getenv("NOTION_API_KEY")
         db_id = os.getenv("NOTION_DATABASE_ID")
         
         if not token or not db_id:
@@ -406,7 +427,7 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
@@ -424,6 +445,7 @@ class ResearchPipeline:
 
     def get_stats(self) -> Dict:
         """Get database statistics."""
+        self._ensure_setup()
         if not self.conn:
             self.connect()
         
