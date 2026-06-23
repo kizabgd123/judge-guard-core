@@ -16,7 +16,6 @@ import sys
 import time
 import threading
 from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
 
 # --- LAYER 3 CONSTANT ---
 PROJECT_ESSENCE = """
@@ -86,6 +85,7 @@ class JudgeGuard:
         if self._executor is None:
             with self._lock:
                 if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
                     self._executor = ThreadPoolExecutor(max_workers=1)
         return self._executor
 

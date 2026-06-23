@@ -11,7 +11,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    if (typeof document !== 'undefined' && document.visibilityState !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
@@ -24,6 +24,8 @@ function App() {
         setConfig(newData);
         if (newData.last_verdict) {
           setLastVerdict(newData.last_verdict);
+        } else {
+          setLastVerdict(null);
         }
         setConnected(true);
         prevDataRef.current = newDataStr;
@@ -41,6 +43,9 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
+    // ⚡ Bolt: Guard against non-browser environments
+    if (typeof document === 'undefined') return;
+
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
 
