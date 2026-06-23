@@ -33,6 +33,10 @@ NOTION_LOG = Path("./.cache/notion_queue.json")
 # ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
 PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
 
+# Notion API (user must set these) - ⚡ Bolt: Kept for backward compatibility
+NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
+NOTION_DB_ID = os.getenv("NOTION_DATABASE_ID", "")
+
 # === DATABASE SCHEMA ===
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
