@@ -18,45 +18,47 @@ class TestMultimediaCaching(unittest.TestCase):
             if os.path.exists(p):
                 os.remove(p)
 
-    @patch('requests.post')
-    def test_audio_caching(self, mock_post):
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.content = b"fake audio content"
-        mock_post.return_value = mock_response
+    def test_audio_caching(self):
+        # We need to patch where requests.Session.post is called, or where it's imported
+        # Since it's used via self.session.post, we can patch requests.Session.post
+        with patch('requests.Session.post') as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.content = b"fake audio content"
+            mock_post.return_value = mock_response
 
-        text = "Hello, this is a test for caching."
+            text = "Hello, this is a test for caching."
 
-        # First call - should trigger API call
-        self.manager.generate_audio(text, self.test_audio_path_1)
-        self.assertEqual(mock_post.call_count, 1)
+            # First call - should trigger API call
+            self.manager.generate_audio(text, self.test_audio_path_1)
+            self.assertEqual(mock_post.call_count, 1)
 
-        # Second call - should NOT trigger API call
-        self.manager.generate_audio(text, self.test_audio_path_2)
-        self.assertEqual(mock_post.call_count, 1)
+            # Second call - should NOT trigger API call
+            self.manager.generate_audio(text, self.test_audio_path_2)
+            self.assertEqual(mock_post.call_count, 1)
 
-        with open(self.test_audio_path_2, "rb") as f:
-            self.assertEqual(f.read(), b"fake audio content")
+            with open(self.test_audio_path_2, "rb") as f:
+                self.assertEqual(f.read(), b"fake audio content")
 
-    @patch('requests.post')
-    def test_image_caching(self, mock_post):
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.content = b"fake image content"
-        mock_post.return_value = mock_response
+    def test_image_caching(self):
+        with patch('requests.Session.post') as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.content = b"fake image content"
+            mock_post.return_value = mock_response
 
-        mood = "happy"
+            mood = "happy"
 
-        # First call - should trigger API call
-        self.manager.generate_mood_image(mood, self.test_image_path_1)
-        self.assertEqual(mock_post.call_count, 1)
+            # First call - should trigger API call
+            self.manager.generate_mood_image(mood, self.test_image_path_1)
+            self.assertEqual(mock_post.call_count, 1)
 
-        # Second call - should NOT trigger API call
-        self.manager.generate_mood_image(mood, self.test_image_path_2)
-        self.assertEqual(mock_post.call_count, 1)
+            # Second call - should NOT trigger API call
+            self.manager.generate_mood_image(mood, self.test_image_path_2)
+            self.assertEqual(mock_post.call_count, 1)
 
-        with open(self.test_image_path_2, "rb") as f:
-            self.assertEqual(f.read(), b"fake image content")
+            with open(self.test_image_path_2, "rb") as f:
+                self.assertEqual(f.read(), b"fake image content")
 
 if __name__ == "__main__":
     unittest.main()
