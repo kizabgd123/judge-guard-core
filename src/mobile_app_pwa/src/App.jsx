@@ -10,6 +10,9 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
+    // ⚡ Bolt: Use typeof document guard for SSR/Worker safety
+    if (typeof document === "undefined") return;
+
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     if (document.visibilityState !== "visible") return;
 
