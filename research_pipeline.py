@@ -85,8 +85,6 @@ class ResearchPipeline:
         self.notion_queue = []
         self._session = None
         self._executor = None
-        # ⚡ Bolt: Ensure environment is loaded on init to avoid downstream breakage
-        self._ensure_setup()
 
     def _ensure_setup(self):
         """⚡ Bolt: Lazy setup of environment and logging to minimize import overhead."""
@@ -155,6 +153,7 @@ class ResearchPipeline:
 
     def init_db(self):
         """Initialize SQLite database."""
+        self._ensure_setup()
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
@@ -166,6 +165,7 @@ class ResearchPipeline:
     
     def connect(self):
         """Connect to existing database."""
+        self._ensure_setup()
         if not DB_PATH.exists():
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
@@ -297,6 +297,7 @@ class ResearchPipeline:
 
     def query(self, term: str) -> List[Dict]:
         """Search patterns and documents."""
+        self._ensure_setup()
         if not self.conn:
             self.connect()
         
@@ -450,6 +451,7 @@ class ResearchPipeline:
 
     def get_stats(self) -> Dict:
         """Get database statistics."""
+        self._ensure_setup()
         if not self.conn:
             self.connect()
         
