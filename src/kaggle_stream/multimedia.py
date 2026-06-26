@@ -1,6 +1,6 @@
 import os
-import requests
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,9 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Initialize thread-safe lock and session cache for lazy loading
+        self._lock = threading.RLock()
+        self._session = None
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -27,6 +27,16 @@ class MultimediaManager:
         # This ensures we can reuse content even if output_path changes.
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
+
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        with self._lock:
+            if self._session is None:
+                import requests
+                self._session = requests.Session()
+                self._session.headers.update(self.headers)
+        return self._session
 
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
         # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
@@ -56,6 +66,17 @@ class MultimediaManager:
         except Exception:
             pass
         return None
+
+    def close(self):
+        """⚡ Bolt: Ensure the lazily initialized session is closed."""
+        with self._lock:
+            if self._session is not None:
+                self._session.close()
+                self._session = None
+
+    def __del__(self):
+        """⚡ Bolt: Destructor to ensure resources are released."""
+        self.close()
 
     def generate_mood_image(self, mood: str, output_path: str = "mood.png"):
         # ⚡ Bolt: Cache check - if mood icon was already generated, write cached bytes to new path
