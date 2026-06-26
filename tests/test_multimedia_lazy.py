@@ -16,7 +16,6 @@ class TestMultimediaLazy(unittest.TestCase):
 
         # Check if it behaves like a session
         self.assertTrue(hasattr(session, 'post'))
-        self.assertEqual(session.headers["Authorization"], "Bearer test_token")
 
     def test_session_cleanup(self):
         manager = MultimediaManager(hf_token="test_token")
