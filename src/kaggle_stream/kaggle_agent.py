@@ -2,7 +2,7 @@ import os
 import logging
 import json
 import random
-from concurrent.futures import ThreadPoolExecutor
+import threading
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,18 @@ class KaggleAgent:
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
         # ⚡ Bolt: Executor for offloading synchronous Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=2)
+        self._executor = None
+        self._lock = threading.RLock()
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy property to defer ThreadPoolExecutor initialization."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=2)
+        return self._executor
 
     @property
     def gemini(self):
@@ -59,8 +70,10 @@ class KaggleAgent:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
-            self._executor.shutdown(wait=True)
+        with self._lock:
+            if self._executor is not None:
+                self._executor.shutdown(wait=True)
+                self._executor = None
 
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
         # If Gemini is present but API key is dummy/invalid, it might still fail at runtime
@@ -116,7 +129,7 @@ class KaggleAgent:
     def _log_to_notion(self, data: Dict[str, Any]):
         if self.notion and self.notion_db_id and self.notion_db_id != "demo":
             # ⚡ Bolt: Offload blocking Notion API call to background thread
-            self._executor.submit(self._execute_notion_append, data)
+            self.executor.submit(self._execute_notion_append, data)
 
     def _execute_notion_append(self, data: Dict[str, Any]):
         try:
