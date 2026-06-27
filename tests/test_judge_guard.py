@@ -29,6 +29,10 @@ class TestJudgeGuard(unittest.TestCase):
         with open(self.work_log_path, "w") as f:
             f.write("🟡 Starting Valid Action\n")
             
+        # Patch Bridge to prevent app_config.json pollution
+        self.bridge_patcher = patch('src.antigravity_core.mobile_bridge.bridge.update_state')
+        self.mock_update_state = self.bridge_patcher.start()
+
         # Patch dependencies for the JudgeGuard instance
         self.judge = JudgeGuard(work_log_path=self.work_log_path)
 
@@ -61,6 +65,7 @@ class TestJudgeGuard(unittest.TestCase):
         
         Deletes the file at self.work_log_path to clean up filesystem state after a test run.
         """
+        self.bridge_patcher.stop()
         if os.path.exists(self.work_log_path):
             os.remove(self.work_log_path)
 
