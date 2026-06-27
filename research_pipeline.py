@@ -80,6 +80,7 @@ class ResearchPipeline:
         self._session = None
         self._executor = None
         self._pattern_re = None
+        self._datetime = None
 
         # ⚡ Bolt: Always ensure environment and logging are ready upon instantiation
         self._ensure_setup()
@@ -90,7 +91,9 @@ class ResearchPipeline:
             with self._lock:
                 if not self._setup_done:
                     from dotenv import load_dotenv
+                    from datetime import datetime
                     load_dotenv()
+                    self._datetime = datetime
                     # Only configure basicConfig if no handlers exist to avoid double-logging
                     if not logging.getLogger().handlers:
                         logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -128,9 +131,11 @@ class ResearchPipeline:
 
     def _apply_optimizations(self, conn):
         """⚡ Bolt: Apply performance-critical SQLite pragmas."""
+        import sqlite3
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-        conn.row_factory = (lambda cursor, row: {col[0]: row[i] for i, col in enumerate(cursor.description)})
+        # ⚡ Bolt: Revert to sqlite3.Row for optimized C-based row handling
+        conn.row_factory = sqlite3.Row
         return conn
 
     def close(self):
@@ -151,14 +156,12 @@ class ResearchPipeline:
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
-        from datetime import datetime
-
         with self._lock:
             if sync_notion:
                 entry = {
                     "action": action,
                     "details": details,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": self._datetime.now().isoformat()
                 }
                 self.notion_queue.append(entry)
 
@@ -488,11 +491,12 @@ class ResearchPipeline:
             if not self.conn:
                 self.connect()
 
+            # ⚡ Bolt: Reverted to index-based or key-based access with sqlite3.Row
             stats = {
-                "documents": self.conn.execute("SELECT COUNT(*) FROM documents").fetchone()["COUNT(*)"],
-                "patterns": self.conn.execute("SELECT COUNT(*) FROM patterns").fetchone()["COUNT(*)"],
-                "verdicts": self.conn.execute("SELECT COUNT(*) FROM verdicts").fetchone()["COUNT(*)"],
-                "audit_entries": self.conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()["COUNT(*)"],
+                "documents": self.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
+                "patterns": self.conn.execute("SELECT COUNT(*) FROM patterns").fetchone()[0],
+                "verdicts": self.conn.execute("SELECT COUNT(*) FROM verdicts").fetchone()[0],
+                "audit_entries": self.conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0],
             }
         return stats
 
