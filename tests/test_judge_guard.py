@@ -18,6 +18,13 @@ from judge_guard import JudgeGuard
 
 class TestJudgeGuard(unittest.TestCase):
     def setUp(self):
+        # ⚡ Bolt: Patch MobileBridge to prevent it from updating app_config.json
+        # during tests, which would break the browser-worker CI check.
+        self.patcher = patch('src.antigravity_core.mobile_bridge.bridge.update_state')
+        self.mock_update_state = self.patcher.start()
+        # Return a dummy state to satisfy callers
+        self.mock_update_state.return_value = {}
+
         """
         Prepare test fixture by creating a dummy work log and instantiating a JudgeGuard with patched dependencies.
         
@@ -61,6 +68,7 @@ class TestJudgeGuard(unittest.TestCase):
         
         Deletes the file at self.work_log_path to clean up filesystem state after a test run.
         """
+        self.patcher.stop()
         if os.path.exists(self.work_log_path):
             os.remove(self.work_log_path)
 
