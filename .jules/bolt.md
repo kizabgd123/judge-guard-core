@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-06-28 - [Lazy Environment Loading Pitfall]
+**Learning:** When deferring environment setup (e.g., `load_dotenv`) to minimize import overhead, methods that depend on `os.getenv` but don't otherwise trigger the setup (e.g., through logging) will fail to see `.env` variables on a cold start.
+**Action:** Always call `_ensure_setup()` (or equivalent) at the start of any method that uses environment variables or other lazily-configured global state.

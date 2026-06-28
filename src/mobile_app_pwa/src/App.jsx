@@ -10,6 +10,9 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
+    // ⚡ Bolt: SSR/Worker compatibility check for document
+    if (typeof document === 'undefined') return;
+
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     if (document.visibilityState !== "visible") return;
 
@@ -43,6 +46,9 @@ function App() {
   useEffect(() => {
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
+
+    // ⚡ Bolt: SSR/Worker compatibility check for document
+    if (typeof document === 'undefined') return () => clearInterval(interval);
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
