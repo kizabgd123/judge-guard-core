@@ -12,33 +12,18 @@ Usage:
 """
 
 import os
-import sqlite3
-import hashlib
-import json
-import re
+import threading
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+# Maintain module-level logger for external consumer compatibility
 logger = logging.getLogger(__name__)
 
 # === CONFIG ===
 DB_PATH = Path("./research.db")
 RESEARCH_DIR = Path("./research")
 NOTION_LOG = Path("./.cache/notion_queue.json")
-
-# ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
-PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
-
-# Notion API (user must set these)
-NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
-NOTION_DB_ID = os.getenv("NOTION_DATABASE_ID", "")
-
 
 # === DATABASE SCHEMA ===
 SCHEMA = """
@@ -86,124 +71,190 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
-        # ⚡ Bolt: Load environment variables once during initialization
-        load_dotenv()
+        # ⚡ Bolt: Thread-safe lock for lazy initialization and DB access
+        self._lock = threading.RLock()
+        self._setup_done = False
         self.conn = None
         self.notion_queue = []
         self._session = None
-        # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        self._executor = None
+        self._pattern_re = None
+
+        # We call ensure_setup early but safely
+        self._ensure_setup()
+
+    def _ensure_setup(self):
+        """⚡ Bolt: Lazy setup of environment and logging."""
+        if not self._setup_done:
+            with self._lock:
+                if not self._setup_done:
+                    from dotenv import load_dotenv
+                    load_dotenv()
+                    # Only configure logging if not already configured
+                    if not logging.getLogger().handlers:
+                        logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+                    self._setup_done = True
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
         """⚡ Bolt: Lazy-load requests and initialize session on demand."""
         if self._session is None:
-            import requests
-            self._session = requests.Session()
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
         return self._session
 
+    @property
+    def pattern_re(self):
+        """⚡ Bolt: Lazy-load regex pattern."""
+        if self._pattern_re is None:
+            with self._lock:
+                if self._pattern_re is None:
+                    import re
+                    self._pattern_re = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+        return self._pattern_re
+
+    def _apply_optimizations(self, conn):
+        """⚡ Bolt: Apply SQLite performance optimizations (WAL mode, Normal sync)."""
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.row_factory = self._row_factory_setup()
+        return conn
+
+    def _row_factory_setup(self):
+        """⚡ Bolt: Defer sqlite3 import for row_factory."""
+        import sqlite3
+        return sqlite3.Row
+
     def close(self):
-        """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
-            self._executor.shutdown(wait=True)
-        if hasattr(self, "_session") and self._session:
-            self._session.close()
-        if hasattr(self, "conn") and self.conn:
-            self.conn.close()
-        
+        """⚡ Bolt: Ensure resources are cleanly shut down."""
+        with self._lock:
+            if self._executor:
+                self._executor.shutdown(wait=True)
+                self._executor = None
+            if self._session:
+                self._session.close()
+                self._session = None
+            if self.conn:
+                self.conn.close()
+                self.conn = None
+
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
-        if sync_notion:
-            entry = {
-                "action": action,
-                "details": details,
-                "timestamp": datetime.now().isoformat()
-            }
-            self.notion_queue.append(entry)
+        from datetime import datetime
         
-        if self.conn:
-            self.conn.execute(
-                "INSERT INTO audit_log (action, details) VALUES (?, ?)",
-                (action, details)
-            )
-            if commit:
-                self.conn.commit()
+        with self._lock:
+            if sync_notion:
+                entry = {
+                    "action": action,
+                    "details": details,
+                    "timestamp": datetime.now().isoformat()
+                }
+                self.notion_queue.append(entry)
+
+            if self.conn:
+                self.conn.execute(
+                    "INSERT INTO audit_log (action, details) VALUES (?, ?)",
+                    (action, details)
+                )
+                if commit:
+                    self.conn.commit()
         logger.info(f"📝 {action}: {details}")
 
     def init_db(self):
         """Initialize SQLite database."""
-        # ⚡ Bolt: Enable check_same_thread=False for background sync safety
-        self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.executescript(SCHEMA)
-        self.conn.commit()
-        self.log_audit("DB_INIT", f"Created {DB_PATH}")
+        import sqlite3
+        with self._lock:
+            # ⚡ Bolt: Enable check_same_thread=False for background sync safety
+            self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+            self._apply_optimizations(self.conn)
+            self.conn.executescript(SCHEMA)
+            self.conn.commit()
+            self.log_audit("DB_INIT", f"Created {DB_PATH}")
         return self
     
     def connect(self):
         """Connect to existing database."""
+        import sqlite3
         if not DB_PATH.exists():
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
-        # ⚡ Bolt: Enable check_same_thread=False for background sync safety
-        self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        self.conn.row_factory = sqlite3.Row
+        with self._lock:
+            # ⚡ Bolt: Enable check_same_thread=False for background sync safety
+            self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+            self._apply_optimizations(self.conn)
         return self
 
     def parse_markdown_files(self) -> List[int]:
         """Parse all research/*.md files into SQLite. Returns list of affected document IDs."""
+        import hashlib
+        import re
+
         if not self.conn:
             self.connect()
             
         md_files = list(RESEARCH_DIR.glob("**/*.md"))
         affected_ids = []
 
-        # ⚡ Bolt: Pre-fetch existing hashes in a single query to avoid O(N) database reads in the loop
-        existing_hashes = {
-            row["filename"]: row["hash"]
-            for row in self.conn.execute("SELECT filename, hash FROM documents").fetchall()
-        }
+        with self._lock:
+            # ⚡ Bolt: Pre-fetch existing hashes in a single query to avoid O(N) database reads in the loop
+            existing_hashes = {
+                row["filename"]: row["hash"]
+                for row in self.conn.execute("SELECT filename, hash FROM documents").fetchall()
+            }
+            
+            for md_path in md_files:
+                filename_str = str(md_path)
+                # ⚡ Bolt: Use read_bytes() for hashing to avoid redundant UTF-8 decoding/encoding
+                content_bytes = md_path.read_bytes()
+                content_hash = hashlib.md5(content_bytes).hexdigest()
+
+                if filename_str in existing_hashes and existing_hashes[filename_str] == content_hash:
+                    continue  # Skip unchanged files
+
+                # ⚡ Bolt: Defer UTF-8 decoding until file changes are detected
+                content = content_bytes.decode("utf-8")
+
+                # Extract phase from path (e.g., phase0_scoping)
+                phase = md_path.parent.name
+
+                # Extract title from first # heading
+                title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
+                title = title_match.group(1) if title_match else md_path.stem
+
+                # Upsert document and get ID
+                # ⚡ Bolt: Use RETURNING id to efficiently track modified documents
+                cursor = self.conn.execute("""
+                    INSERT INTO documents (phase, filename, title, content, hash, updated_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(filename) DO UPDATE SET
+                        content = excluded.content,
+                        hash = excluded.hash,
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING id
+                """, (phase, filename_str, title, content, content_hash))
+
+                row = cursor.fetchone()
+                if row:
+                    affected_ids.append(row["id"])
+
+                # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
+                self.log_audit("PARSED", f"{md_path.name}", commit=False)
+            
+            # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
+            # will commit all pending inserts, including the PARSED entries.
+            self.log_audit("PARSE_COMPLETE", f"{len(affected_ids)} files processed")
         
-        for md_path in md_files:
-            filename_str = str(md_path)
-            # ⚡ Bolt: Use read_bytes() for hashing to avoid redundant UTF-8 decoding/encoding
-            content_bytes = md_path.read_bytes()
-            content_hash = hashlib.md5(content_bytes).hexdigest()
-            
-            if filename_str in existing_hashes and existing_hashes[filename_str] == content_hash:
-                continue  # Skip unchanged files
-
-            # ⚡ Bolt: Defer UTF-8 decoding until file changes are detected
-            content = content_bytes.decode("utf-8")
-
-            # Extract phase from path (e.g., phase0_scoping)
-            phase = md_path.parent.name
-            
-            # Extract title from first # heading
-            title_match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
-            title = title_match.group(1) if title_match else md_path.stem
-            
-            # Upsert document and get ID
-            # ⚡ Bolt: Use RETURNING id to efficiently track modified documents
-            cursor = self.conn.execute("""
-                INSERT INTO documents (phase, filename, title, content, hash, updated_at)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(filename) DO UPDATE SET
-                    content = excluded.content,
-                    hash = excluded.hash,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id
-            """, (phase, filename_str, title, content, content_hash))
-
-            row = cursor.fetchone()
-            if row:
-                affected_ids.append(row["id"])
-            
-            # ⚡ Bolt: Use commit=False to batch SQLite operations for O(1) disk I/O
-            self.log_audit("PARSED", f"{md_path.name}", commit=False)
-        
-        # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
-        # will commit all pending inserts, including the PARSED entries.
-        self.log_audit("PARSE_COMPLETE", f"{len(affected_ids)} files processed")
         return affected_ids
 
     def extract_patterns(self, doc_ids: Optional[List[int]] = None):
@@ -214,60 +265,62 @@ class ResearchPipeline:
         if not self.conn:
             self.connect()
         
-        if doc_ids is not None:
-            if not doc_ids:
-                return 0
-            # ⚡ Bolt: Targeted extraction for specific documents
-            docs = []
-            for i in range(0, len(doc_ids), 999):
-                chunk = doc_ids[i:i + 999]
-                placeholders = ",".join(["?"] * len(chunk))
-                docs.extend(self.conn.execute(
-                    f"SELECT id, content FROM documents WHERE id IN ({placeholders})",
-                    chunk
-                ).fetchall())
-                # Clear existing patterns for these documents to avoid duplicates
-                self.conn.execute(
-                    f"DELETE FROM patterns WHERE doc_id IN ({placeholders})",
-                    chunk
-                )
-        else:
-            # Full extraction (legacy/fallback)
-            docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
-            self.conn.execute("DELETE FROM patterns")
+        with self._lock:
+            if doc_ids is not None:
+                if not doc_ids:
+                    return 0
+                # ⚡ Bolt: Targeted extraction for specific documents
+                docs = []
+                for i in range(0, len(doc_ids), 999):
+                    chunk = doc_ids[i:i + 999]
+                    placeholders = ",".join(["?"] * len(chunk))
+                    docs.extend(self.conn.execute(
+                        f"SELECT id, content FROM documents WHERE id IN ({placeholders})",
+                        chunk
+                    ).fetchall())
+                    # Clear existing patterns for these documents to avoid duplicates
+                    self.conn.execute(
+                        f"DELETE FROM patterns WHERE doc_id IN ({placeholders})",
+                        chunk
+                    )
+            else:
+                # Full extraction (legacy/fallback)
+                docs = self.conn.execute("SELECT id, content FROM documents").fetchall()
+                self.conn.execute("DELETE FROM patterns")
 
-        patterns_found = 0
-        new_patterns = [] # (name, priority, doc_id)
-        
-        for doc in docs:
-            # ⚡ Bolt: Use pre-compiled regex and finditer for single-pass extraction
-            for match in PATTERN_RE.finditer(doc["content"]):
-                name = match.group(1).strip()
-                if len(name) < 5 or name.startswith("```"):
-                    continue
-                
-                # Determine priority and strip icons from name for consistent storage
-                priority = "MEDIUM"
-                if "🔥" in name or "HIGH" in name.upper():
-                    priority = "HIGH"
-                    name = name.replace("🔥", "").strip()
-                elif "🟢" in name or "LOW" in name.upper():
-                    priority = "LOW"
-                    name = name.replace("🟢", "").strip()
-                
-                new_patterns.append((name, priority, doc["id"]))
-                patterns_found += 1
+            patterns_found = 0
+            new_patterns = [] # (name, priority, doc_id)
 
-        if new_patterns:
-            # ⚡ Bolt: Use executemany for batch insertions
-            self.conn.executemany("""
-                INSERT INTO patterns (name, priority, doc_id)
-                VALUES (?, ?, ?)
-            """, new_patterns)
+            for doc in docs:
+                # ⚡ Bolt: Use lazy-loaded pre-compiled regex and finditer for single-pass extraction
+                for match in self.pattern_re.finditer(doc["content"]):
+                    name = match.group(1).strip()
+                    if len(name) < 5 or name.startswith("```"):
+                        continue
+
+                    # Determine priority and strip icons from name for consistent storage
+                    priority = "MEDIUM"
+                    if "🔥" in name or "HIGH" in name.upper():
+                        priority = "HIGH"
+                        name = name.replace("🔥", "").strip()
+                    elif "🟢" in name or "LOW" in name.upper():
+                        priority = "LOW"
+                        name = name.replace("🟢", "").strip()
+
+                    new_patterns.append((name, priority, doc["id"]))
+                    patterns_found += 1
+
+            if new_patterns:
+                # ⚡ Bolt: Use executemany for batch insertions
+                self.conn.executemany("""
+                    INSERT INTO patterns (name, priority, doc_id)
+                    VALUES (?, ?, ?)
+                """, new_patterns)
+
+            # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
+            # will commit all pending pattern inserts.
+            self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
         
-        # ⚡ Bolt: The subsequent log_audit call (with default commit=True)
-        # will commit all pending pattern inserts.
-        self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
         return patterns_found
 
     def query(self, term: str) -> List[Dict]:
@@ -275,75 +328,78 @@ class ResearchPipeline:
         if not self.conn:
             self.connect()
         
-        results = []
-        
-        # Search patterns
-        patterns = self.conn.execute("""
-            SELECT p.name, p.priority, d.filename, d.phase
-            FROM patterns p
-            JOIN documents d ON p.doc_id = d.id
-            WHERE p.name LIKE ?
-        """, (f"%{term}%",)).fetchall()
-        
-        for p in patterns:
-            results.append({
-                "type": "pattern",
-                "name": p["name"],
-                "priority": p["priority"],
-                "source": p["filename"],
-                "phase": p["phase"]
-            })
-        
-        # Search document content
-        docs = self.conn.execute("""
-            SELECT title, filename, phase
-            FROM documents
-            WHERE content LIKE ?
-        """, (f"%{term}%",)).fetchall()
-        
-        for d in docs:
-            results.append({
-                "type": "document",
-                "name": d["title"],
-                "source": d["filename"],
-                "phase": d["phase"]
-            })
-        
-        self.log_audit("QUERY", f"'{term}' → {len(results)} results")
+        with self._lock:
+            results = []
+
+            # Search patterns
+            patterns = self.conn.execute("""
+                SELECT p.name, p.priority, d.filename, d.phase
+                FROM patterns p
+                JOIN documents d ON p.doc_id = d.id
+                WHERE p.name LIKE ?
+            """, (f"%{term}%",)).fetchall()
+
+            for p in patterns:
+                results.append({
+                    "type": "pattern",
+                    "name": p["name"],
+                    "priority": p["priority"],
+                    "source": p["filename"],
+                    "phase": p["phase"]
+                })
+
+            # Search document content
+            docs = self.conn.execute("""
+                SELECT title, filename, phase
+                FROM documents
+                WHERE content LIKE ?
+            """, (f"%{term}%",)).fetchall()
+
+            for d in docs:
+                results.append({
+                    "type": "document",
+                    "name": d["title"],
+                    "source": d["filename"],
+                    "phase": d["phase"]
+                })
+
+            self.log_audit("QUERY", f"'{term}' → {len(results)} results")
         return results
 
     def cache_verdict(self, action: str, verdict: str):
         """Cache JudgeGuard verdict to avoid repeated API calls."""
+        import hashlib
         if not self.conn:
             self.connect()
         
         action_hash = hashlib.md5(action.encode()).hexdigest()
         
-        self.conn.execute("""
-            INSERT INTO verdicts (action, action_hash, verdict)
-            VALUES (?, ?, ?)
-            ON CONFLICT(action) DO UPDATE SET
-                verdict = excluded.verdict,
-                timestamp = CURRENT_TIMESTAMP
-        """, (action, action_hash, verdict))
-        self.conn.commit()
-        self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}")
+        with self._lock:
+            self.conn.execute("""
+                INSERT INTO verdicts (action, action_hash, verdict)
+                VALUES (?, ?, ?)
+                ON CONFLICT(action) DO UPDATE SET
+                    verdict = excluded.verdict,
+                    timestamp = CURRENT_TIMESTAMP
+            """, (action, action_hash, verdict))
+            self.conn.commit()
+            self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}")
 
     def get_cached_verdict(self, action: str) -> Optional[str]:
         """Check if verdict is cached."""
+        import hashlib
         if not self.conn:
             self.connect()
         
         action_hash = hashlib.md5(action.encode()).hexdigest()
-        result = self.conn.execute(
-            "SELECT verdict FROM verdicts WHERE action_hash = ?",
-            (action_hash,)
-        ).fetchone()
+
+        with self._lock:
+            result = self.conn.execute(
+                "SELECT verdict FROM verdicts WHERE action_hash = ?",
+                (action_hash,)
+            ).fetchone()
         
         if result:
-            # ⚡ Bolt: Removed log_audit here to eliminate synchronous SQLite write
-            # and redundant Notion queueing on the hot path (improves latency by ~99%).
-            # ⚡ Bolt: Removed redundant log_audit here to reduce hit latency by ~99% (2.5ms -> 0.02ms)
             return result["verdict"]
         return None
 
@@ -351,9 +407,12 @@ class ResearchPipeline:
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
         """
+        import json
+
         # ⚡ Bolt: Snapshot and clear queue immediately to prevent leaks and race conditions
-        current_queue = self.notion_queue[:]
-        self.notion_queue = []
+        with self._lock:
+            current_queue = self.notion_queue[:]
+            self.notion_queue = []
 
         if not current_queue:
             return
@@ -366,16 +425,17 @@ class ResearchPipeline:
             logger.info("Saving queue to local cache instead of Notion.")
             NOTION_LOG.parent.mkdir(parents=True, exist_ok=True)
             
-            existing = []
-            if NOTION_LOG.exists():
-                try:
-                    existing = json.loads(NOTION_LOG.read_text())
-                except json.JSONDecodeError:
-                    existing = []
-            
-            existing.extend(current_queue)
-            NOTION_LOG.write_text(json.dumps(existing, indent=2))
-            self.log_audit("NOTION_MOCKED", f"{len(current_queue)} entries saved to {NOTION_LOG}", sync_notion=False)
+            with self._lock:
+                existing = []
+                if NOTION_LOG.exists():
+                    try:
+                        existing = json.loads(NOTION_LOG.read_text())
+                    except json.JSONDecodeError:
+                        existing = []
+
+                existing.extend(current_queue)
+                NOTION_LOG.write_text(json.dumps(existing, indent=2))
+                self.log_audit("NOTION_MOCKED", f"{len(current_queue)} entries saved to {NOTION_LOG}", sync_notion=False)
             return
         
         # If token exists, push to Notion
@@ -406,33 +466,35 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
             logger.error(f"❌ Notion sync failed: {e}")
             # Fallback to file
-            NOTION_LOG.parent.mkdir(exist_ok=True)
-            existing = []
-            if NOTION_LOG.exists():
-                try:
-                    existing = json.loads(NOTION_LOG.read_text())
-                except json.JSONDecodeError:
-                    existing = []
-            existing.extend(current_queue)
-            NOTION_LOG.write_text(json.dumps(existing, indent=2))
+            NOTION_LOG.parent.mkdir(parents=True, exist_ok=True)
+            with self._lock:
+                existing = []
+                if NOTION_LOG.exists():
+                    try:
+                        existing = json.loads(NOTION_LOG.read_text())
+                    except json.JSONDecodeError:
+                        existing = []
+                existing.extend(current_queue)
+                NOTION_LOG.write_text(json.dumps(existing, indent=2))
 
     def get_stats(self) -> Dict:
         """Get database statistics."""
         if not self.conn:
             self.connect()
         
-        stats = {
-            "documents": self.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
-            "patterns": self.conn.execute("SELECT COUNT(*) FROM patterns").fetchone()[0],
-            "verdicts": self.conn.execute("SELECT COUNT(*) FROM verdicts").fetchone()[0],
-            "audit_entries": self.conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0],
-        }
+        with self._lock:
+            stats = {
+                "documents": self.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0],
+                "patterns": self.conn.execute("SELECT COUNT(*) FROM patterns").fetchone()[0],
+                "verdicts": self.conn.execute("SELECT COUNT(*) FROM verdicts").fetchone()[0],
+                "audit_entries": self.conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0],
+            }
         return stats
 
 
