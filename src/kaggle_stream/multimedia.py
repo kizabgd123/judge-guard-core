@@ -1,5 +1,5 @@
 import os
-import requests
+import threading
 import logging
 from typing import Optional
 
@@ -16,9 +16,9 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Use a lock for thread-safe lazy initialization and cache access
+        self._lock = threading.RLock()
+        self._session = None
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -28,13 +28,38 @@ class MultimediaManager:
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
 
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        if self._session is None:
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
+                    self._session.headers.update(self.headers)
+        return self._session
+
+    def close(self):
+        """⚡ Bolt: Ensure session is cleanly shut down."""
+        if hasattr(self, "_session") and self._session:
+            with self._lock:
+                if self._session:
+                    self._session.close()
+                    self._session = None
+
+    def __del__(self):
+        self.close()
+
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
         # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
-        if text in self._audio_cache:
+        with self._lock:
+            cached_data = self._audio_cache.get(text)
+
+        if cached_data:
             logger.info(f"⚡ Bolt: Reusing cached audio for: {text[:30]}...")
             try:
                 with open(output_path, "wb") as f:
-                    f.write(self._audio_cache[text])
+                    f.write(cached_data)
                 return output_path
             except Exception as e:
                 logger.error(f"Failed to write cached audio: {e}")
@@ -48,7 +73,8 @@ class MultimediaManager:
             response = self.session.post(API_URL, json={"inputs": text})
             if response.status_code == 200:
                 # ⚡ Bolt: Store in cache BEFORE writing to file to ensure we have the bytes
-                self._audio_cache[text] = response.content
+                with self._lock:
+                    self._audio_cache[text] = response.content
 
                 with open(output_path, "wb") as f:
                     f.write(response.content)
@@ -59,11 +85,14 @@ class MultimediaManager:
 
     def generate_mood_image(self, mood: str, output_path: str = "mood.png"):
         # ⚡ Bolt: Cache check - if mood icon was already generated, write cached bytes to new path
-        if mood in self._image_cache:
+        with self._lock:
+            cached_data = self._image_cache.get(mood)
+
+        if cached_data:
             logger.info(f"⚡ Bolt: Reusing cached image for mood: {mood}")
             try:
                 with open(output_path, "wb") as f:
-                    f.write(self._image_cache[mood])
+                    f.write(cached_data)
                 return output_path
             except Exception as e:
                 logger.error(f"Failed to write cached image: {e}")
@@ -80,7 +109,8 @@ class MultimediaManager:
             response = self.session.post(API_URL, json={"inputs": prompt})
             if response.status_code == 200:
                 # ⚡ Bolt: Store in cache BEFORE writing to file to ensure we have the bytes
-                self._image_cache[mood] = response.content
+                with self._lock:
+                    self._image_cache[mood] = response.content
 
                 with open(output_path, "wb") as f:
                     f.write(response.content)
