@@ -135,6 +135,8 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Optimize SQLite performance for high-frequency writes
+        self.conn.executescript("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +149,9 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Maintain optimized settings on reconnection
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute("PRAGMA synchronous=NORMAL;")
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -326,7 +331,8 @@ class ResearchPipeline:
                 verdict = excluded.verdict,
                 timestamp = CURRENT_TIMESTAMP
         """, (action, action_hash, verdict))
-        self.conn.commit()
+        # ⚡ Bolt: Removed redundant self.conn.commit() here because log_audit
+        # will commit the entire transaction by default.
         self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}")
 
     def get_cached_verdict(self, action: str) -> Optional[str]:
