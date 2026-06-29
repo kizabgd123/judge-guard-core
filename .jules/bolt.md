@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Import Overhead in ResearchPipeline]
+**Learning:** Global imports of `dotenv`, `sqlite3`, and `logging` configuration at the module level can add >60ms to startup time. Localizing imports within methods is effective, but care must be taken with scope to avoid `NameError` when a dependency is used in multiple conditional branches.
+**Action:** Use thread-safe lazy initialization (`_ensure_setup` with `RLock`) for process-wide configuration. Ensure all dependencies used in a method are imported at the top of that method's scope, regardless of conditional logic, to prevent partial-import regressions. This reduced `ResearchPipeline` import latency by ~58%.
