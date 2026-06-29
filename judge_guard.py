@@ -163,7 +163,9 @@ class JudgeGuard:
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and lazy resources are cleanly shut down."""
         if hasattr(self, "_executor") and self._executor:
-            self._executor.shutdown(wait=False)
+            # ⚡ Bolt: Use wait=True to ensure background tasks (caching, sync)
+            # complete before resource cleanup (like SQLite connection closure).
+            self._executor.shutdown(wait=True)
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
 
@@ -433,9 +435,9 @@ class JudgeGuard:
             if bridge_available:
                 bridge.push_verdict(current_action, "PASSED", "Approved (Unified Verification)")
             
-            # ⚡ Bolt: Cache the verdict for future speed
+            # ⚡ Bolt: Cache the verdict for future speed (offload to background)
             if self.pipeline:
-                self.pipeline.cache_verdict(current_action, "PASSED")
+                self.executor.submit(self.pipeline.cache_verdict, current_action, "PASSED")
 
             # ⚡ Bolt: Auto-sync to Notion if this is a research action (Fix: restored missing call)
             if self._is_research_action(current_action):
