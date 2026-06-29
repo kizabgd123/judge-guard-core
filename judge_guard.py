@@ -201,7 +201,14 @@ class JudgeGuard:
         except Exception as e:
             return f"Error loading rules: {e}"
 
-    def _load_context(self, max_chars: int = 15000) -> str:
+    def _load_context(self, max_chars: int = 15000, cached_tail: Optional[str] = None) -> str:
+        """
+        Loads the work log context. If a cached tail is provided, it returns it
+        (truncated if necessary). Otherwise, it reads from disk.
+        """
+        if cached_tail:
+            return cached_tail[-max_chars:]
+
         if self.work_log_path and os.path.exists(self.work_log_path):
             try:
                 # ⚡ Bolt: Efficient O(1) tail retrieval
@@ -280,12 +287,15 @@ class JudgeGuard:
         except Exception as e:
             self.logger.error(f"⚠️ Notion background sync failed: {e}")
 
-    def _check_work_log(self, action: str) -> bool:
-        """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
+    def _check_work_log(self, action: str) -> Optional[str]:
+        """
+        Check if WORK_LOG.md was recently updated (within last 120 seconds).
+        Returns the tail of the log if valid, None otherwise.
+        """
         if not self.work_log_path or not os.path.exists(self.work_log_path):
             self.logger.error("🛑 WORK_LOG.md not found. Required for action verification.")
             print("🛑 WORK_LOG.md not found. Update required before action.")
-            return False
+            return None
         
         # Check last modification time
         mtime = os.path.getmtime(self.work_log_path)
@@ -295,30 +305,32 @@ class JudgeGuard:
         # Read last few lines to check if action was logged
         try:
             # ⚡ Bolt: Efficient O(1) tail retrieval
+            # We read 15000 chars to reuse as context if valid, ensuring correctness.
             with open(self.work_log_path, 'rb') as f:
                 f.seek(0, 2)
                 file_size = f.tell()
-                to_read = min(file_size, 1000)
+                to_read = min(file_size, 15000)
                 f.seek(-to_read, 2)
-                last_lines = f.read().decode('utf-8', errors='ignore').lower()
+                tail = f.read().decode('utf-8', errors='ignore')
+                tail_lower = tail.lower()
                 
                 # Check if this action or 'starting' is in recent log
                 # We allow up to 120 seconds for slower API calls or manual logging
-                if '🟡' in last_lines or 'starting' in last_lines:
+                if '🟡' in tail_lower or 'starting' in tail_lower:
                     if age_seconds < 120:
-                        return True
+                        return tail
                     else:
                         self.logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
                 else:
-                    self.logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
+                    self.logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 15000 chars.")
 
         except Exception as e:
             self.logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
-            return False
+            return None
         
         print("🛑 WORK_LOG.md not updated recently. Required format:")
         print('   echo "🟡 Starting [ACTION]" >> WORK_LOG.md')
-        return False
+        return None
 
     def verify_action(self, current_action: str) -> bool:
         """
@@ -354,7 +366,9 @@ class JudgeGuard:
 
         # --- LAYER 0: Work Log Enforcement (NEW) ---
         # ⚡ Bolt: Fast-fail before expensive context loading/LLM calls
-        if not self._check_work_log(current_action):
+        # ⚡ Bolt: Capture tail to reuse as context, avoiding redundant disk I/O
+        work_log_tail = self._check_work_log(current_action)
+        if work_log_tail is None:
             return False
 
         # --- LAYER 0.1: Verdict Caching (⚡ Bolt) ---
@@ -380,7 +394,8 @@ class JudgeGuard:
         if bridge_available:
             bridge.push_verdict("Thinking...", "PENDING", "Analyzing against Phase rules...")
 
-        context = self._load_context()
+        # ⚡ Bolt: Reuse the tail we already read during _check_work_log via helper
+        context = self._load_context(cached_tail=work_log_tail)
         phase = self._detect_phase(context)
         
         # --- LAYER 1: Tool Enforcement ---
