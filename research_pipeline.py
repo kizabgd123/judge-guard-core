@@ -111,6 +111,11 @@ class ResearchPipeline:
         if hasattr(self, "conn") and self.conn:
             self.conn.close()
         
+    def _apply_optimizations(self, conn):
+        """⚡ Bolt: Apply SQLite performance optimizations (WAL mode, NORMAL synchronous)."""
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
         if sync_notion:
@@ -135,6 +140,7 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self._apply_optimizations(self.conn)
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +153,7 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self._apply_optimizations(self.conn)
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -326,7 +333,7 @@ class ResearchPipeline:
                 verdict = excluded.verdict,
                 timestamp = CURRENT_TIMESTAMP
         """, (action, action_hash, verdict))
-        self.conn.commit()
+        # ⚡ Bolt: Removed redundant commit() as log_audit handles it.
         self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}")
 
     def get_cached_verdict(self, action: str) -> Optional[str]:
