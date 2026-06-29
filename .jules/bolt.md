@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Heavy Dependency Deferral in MultimediaManager]
+**Learning:** The `requests` library is a significant contributor to module import latency (~400ms globally, ~150-180ms when imported as a secondary dependency). Deferring it until a network request is actually needed can drastically improve the startup time of utility modules.
+**Action:** Move heavy imports like `requests` into lazy properties or local method scopes. When testing modules with lazy properties, ensure that mocks target the actual call site (e.g., `requests.Session.post` vs global `requests.post`) to maintain test validity after refactoring.
