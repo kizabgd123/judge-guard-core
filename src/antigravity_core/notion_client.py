@@ -46,7 +46,8 @@ class NotionClient:
             response.raise_for_status()
             logger.info("✅ Notion connection successful!")
             return response.json()
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
+            # ⚡ Bolt: Use generic Exception to avoid NameError if 'requests' not yet imported
             logger.error(f"❌ Notion connection failed: {e}")
             raise
     
