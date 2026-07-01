@@ -130,10 +130,17 @@ class ResearchPipeline:
                 self.conn.commit()
         logger.info(f"📝 {action}: {details}")
 
+    def _apply_optimizations(self):
+        """⚡ Bolt: Apply SQLite performance optimizations (WAL mode, NORMAL synchronous)."""
+        if self.conn:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+
     def init_db(self):
         """Initialize SQLite database."""
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        self._apply_optimizations()
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
@@ -146,6 +153,7 @@ class ResearchPipeline:
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        self._apply_optimizations()
         self.conn.row_factory = sqlite3.Row
         return self
 
@@ -327,7 +335,10 @@ class ResearchPipeline:
                 timestamp = CURRENT_TIMESTAMP
         """, (action, action_hash, verdict))
         self.conn.commit()
-        self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}")
+        # ⚡ Bolt: Pass commit=False to log_audit to avoid redundant disk sync.
+        # The preceding self.conn.commit() already persists the verdict and the audit entry
+        # is flushed on next operation or class closure.
+        self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}", commit=False)
 
     def get_cached_verdict(self, action: str) -> Optional[str]:
         """Check if verdict is cached."""
