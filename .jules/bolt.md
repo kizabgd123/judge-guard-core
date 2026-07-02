@@ -29,3 +29,11 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Native Type Hints and Lazy Import Optimization]
+**Learning:** For high-frequency CLI tools, the cumulative overhead of , , , and  can exceed 100ms. Python 3.12+ native type hints (, ) allow for complete removal of the  module from the critical import path. Combined with lazy  getters and local imports, module-level execution can be reduced to near-zero.
+**Action:** Replace  with native syntax. Defer  object instantiation via string constants and lazy getters. Move all I/O and heavy library imports to method scopes or thread-safe lazy properties.
+
+## 2026-04-22 - [Native Type Hints and Lazy Import Optimization]
+**Learning:** For high-frequency CLI tools, the cumulative overhead of `typing`, `pathlib`, `logging`, and `concurrent.futures` can exceed 100ms. Python 3.12+ native type hints (`list[T]`, `T | None`) allow for complete removal of the `typing` module from the critical import path. Combined with lazy `Path` getters and local imports, module-level execution can be reduced to near-zero.
+**Action:** Replace `typing` with native syntax. Defer `Path` object instantiation via string constants and lazy getters. Move all I/O and heavy library imports to method scopes or thread-safe lazy properties.
