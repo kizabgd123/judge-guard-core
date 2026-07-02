@@ -32,9 +32,10 @@ class TestJudgeGuard(unittest.TestCase):
         # Patch dependencies for the JudgeGuard instance
         self.judge = JudgeGuard(work_log_path=self.work_log_path)
 
+    @patch('src.antigravity_core.mobile_bridge.bridge.update_state')
     @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate')
     @patch('src.antigravity_core.gemini_client.GeminiClient')
-    def test_verify_action_pass(self, mock_gemini, mock_evaluate):
+    def test_verify_action_pass(self, mock_gemini, mock_evaluate, mock_bridge):
         # Mock the BlockJudge to return True (PASSED)
         mock_evaluate.return_value = True
         
@@ -42,9 +43,10 @@ class TestJudgeGuard(unittest.TestCase):
         verdict = self.judge.verify_action("Valid Action")
         self.assertTrue(verdict)
 
+    @patch('src.antigravity_core.mobile_bridge.bridge.update_state')
     @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate')
     @patch('src.antigravity_core.gemini_client.GeminiClient')
-    def test_verify_action_block(self, mock_gemini, mock_evaluate):
+    def test_verify_action_block(self, mock_gemini, mock_evaluate, mock_bridge):
         # Mock the BlockJudge to return False (BLOCKED)
         mock_evaluate.return_value = False
         
