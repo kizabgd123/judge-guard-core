@@ -14,9 +14,6 @@ Environment Variables:
 import os
 import sys
 import time
-import threading
-from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
 
 # --- LAYER 3 CONSTANT ---
 PROJECT_ESSENCE = """
@@ -41,8 +38,9 @@ class JudgeGuard:
     Verifies every critical step against the 'Standard of Truth'.
     """
     
-    def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
+    def __init__(self, brain_path: str | None = None, work_log_path: str | None = None):
         # ⚡ Bolt: Use a lock for thread-safe lazy initialization
+        import threading
         self._lock = threading.RLock()
         self._setup_done = False
         self._logger = None
@@ -86,11 +84,12 @@ class JudgeGuard:
         if self._executor is None:
             with self._lock:
                 if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
                     self._executor = ThreadPoolExecutor(max_workers=1)
         return self._executor
 
     @property
-    def brain_path(self) -> Optional[str]:
+    def brain_path(self) -> str | None:
         if self._brain_path is None:
             with self._lock:
                 if self._brain_path is None:
@@ -167,7 +166,7 @@ class JudgeGuard:
         if hasattr(self, "_pipeline") and self._pipeline:
             self._pipeline.close()
 
-    def _discover_brain_path(self) -> Optional[str]:
+    def _discover_brain_path(self) -> str | None:
         """Auto-discover the brain path from ~/.gemini/antigravity/brain/"""
         try:
             import glob

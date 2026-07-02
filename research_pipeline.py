@@ -12,32 +12,43 @@ Usage:
 """
 
 import os
-import sqlite3
-import hashlib
-import json
-import re
-import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-logger = logging.getLogger(__name__)
+# ⚡ Bolt: Lazy logging setup
+_logger = None
+
+def get_logger():
+    global _logger
+    if _logger is None:
+        import logging
+        _logger = logging.getLogger(__name__)
+    return _logger
 
 # === CONFIG ===
+# ⚡ Bolt: Using strings and lazy getters to defer pathlib overhead
 DB_PATH = Path("./research.db")
 RESEARCH_DIR = Path("./research")
 NOTION_LOG = Path("./.cache/notion_queue.json")
 
-# ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
-PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+def get_db_path():
+    return DB_PATH
 
-# Notion API (user must set these)
-NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
-NOTION_DB_ID = os.getenv("NOTION_DATABASE_ID", "")
+def get_research_dir():
+    return RESEARCH_DIR
+
+def get_notion_log_path():
+    return NOTION_LOG
+
+# ⚡ Bolt: Pre-compiled regex holder (lazily initialized)
+PATTERN_RE = None
+
+def get_pattern_re():
+    global PATTERN_RE
+    if PATTERN_RE is None:
+        import re
+        PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+    return PATTERN_RE
 
 
 # === DATABASE SCHEMA ===
@@ -87,12 +98,21 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 class ResearchPipeline:
     def __init__(self):
         # ⚡ Bolt: Load environment variables once during initialization
+        from dotenv import load_dotenv
         load_dotenv()
         self.conn = None
         self.notion_queue = []
         self._session = None
-        # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        # ⚡ Bolt: Lazy-load ThreadPoolExecutor
+        self._executor = None
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor for parallelizing Notion API calls."""
+        if self._executor is None:
+            from concurrent.futures import ThreadPoolExecutor
+            self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
@@ -104,11 +124,11 @@ class ResearchPipeline:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if self._executor:
             self._executor.shutdown(wait=True)
-        if hasattr(self, "_session") and self._session:
+        if self._session:
             self._session.close()
-        if hasattr(self, "conn") and self.conn:
+        if self.conn:
             self.conn.close()
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
@@ -128,33 +148,39 @@ class ResearchPipeline:
             )
             if commit:
                 self.conn.commit()
-        logger.info(f"📝 {action}: {details}")
+        get_logger().info(f"📝 {action}: {details}")
 
     def init_db(self):
         """Initialize SQLite database."""
+        import sqlite3
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
-        self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        self.conn = sqlite3.connect(get_db_path(), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
-        self.log_audit("DB_INIT", f"Created {DB_PATH}")
+        self.log_audit("DB_INIT", f"Created {get_db_path()}")
         return self
     
     def connect(self):
         """Connect to existing database."""
-        if not DB_PATH.exists():
-            raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
+        db_path = get_db_path()
+        if not db_path.exists():
+            raise FileNotFoundError(f"Database not found: {db_path}. Run --init first.")
+        import sqlite3
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
-        self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         return self
 
-    def parse_markdown_files(self) -> List[int]:
+    def parse_markdown_files(self) -> list[int]:
         """Parse all research/*.md files into SQLite. Returns list of affected document IDs."""
+        import hashlib
+        import re
+
         if not self.conn:
             self.connect()
             
-        md_files = list(RESEARCH_DIR.glob("**/*.md"))
+        md_files = list(get_research_dir().glob("**/*.md"))
         affected_ids = []
 
         # ⚡ Bolt: Pre-fetch existing hashes in a single query to avoid O(N) database reads in the loop
@@ -206,7 +232,7 @@ class ResearchPipeline:
         self.log_audit("PARSE_COMPLETE", f"{len(affected_ids)} files processed")
         return affected_ids
 
-    def extract_patterns(self, doc_ids: Optional[List[int]] = None):
+    def extract_patterns(self, doc_ids: list[int] | None = None):
         """
         Extract patterns from documents into patterns table.
         ⚡ Bolt: Supports incremental extraction via doc_ids.
@@ -241,7 +267,7 @@ class ResearchPipeline:
         
         for doc in docs:
             # ⚡ Bolt: Use pre-compiled regex and finditer for single-pass extraction
-            for match in PATTERN_RE.finditer(doc["content"]):
+            for match in get_pattern_re().finditer(doc["content"]):
                 name = match.group(1).strip()
                 if len(name) < 5 or name.startswith("```"):
                     continue
@@ -270,7 +296,7 @@ class ResearchPipeline:
         self.log_audit("PATTERNS_EXTRACTED", f"{patterns_found} patterns found")
         return patterns_found
 
-    def query(self, term: str) -> List[Dict]:
+    def query(self, term: str) -> list[dict]:
         """Search patterns and documents."""
         if not self.conn:
             self.connect()
@@ -314,6 +340,8 @@ class ResearchPipeline:
 
     def cache_verdict(self, action: str, verdict: str):
         """Cache JudgeGuard verdict to avoid repeated API calls."""
+        import hashlib
+
         if not self.conn:
             self.connect()
         
@@ -329,8 +357,10 @@ class ResearchPipeline:
         self.conn.commit()
         self.log_audit("VERDICT_CACHED", f"{action[:50]}... → {verdict}")
 
-    def get_cached_verdict(self, action: str) -> Optional[str]:
+    def get_cached_verdict(self, action: str) -> str | None:
         """Check if verdict is cached."""
+        import hashlib
+
         if not self.conn:
             self.connect()
         
@@ -351,6 +381,8 @@ class ResearchPipeline:
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
         """
+        import json
+
         # ⚡ Bolt: Snapshot and clear queue immediately to prevent leaks and race conditions
         current_queue = self.notion_queue[:]
         self.notion_queue = []
@@ -362,20 +394,21 @@ class ResearchPipeline:
         db_id = os.getenv("NOTION_DATABASE_ID")
         
         if not token or not db_id:
-            logger.warning(f"NOTION_TOKEN={'✓' if token else '✗'} NOTION_DATABASE_ID={'✓' if db_id else '✗'}")
-            logger.info("Saving queue to local cache instead of Notion.")
-            NOTION_LOG.parent.mkdir(parents=True, exist_ok=True)
+            get_logger().warning(f"NOTION_TOKEN={'✓' if token else '✗'} NOTION_DATABASE_ID={'✓' if db_id else '✗'}")
+            get_logger().info("Saving queue to local cache instead of Notion.")
+            notion_log = get_notion_log_path()
+            notion_log.parent.mkdir(parents=True, exist_ok=True)
             
             existing = []
-            if NOTION_LOG.exists():
+            if notion_log.exists():
                 try:
-                    existing = json.loads(NOTION_LOG.read_text())
+                    existing = json.loads(notion_log.read_text())
                 except json.JSONDecodeError:
                     existing = []
             
             existing.extend(current_queue)
-            NOTION_LOG.write_text(json.dumps(existing, indent=2))
-            self.log_audit("NOTION_MOCKED", f"{len(current_queue)} entries saved to {NOTION_LOG}", sync_notion=False)
+            notion_log.write_text(json.dumps(existing, indent=2))
+            self.log_audit("NOTION_MOCKED", f"{len(current_queue)} entries saved to {notion_log}", sync_notion=False)
             return
         
         # If token exists, push to Notion
@@ -402,27 +435,28 @@ class ResearchPipeline:
                     json=data
                 )
                 if resp.status_code != 200:
-                    logger.warning(f"⚠️  Entry failed: {resp.text}")
+                    get_logger().warning(f"⚠️  Entry failed: {resp.text}")
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
-            logger.error(f"❌ Notion sync failed: {e}")
+            get_logger().error(f"❌ Notion sync failed: {e}")
             # Fallback to file
-            NOTION_LOG.parent.mkdir(exist_ok=True)
+            notion_log = get_notion_log_path()
+            notion_log.parent.mkdir(exist_ok=True)
             existing = []
-            if NOTION_LOG.exists():
+            if notion_log.exists():
                 try:
-                    existing = json.loads(NOTION_LOG.read_text())
+                    existing = json.loads(notion_log.read_text())
                 except json.JSONDecodeError:
                     existing = []
             existing.extend(current_queue)
-            NOTION_LOG.write_text(json.dumps(existing, indent=2))
+            notion_log.write_text(json.dumps(existing, indent=2))
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get database statistics."""
         if not self.conn:
             self.connect()
@@ -438,6 +472,10 @@ class ResearchPipeline:
 
 def main():
     import argparse
+    import logging
+
+    # Setup logging
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     
     parser = argparse.ArgumentParser(description="Research Pipeline")
     parser.add_argument("--init", action="store_true", help="Initialize database")
@@ -451,21 +489,21 @@ def main():
     
     if args.init:
         pipeline.init_db()
-        logger.info(f"✅ Database initialized: {DB_PATH}")
+        get_logger().info(f"✅ Database initialized: {get_db_path()}")
     
     elif args.parse:
         pipeline.connect()
         affected_ids = pipeline.parse_markdown_files()
         # ⚡ Bolt: Only extract patterns for modified files to save time
         patterns = pipeline.extract_patterns(doc_ids=affected_ids) if affected_ids else 0
-        logger.info(f"✅ Parsed {len(affected_ids)} documents, extracted {patterns} patterns")
+        get_logger().info(f"✅ Parsed {len(affected_ids)} documents, extracted {patterns} patterns")
         pipeline.sync_to_notion()
     
     elif args.query:
         pipeline.connect()
         results = pipeline.query(args.query)
         for r in results:
-            logger.info(f"  [{r['type'].upper()}] {r['name']} ({r['phase']})")
+            get_logger().info(f"  [{r['type'].upper()}] {r['name']} ({r['phase']})")
         pipeline.sync_to_notion()
     
     elif args.sync_notion:
@@ -475,9 +513,9 @@ def main():
     elif args.stats:
         pipeline.connect()
         stats = pipeline.get_stats()
-        logger.info("📊 Database Stats:")
+        get_logger().info("📊 Database Stats:")
         for k, v in stats.items():
-            logger.info(f"  {k}: {v}")
+            get_logger().info(f"  {k}: {v}")
     
     else:
         parser.print_help()
