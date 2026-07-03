@@ -1,18 +1,19 @@
 import time
 import unittest
 from unittest.mock import MagicMock, patch
+from concurrent.futures import ThreadPoolExecutor
 import os
 import sys
 
 # Ensure src is in path
 sys.path.append(os.getcwd())
 
-from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
+from src.kaggle_stream.app import collaborative_step, _resources
 
 class TestCollaborativePerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
-    @patch('src.kaggle_stream.app.multimedia')
-    def test_collaborative_step_latency(self, mock_multimedia, mock_notion_class):
+    @patch('src.antigravity_core.notion_client.NotionClient')
+    @patch('src.kaggle_stream.app._resources')
+    def test_collaborative_step_latency(self, mock_resources, mock_notion_class):
         # Setup Notion mock to avoid real API calls and simulate latency
         mock_notion_instance = MagicMock()
         mock_notion_class.return_value = mock_notion_instance
@@ -30,14 +31,35 @@ class TestCollaborativePerformance(unittest.TestCase):
             time.sleep(0.2)
             return "image.png"
 
+        mock_multimedia = MagicMock()
         mock_multimedia.generate_audio.side_effect = slow_audio
         mock_multimedia.generate_mood_image.side_effect = slow_image
+
+        mock_executor = ThreadPoolExecutor(max_workers=4)
+
+        from src.kaggle_stream.kaggle_agent import KaggleAgent
+        agent_alpha = KaggleAgent(name="Eagle-Alpha")
+        agent_beta = KaggleAgent(name="Falcon-Beta")
+
+        mock_resources.__getitem__.side_effect = lambda k: {
+            "multimedia": mock_multimedia,
+            "executor": mock_executor,
+            "agent_alpha": agent_alpha,
+            "agent_beta": agent_beta
+        }[k]
+        mock_resources.get.side_effect = lambda k: {
+            "multimedia": mock_multimedia,
+            "executor": mock_executor,
+            "agent_alpha": agent_alpha,
+            "agent_beta": agent_beta
+        }.get(k)
+        mock_resources.__contains__.side_effect = lambda k: k in ["multimedia", "executor", "agent_alpha", "agent_beta"]
 
         # Configure agents for demo mode to avoid Gemini API calls
         agent_alpha.demo_mode = True
         agent_beta.demo_mode = True
-        agent_alpha.notion = mock_notion_instance
-        agent_beta.notion = mock_notion_instance
+        agent_alpha._notion = mock_notion_instance
+        agent_beta._notion = mock_notion_instance
 
         print("\n--- Starting Collaborative Step Benchmark ---")
         start_time = time.time()
