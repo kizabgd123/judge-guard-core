@@ -10,9 +10,13 @@ sys.path.append(os.getcwd())
 from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
 
 class TestCollaborativePerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
-    @patch('src.kaggle_stream.app.multimedia')
-    def test_collaborative_step_latency(self, mock_multimedia, mock_notion_class):
+    @patch('src.antigravity_core.notion_client.NotionClient')
+    def test_collaborative_step_latency(self, mock_notion_class):
+        # ⚡ Bolt: Patching internal resource dictionary to support lazy loading architecture
+        from src.kaggle_stream.app import _resources
+        mock_multimedia = MagicMock()
+        _resources['multimedia'] = mock_multimedia
+
         # Setup Notion mock to avoid real API calls and simulate latency
         mock_notion_instance = MagicMock()
         mock_notion_class.return_value = mock_notion_instance
@@ -36,8 +40,10 @@ class TestCollaborativePerformance(unittest.TestCase):
         # Configure agents for demo mode to avoid Gemini API calls
         agent_alpha.demo_mode = True
         agent_beta.demo_mode = True
-        agent_alpha.notion = mock_notion_instance
-        agent_beta.notion = mock_notion_instance
+
+        # ⚡ Bolt: Directly set internal notion reference since the property is lazy and has no setter
+        agent_alpha._notion = mock_notion_instance
+        agent_beta._notion = mock_notion_instance
 
         print("\n--- Starting Collaborative Step Benchmark ---")
         start_time = time.time()

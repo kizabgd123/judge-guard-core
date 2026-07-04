@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Internal Scope Limitation of __getattr__]
+**Learning:** While module-level `__getattr__` (PEP 562) is a powerful pattern for lazy-loading heavy dependencies (like `gradio` or `requests`), it only intercepts attribute access from *outside* the module. Internal functions within the same module attempting to use the bare global name will trigger a `NameError`.
+**Action:** Always use an explicit internal getter (e.g., `_get_resource("name")`) for all references within the module where the resource is defined. This preserves the lazy architecture while ensuring internal methods can access the resources after they are initialized.
