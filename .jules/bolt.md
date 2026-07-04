@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Lazy Loading Gradio and Heavy Resources]
+**Learning:** In multi-agent dashboards using Gradio, the `import gradio` statement alone can take ~3.5s to ~4s, significantly delaying the availability of utility functions within the same module. Module-level `__getattr__` (Python 3.7+) provides a clean way to lazy-load these heavy dependencies only when the app is actually launched.
+**Action:** Encapsulate Gradio UI definitions in a `launch_app()` function and use `__getattr__` with a `threading.Lock` and `setattr` (or direct `globals()` assignment) to cache initialized resources. This reduces module import latency by >99%, enabling faster integration testing and CLI utility usage.
