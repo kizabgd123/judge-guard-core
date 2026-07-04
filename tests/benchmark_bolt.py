@@ -11,9 +11,13 @@ from src.kaggle_stream.kaggle_agent import KaggleAgent
 from src.kaggle_stream.app import run_agent_turn
 
 class TestPerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
-    @patch('src.kaggle_stream.app.multimedia')
-    def test_run_agent_turn_latency(self, mock_multimedia, mock_notion_class):
+    @patch('src.antigravity_core.notion_client.NotionClient')
+    def test_run_agent_turn_latency(self, mock_notion_class):
+        # ⚡ Bolt: Patching internal resource dictionary to support lazy loading architecture
+        from src.kaggle_stream.app import _resources
+        mock_multimedia = MagicMock()
+        _resources['multimedia'] = mock_multimedia
+
         # Setup Notion mock
         mock_notion_instance = MagicMock()
         mock_notion_class.return_value = mock_notion_instance
@@ -37,7 +41,8 @@ class TestPerformance(unittest.TestCase):
         agent = KaggleAgent(name="TestAgent")
         # In KaggleAgent.__init__, it might fail to init Notion if no key.
         # We manually set it for the test.
-        agent.notion = mock_notion_instance
+        # ⚡ Bolt: Directly set internal notion reference since the property is lazy and has no setter
+        agent._notion = mock_notion_instance
         agent.demo_mode = True # Use demo data to avoid Gemini API calls
 
         print("\n--- Starting Benchmark (Baseline) ---")
