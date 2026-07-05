@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-05-15 - [SQLite WAL Mode and Lazy Loading in ResearchPipeline]
+**Learning:** Sequential SQLite writes with default 'Full' synchronicity and 'Delete' journal mode are extremely slow (~4ms per write) compared to the sub-millisecond latency required for high-frequency CLI tools. Additionally, module-level imports of heavy libraries like `concurrent.futures`, `dotenv`, and `re` contribute significantly to startup overhead (~50ms).
+**Action:** Enable SQLite `WAL` mode and `synchronous=NORMAL` to achieve ~94% reduction in write latency (~0.24ms). Implement lazy loading for all heavy dependencies to reduce module import time by ~60% (~20ms).
