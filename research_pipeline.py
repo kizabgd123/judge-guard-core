@@ -13,6 +13,7 @@ Usage:
 
 import os
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Optional, List, Dict
 from concurrent.futures import ThreadPoolExecutor
@@ -24,8 +25,9 @@ RESEARCH_DIR = Path("./research")
 NOTION_LOG = Path("./.cache/notion_queue.json")
 
 # ⚡ Bolt: Lazy-load logging, re, json, hashlib, datetime, and dotenv to minimize startup overhead.
-# These will be initialized via __getattr__ or within methods.
+# These will be initialized via __getattr__ or within methods using a thread-safe lock.
 
+_lock = threading.RLock()
 _logger = None
 _PATTERN_RE = None
 _dotenv_loaded = False
@@ -33,26 +35,39 @@ _dotenv_loaded = False
 def get_logger():
     global _logger
     if _logger is None:
-        import logging
-        logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-        _logger = logging.getLogger(__name__)
+        with _lock:
+            if _logger is None:
+                import logging
+                logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+                _logger = logging.getLogger(__name__)
     return _logger
 
 def get_pattern_re():
     global _PATTERN_RE
     if _PATTERN_RE is None:
-        import re
-        _PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
+        with _lock:
+            if _PATTERN_RE is None:
+                import re
+                _PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
     return _PATTERN_RE
 
 def _ensure_dotenv():
     global _dotenv_loaded
     if not _dotenv_loaded:
-        from dotenv import load_dotenv
-        load_dotenv()
-        _dotenv_loaded = True
+        with _lock:
+            if not _dotenv_loaded:
+                from dotenv import load_dotenv
+                load_dotenv()
+                _dotenv_loaded = True
 
 def __getattr__(name):
+    # ⚡ Bolt: Restore backward compatibility for public constants
+    if name == "NOTION_TOKEN":
+        _ensure_dotenv()
+        return os.getenv("NOTION_TOKEN", "")
+    if name == "NOTION_DB_ID":
+        _ensure_dotenv()
+        return os.getenv("NOTION_DATABASE_ID", "")
     if name == "logger":
         return get_logger()
     if name == "PATTERN_RE":
@@ -105,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
-        # ⚡ Bolt: Defer dotenv loading
+        self._lock = threading.RLock()
         self._dotenv_ensured = False
         self.conn = None
         self.notion_queue = []
@@ -116,15 +131,19 @@ class ResearchPipeline:
     def _ensure_setup(self):
         """⚡ Bolt: One-time setup for the instance."""
         if not self._dotenv_ensured:
-            _ensure_dotenv()
-            self._dotenv_ensured = True
+            with self._lock:
+                if not self._dotenv_ensured:
+                    _ensure_dotenv()
+                    self._dotenv_ensured = True
 
     @property
     def session(self):
-        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        """⚡ Bolt: Lazy-load requests and initialize session on demand with thread-safety."""
         if self._session is None:
-            import requests
-            self._session = requests.Session()
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
         return self._session
 
     def close(self):
@@ -151,7 +170,8 @@ class ResearchPipeline:
                 "details": details,
                 "timestamp": datetime.now().isoformat()
             }
-            self.notion_queue.append(entry)
+            with self._lock:
+                self.notion_queue.append(entry)
         
         if self.conn:
             self.conn.execute(
@@ -393,8 +413,9 @@ class ResearchPipeline:
         self._ensure_setup()
 
         # ⚡ Bolt: Snapshot and clear queue immediately to prevent leaks and race conditions
-        current_queue = self.notion_queue[:]
-        self.notion_queue = []
+        with self._lock:
+            current_queue = self.notion_queue[:]
+            self.notion_queue = []
 
         if not current_queue:
             return
