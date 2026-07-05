@@ -29,3 +29,11 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [SQLite WAL Mode and Batching]
+**Learning:** Standard SQLite configuration (DELETE journal, FULL sync) is too slow for CLI tools that need to log state or cache results in under 10ms. Enabling WAL mode and NORMAL synchronicity reduces write latency by ~90% (5.19ms -> 0.58ms). Removing redundant commit() calls by relying on subsequent operations further minimizes disk I/O.
+**Action:** Always enable WAL mode and NORMAL synchronous settings for SQLite-backed performance caches. Batch writes by deferring commits until the end of a logical operation or shared audit method.
+
+## 2026-04-22 - [Deferred Imports vs Module Constants]
+**Learning:** While deferring heavy imports (logging, json, re) reduces startup latency, calling load_dotenv() must often remain at the module level if module-level constants (like DB_PATH) depend on environment variables. Deferring load_dotenv() to __init__ can cause constants to resolve to default values prematurely.
+**Action:** Keep load_dotenv() at the module level if constants depend on it. Optimize startup by deferring only the "heavy" library imports and expensive initialization logic (like regex compilation or logging setup) to lazy getters or method scopes.
