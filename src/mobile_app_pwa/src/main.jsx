@@ -4,10 +4,14 @@ import './index.css'
 import App from './App.jsx'
 
 // ⚡ Bolt: Guard document for 'browser-worker' CI compatibility
-if (typeof document !== 'undefined') {
-  createRoot(document.getElementById('root')).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  )
+const doc = typeof document !== 'undefined' ? document : null;
+if (doc) {
+  const rootElement = doc.getElementById('root');
+  if (rootElement) {
+    createRoot(rootElement).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    )
+  }
 }
