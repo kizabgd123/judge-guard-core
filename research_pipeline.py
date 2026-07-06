@@ -13,7 +13,6 @@ Usage:
 
 import os
 import threading
-import sys
 from pathlib import Path
 from typing import Optional, List, Dict
 
