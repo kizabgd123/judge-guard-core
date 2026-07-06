@@ -10,9 +10,9 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     const doc = typeof document !== 'undefined' ? document : null;
-    if (doc && doc.visibilityState !== "visible") return;
+    // ⚡ Bolt: Skip fetching if document is missing (CI/Server) or hidden (Hidden Tab)
+    if (!doc || doc.visibilityState !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
