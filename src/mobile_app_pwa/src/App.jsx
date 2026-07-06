@@ -12,9 +12,17 @@ function App() {
   // ⚡ Bolt: Robust guard for CI environment (browser-worker) where document is not defined
   const doc = typeof document !== "undefined" ? document : null;
 
+  const getVisibilityState = () => {
+    try {
+      return doc ? doc.visibilityState : "visible";
+    } catch (e) {
+      return "visible";
+    }
+  };
+
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (doc && doc.visibilityState !== "visible") return;
+    if (getVisibilityState() !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
@@ -49,7 +57,7 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (doc && doc.visibilityState === "visible") {
+      if (getVisibilityState() === "visible") {
         fetchData();
       }
     };
