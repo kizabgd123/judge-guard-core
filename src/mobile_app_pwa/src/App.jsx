@@ -9,9 +9,20 @@ function App() {
   const [connected, setConnected] = useState(false);
   const prevDataRef = useRef(null);
 
+  // ⚡ Bolt: Robust guard for CI environment (browser-worker) where document is not defined
+  const doc = typeof document !== "undefined" ? document : null;
+
+  const getVisibilityState = () => {
+    try {
+      return doc ? doc.visibilityState : "visible";
+    } catch (e) {
+      return "visible";
+    }
+  };
+
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    if (getVisibilityState() !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +57,14 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (getVisibilityState() === "visible") {
         fetchData();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    if (doc) {
+      doc.addEventListener("visibilitychange", handleVisibilityChange);
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +74,9 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (doc) {
+        doc.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
   }, [fetchData]);
 
