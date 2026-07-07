@@ -4,9 +4,8 @@ import './index.css'
 import App from './App.jsx'
 
 // ⚡ Bolt: Pass CI 'browser-worker' build by guarding document access
-const doc = typeof document !== 'undefined' ? document : null;
-if (doc) {
-  const rootElement = doc.getElementById('root');
+if (typeof document !== 'undefined') {
+  const rootElement = document.getElementById('root');
   if (rootElement) {
     createRoot(rootElement).render(
       <StrictMode>

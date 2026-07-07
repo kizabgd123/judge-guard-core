@@ -10,9 +10,9 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden or in non-browser environment
-    const doc = typeof document !== 'undefined' ? document : null;
-    if (doc && doc.visibilityState !== "visible") return;
+    // ⚡ Bolt: Skip fetching in non-browser environment or when tab is hidden
+    if (typeof document === 'undefined') return;
+    if (document.visibilityState !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
@@ -42,21 +42,20 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
+    // ⚡ Bolt: Return early in non-browser environment
+    if (typeof document === 'undefined') return;
+
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
 
-    const doc = typeof document !== 'undefined' ? document : null;
-
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (doc && doc.visibilityState === "visible") {
+      if (document.visibilityState === "visible") {
         fetchData();
       }
     };
 
-    if (doc) {
-      doc.addEventListener("visibilitychange", handleVisibilityChange);
-    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -66,9 +65,7 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      if (doc) {
-        doc.removeEventListener("visibilitychange", handleVisibilityChange);
-      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchData]);
 
