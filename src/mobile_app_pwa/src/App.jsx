@@ -10,7 +10,8 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
+    // ⚡ Bolt: Skip fetching in non-browser environment or when tab is hidden
+    if (typeof document === 'undefined') return;
     if (document.visibilityState !== "visible") return;
 
     try {
@@ -41,6 +42,9 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
+    // ⚡ Bolt: Return early in non-browser environment
+    if (typeof document === 'undefined') return;
+
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
 
