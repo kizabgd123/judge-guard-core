@@ -29,3 +29,11 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Recursion and Mocking in Module-level Lazy Loading]
+**Learning:** Using `__getattr__` for lazy loading can cause a `RecursionError` if internal getters use `hasattr(sys.modules[__name__], name)` which triggers `__getattr__` again. Furthermore, standard `unittest.mock.patch` on module attributes is bypassed if the internal code only looks at a private cache.
+**Action:** Use `globals()` for fast, non-recursive checks in lazy getters to prioritize patched attributes (respecting mocks). Always use `sys.modules[__name__]` and `setattr` to cache the initialized resource back onto the module to eliminate further `__getattr__` overhead and support standard mocking patterns.
+
+## 2026-04-22 - [CI Safety in Hybrid Environments]
+**Learning:** CI 'browser-worker' environments may execute React entry points without a full DOM. References to global `document` or `window` at the top level (or in early effects) will cause immediate crashes.
+**Action:** Robustly guard all `document` and `window` references with `typeof document !== 'undefined'`. Use a local variable snapshot (e.g., `const doc = typeof document !== 'undefined' ? document : null;`) to handle these checks efficiently and prevent crashes in restricted CI workers.
