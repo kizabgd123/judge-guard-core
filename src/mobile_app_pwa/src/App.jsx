@@ -11,7 +11,8 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    const doc = typeof document !== 'undefined' ? document : null;
+    if (doc && doc.visibilityState !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
@@ -44,14 +45,18 @@ function App() {
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
 
+    const doc = typeof document !== 'undefined' ? document : null;
+
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (doc && doc.visibilityState === "visible") {
         fetchData();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    if (doc) {
+      doc.addEventListener("visibilitychange", handleVisibilityChange);
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +66,9 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (doc) {
+        doc.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
   }, [fetchData]);
 

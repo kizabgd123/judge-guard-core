@@ -7,12 +7,14 @@ import sys
 # Ensure src is in path
 sys.path.append(os.getcwd())
 
-from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
-
 class TestCollaborativePerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
+    @patch('src.antigravity_core.notion_client.NotionClient')
     @patch('src.kaggle_stream.app.multimedia')
     def test_collaborative_step_latency(self, mock_multimedia, mock_notion_class):
+        # We must import inside the test or use patch on the module where it's used
+        # because the module uses lazy loading.
+        from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
+
         # Setup Notion mock to avoid real API calls and simulate latency
         mock_notion_instance = MagicMock()
         mock_notion_class.return_value = mock_notion_instance
@@ -36,8 +38,9 @@ class TestCollaborativePerformance(unittest.TestCase):
         # Configure agents for demo mode to avoid Gemini API calls
         agent_alpha.demo_mode = True
         agent_beta.demo_mode = True
-        agent_alpha.notion = mock_notion_instance
-        agent_beta.notion = mock_notion_instance
+        # Re-inject the mocked notion instance because KaggleAgent might have tried to init its own
+        agent_alpha._notion = mock_notion_instance
+        agent_beta._notion = mock_notion_instance
 
         print("\n--- Starting Collaborative Step Benchmark ---")
         start_time = time.time()
@@ -47,6 +50,18 @@ class TestCollaborativePerformance(unittest.TestCase):
 
         duration = end_time - start_time
         print(f"Total duration for collaborative_step: {duration:.4f}s")
+
+        # Since we parallelized, it should be faster than sequential 0.2*4 + 0.1*2 = 1.0s
+        # Actually Alpha starts, returns futures.
+        # Beta starts, returns results (0.2s for Beta multimedia, but that's in background)
+        # Alpha results are awaited.
+        # In current implementation:
+        # run_agent_turn(alpha) -> reasoning (fast) + submit(audio, image) -> return futures
+        # run_agent_turn(beta) -> reasoning (fast) + submit(audio, image) -> result() (waits 0.2s)
+        # wait for alpha's result (already finished or near finishing)
+        # Total should be around 0.2s + overhead.
+        self.assertGreaterEqual(duration, 0.2) # Should take at least 0.2s now due to mocking working
+        self.assertLess(duration, 0.8)
 
 if __name__ == "__main__":
     unittest.main()
