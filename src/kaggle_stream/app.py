@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import threading
 from typing import Any
@@ -14,7 +15,7 @@ _lazy_resources = {}
 def _get_resource(name: str) -> Any:
     """⚡ Bolt: Thread-safe lazy resource loader."""
     # Check if someone patched the module attribute (e.g. during tests)
-    # We use globals() for fast lookup of module-level variables
+    # Use globals() for fast lookup of module-level variables
     if name in globals() and not name.startswith("_"):
         return globals()[name]
 
@@ -25,12 +26,9 @@ def _get_resource(name: str) -> Any:
         if name in _lazy_resources:
             return _lazy_resources[name]
 
-        if name == "agent_alpha":
+        if name in ["agent_alpha", "agent_beta"]:
             from src.kaggle_stream.kaggle_agent import KaggleAgent
-            res = KaggleAgent(name="Eagle-Alpha")
-        elif name == "agent_beta":
-            from src.kaggle_stream.kaggle_agent import KaggleAgent
-            res = KaggleAgent(name="Falcon-Beta")
+            res = KaggleAgent(name="Eagle-Alpha" if name == "agent_alpha" else "Falcon-Beta")
         elif name == "multimedia":
             from src.kaggle_stream.multimedia import MultimediaManager
             res = MultimediaManager()
@@ -42,7 +40,8 @@ def _get_resource(name: str) -> Any:
 
         _lazy_resources[name] = res
         # Cache it on the module so subsequent lookups are fast and patching works
-        setattr(os.sys.modules[__name__], name, res)
+        # We use setattr on the module object to avoid triggering __getattr__
+        setattr(sys.modules[__name__], name, res)
 
         return res
 
@@ -62,7 +61,6 @@ def run_agent_turn(agent, task, context="", return_futures=False):
     mood = data.get("mood", "thinking")
 
     # ⚡ Bolt: Use explicit getter for internal references to ensure lazy loading
-    # Now it also respects module-level patches.
     m = _get_resource("multimedia")
     e = _get_resource("executor")
 
