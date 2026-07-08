@@ -11,7 +11,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    if (typeof document !== "undefined" && document.visibilityState && document.visibilityState !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
@@ -41,7 +41,12 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined') {
+      // ⚡ Bolt: If document is undefined, we still want to trigger initial fetch
+      // for environments that might mock data but not DOM events.
+      fetchData();
+      return;
+    }
 
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
@@ -53,9 +58,7 @@ function App() {
       }
     };
 
-    if (typeof document !== 'undefined') {
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
