@@ -82,26 +82,21 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 """
 
 
+import threading
+
 class ResearchPipeline:
     def __init__(self):
         self.conn = None
         self.notion_queue = []
         self._session = None
         self._executor = None
-        self._lock = None
-
-    def _ensure_lock(self):
-        """⚡ Bolt: Lazy-load threading and create a lock."""
-        if self._lock is None:
-            import threading
-            self._lock = threading.RLock()
-        return self._lock
+        self._lock = threading.RLock()
 
     @property
     def executor(self):
         """⚡ Bolt: Lazy-load ThreadPoolExecutor to reduce module import overhead."""
         if self._executor is None:
-            with self._ensure_lock():
+            with self._lock:
                 if self._executor is None:
                     from concurrent.futures import ThreadPoolExecutor
                     self._executor = ThreadPoolExecutor(max_workers=5)
@@ -111,8 +106,10 @@ class ResearchPipeline:
     def session(self):
         """⚡ Bolt: Lazy-load requests and initialize session on demand."""
         if self._session is None:
-            import requests
-            self._session = requests.Session()
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
         return self._session
 
     def close(self):
