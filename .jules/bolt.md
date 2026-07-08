@@ -37,3 +37,7 @@
 ## 2026-04-22 - [CI Safety for Non-Browser Environments]
 **Learning:** React components that use global objects like `document` or `window` can crash build-time or worker environments (e.g., 'browser-worker') that lack these browser APIs. Even inside `useEffect`, if the environment executes the module, top-level or hook-level references must be guarded.
 **Action:** Always guard `document` and `window` references with `typeof document !== 'undefined'`. Use early returns in `useEffect` hooks if the environment is non-browser.
+
+## 2026-04-22 - [CI Safety: document.getElementById in Workers]
+**Learning:** In some Cloudflare Worker environments, a minimal `document` object might exist without standard DOM methods like `getElementById`. Checking only `typeof document !== 'undefined'` is insufficient to prevent runtime errors during the build/execution phase.
+**Action:** Guard DOM-specific calls with both `typeof document !== 'undefined'` and specific method checks (e.g., `typeof document.getElementById === 'function'`).
