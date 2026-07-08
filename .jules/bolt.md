@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Module Import Latency and Pipeline Parallelization]
 **Learning:** Large UI frameworks like `gradio` (~3.4s) and network libraries like `requests` (~0.17s) create significant "import tax" on every script that touches them, even if the UI/network logic isn't used. Furthermore, sequential I/O-bound tasks in agent turns (like generating audio and images) create unnecessary blocking.
 **Action:** Use module-level `__getattr__` and lazy resource registries to achieve near-zero import overhead. Parallelize all independent multimedia generation tasks across multiple agents to reduce total turnaround time by ~50%.
+
+## 2026-04-22 - [CI Safety for Non-Browser Environments]
+**Learning:** React components that use global objects like `document` or `window` can crash build-time or worker environments (e.g., 'browser-worker') that lack these browser APIs. Even inside `useEffect`, if the environment executes the module, top-level or hook-level references must be guarded.
+**Action:** Always guard `document` and `window` references with `typeof document !== 'undefined'`. Use early returns in `useEffect` hooks if the environment is non-browser.
