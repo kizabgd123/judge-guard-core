@@ -33,3 +33,7 @@
 ## 2026-07-08 - [SQLite Optimization and Lazy Threading in ResearchPipeline]
 **Learning:** Enabling SQLite WAL mode (`PRAGMA journal_mode=WAL`) and setting `synchronous=NORMAL` dramatically reduces write latency in `ResearchPipeline.cache_verdict` from ~3.7ms to ~0.13ms (~97% improvement). Deferring `ThreadPoolExecutor` and `load_dotenv()` to lazy properties/methods further reduces class instantiation time by ~94% (0.18ms to 0.01ms).
 **Action:** Always enable WAL mode for SQLite databases to improve write performance. Use `threading.RLock` for thread-safe lazy property initialization of expensive resources like thread pools.
+
+## 2026-07-08 - [CI Safety for Mobile PWA Build]
+**Learning:** Cloudflare Workers (browser-worker) environments may execute frontend code (e.g., during build-time minification or pre-rendering) where browser globals like `document` are undefined.
+**Action:** Always guard references to `document`, `window`, `localStorage`, etc., with `typeof [global] !== 'undefined'` in PWA code to ensure CI build stability.
