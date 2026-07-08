@@ -29,3 +29,15 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Module Import Latency and Pipeline Parallelization]
+**Learning:** Large UI frameworks like `gradio` (~3.4s) and network libraries like `requests` (~0.17s) create significant "import tax" on every script that touches them, even if the UI/network logic isn't used. Furthermore, sequential I/O-bound tasks in agent turns (like generating audio and images) create unnecessary blocking.
+**Action:** Use module-level `__getattr__` and lazy resource registries to achieve near-zero import overhead. Parallelize all independent multimedia generation tasks across multiple agents to reduce total turnaround time by ~50%.
+
+## 2026-04-22 - [CI Safety for Non-Browser Environments]
+**Learning:** React components that use global objects like `document` or `window` can crash build-time or worker environments (e.g., 'browser-worker') that lack these browser APIs. Even inside `useEffect`, if the environment executes the module, top-level or hook-level references must be guarded.
+**Action:** Always guard `document` and `window` references with `typeof document !== 'undefined'`. Use early returns in `useEffect` hooks if the environment is non-browser.
+
+## 2026-04-22 - [CI Safety: document.getElementById in Workers]
+**Learning:** In some Cloudflare Worker environments, a minimal `document` object might exist without standard DOM methods like `getElementById`. Checking only `typeof document !== 'undefined'` is insufficient to prevent runtime errors during the build/execution phase.
+**Action:** Guard DOM-specific calls with both `typeof document !== 'undefined'` and specific method checks (e.g., `typeof document.getElementById === 'function'`).
