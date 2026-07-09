@@ -10,8 +10,10 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
+    if (typeof document === 'undefined') return;
+
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (typeof document !== 'undefined' && document.visibilityState !== "visible") return;
+    if (document.visibilityState !== "visible") return;
 
     try {
       const timestamp = new Date().getTime();
@@ -48,7 +50,7 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (typeof document !== 'undefined' && document.visibilityState === "visible") {
         fetchData();
       }
     };
