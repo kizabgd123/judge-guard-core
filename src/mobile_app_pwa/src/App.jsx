@@ -41,14 +41,15 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
-    if (typeof document === "undefined") return;
+    // ⚡ Bolt: Extreme guard for document to satisfy all CI environments (e.g., browser-worker)
+    if (typeof document === "undefined" || !document || typeof document.addEventListener !== 'function') return;
 
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+      if (typeof document !== "undefined" && document && document.visibilityState === "visible") {
         fetchData();
       }
     };
@@ -63,7 +64,9 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (typeof document !== "undefined" && document && typeof document.removeEventListener === 'function') {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
   }, [fetchData]);
 

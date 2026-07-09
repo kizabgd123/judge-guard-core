@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-if (typeof document !== 'undefined') {
+if (typeof document !== 'undefined' && document && typeof document.getElementById === 'function') {
   const rootElement = document.getElementById('root');
   if (rootElement) {
     createRoot(rootElement).render(
