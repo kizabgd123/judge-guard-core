@@ -11,7 +11,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // CI Safety: Guard for browser-worker environments
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined' || !document) return;
 
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     if (document.visibilityState !== "visible") return;
@@ -45,19 +45,19 @@ function App() {
 
   useEffect(() => {
     // CI Safety: Guard for browser-worker environments
-    if (typeof document === 'undefined') return;
+    if (typeof document === 'undefined' || !document) return;
 
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === "visible") {
+      if (typeof document !== 'undefined' && document && document.visibilityState === "visible") {
         fetchData();
       }
     };
 
-    if (typeof document !== 'undefined') {
+    if (typeof document !== 'undefined' && document) {
       document.addEventListener("visibilitychange", handleVisibilityChange);
     }
 
@@ -69,7 +69,7 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      if (typeof document !== 'undefined') {
+      if (typeof document !== 'undefined' && document) {
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };

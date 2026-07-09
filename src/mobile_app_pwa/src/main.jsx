@@ -4,7 +4,7 @@ import './index.css'
 import App from './App.jsx'
 
 // CI Safety: Guard for browser-worker environments
-if (typeof document !== 'undefined') {
+if (typeof document !== 'undefined' && document) {
   const rootElement = document.getElementById('root');
   if (rootElement) {
     createRoot(rootElement).render(
