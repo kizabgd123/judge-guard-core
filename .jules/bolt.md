@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [SQLite Write Performance and Initialization Overhead]
+**Learning:** Default SQLite settings (`journal_mode=DELETE`, `synchronous=FULL`) and eager initialization of resources like `ThreadPoolExecutor` and `load_dotenv` can significantly impact throughput and startup latency. Eagerly creating a `ThreadPoolExecutor` and loading `.env` files adds ~60ms to class instantiation, which is problematic for high-frequency short-lived tasks.
+**Action:** Implement `_apply_optimizations` to enable `journal_mode=WAL` and `synchronous=NORMAL` for SQLite connections. Defer `load_dotenv` to `connect`/`init_db` and use a thread-safe lazy property with `threading.RLock` for the `ThreadPoolExecutor`. This reduced `ResearchPipeline` instantiation time by ~98% (0.06ms -> 0.0008ms) and `cache_verdict` write latency by ~96% (0.35s -> 0.01s for 100 writes).
