@@ -52,12 +52,14 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (typeof document !== 'undefined' && document.visibilityState === "visible") {
         fetchData();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    if (typeof document !== 'undefined') {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -67,7 +69,9 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
   }, [fetchData]);
 
