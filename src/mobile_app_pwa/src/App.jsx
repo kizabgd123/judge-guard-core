@@ -10,6 +10,9 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
+    // CI Safety: Guard for browser-worker environments
+    if (typeof document === 'undefined') return;
+
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     if (document.visibilityState !== "visible") return;
 
@@ -41,6 +44,9 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
+    // CI Safety: Guard for browser-worker environments
+    if (typeof document === 'undefined') return;
+
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
 
