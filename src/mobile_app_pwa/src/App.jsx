@@ -10,6 +10,8 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
+    if (typeof document === 'undefined') return;
+
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     if (document.visibilityState !== "visible") return;
 
@@ -41,12 +43,14 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (typeof document !== 'undefined' && document.visibilityState === "visible") {
         fetchData();
       }
     };
