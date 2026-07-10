@@ -3,10 +3,6 @@ import logging
 import threading
 from typing import Any
 
-# ⚡ Bolt: Defer heavy imports to reduce module import time from ~4.1s to <0.5s
-# import gradio as gr
-# from concurrent.futures import ThreadPoolExecutor
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
