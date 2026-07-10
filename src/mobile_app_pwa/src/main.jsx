@@ -3,8 +3,13 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined' && document !== null;
+const rootElement = isBrowser && typeof document.getElementById === 'function' ? document.getElementById('root') : null;
+
+if (rootElement) {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}
