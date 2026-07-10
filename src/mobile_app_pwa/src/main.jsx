@@ -3,8 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-const isDocAvailable = typeof document !== 'undefined' && document !== null;
-const rootElement = isDocAvailable && typeof document.getElementById === 'function' ? document.getElementById('root') : null;
+const isBrowser = typeof window !== 'undefined' && typeof document !== 'undefined' && document !== null;
+const rootElement = isBrowser && typeof document.getElementById === 'function' ? document.getElementById('root') : null;
 
 if (rootElement) {
   createRoot(rootElement).render(

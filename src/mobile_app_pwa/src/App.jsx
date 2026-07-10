@@ -12,8 +12,12 @@ function App() {
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     // CI Safety: Guard document for browser-worker environments
-    const isDocAvailable = typeof document !== "undefined" && document !== null;
-    if (isDocAvailable && typeof document.visibilityState === "string" && document.visibilityState !== "visible") return;
+    try {
+      const isDocAvailable = typeof document !== "undefined" && document !== null;
+      if (isDocAvailable && typeof document.visibilityState === "string" && document.visibilityState !== "visible") return;
+    } catch (e) {
+      // In some environments document or visibilityState might throw
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -48,16 +52,20 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      const isDocAvailable = typeof document !== "undefined" && document !== null;
-      if (isDocAvailable && document.visibilityState === "visible") {
-        fetchData();
-      }
+      try {
+        const isDocAvailable = typeof document !== "undefined" && document !== null;
+        if (isDocAvailable && document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {}
     };
 
-    const isDocAvailable = typeof document !== "undefined" && document !== null;
-    if (isDocAvailable && typeof document.addEventListener === "function") {
-      document.addEventListener("visibilitychange", handleVisibilityChange);
-    }
+    try {
+      const isDocAvailable = typeof document !== "undefined" && document !== null;
+      if (isDocAvailable && typeof document.addEventListener === "function") {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
+    } catch (e) {}
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -67,10 +75,12 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      const isDocAvailable = typeof document !== "undefined" && document !== null;
-      if (isDocAvailable && typeof document.removeEventListener === "function") {
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
-      }
+      try {
+        const isDocAvailable = typeof document !== "undefined" && document !== null;
+        if (isDocAvailable && typeof document.removeEventListener === "function") {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (e) {}
     };
   }, [fetchData]);
 
