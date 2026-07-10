@@ -247,7 +247,7 @@ describe('App - cleanup on unmount', () => {
   });
 
   it('clears poll interval on unmount', async () => {
-    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
     axios.get.mockResolvedValue({ data: mockConfig });
     let unmount;
     await act(async () => {

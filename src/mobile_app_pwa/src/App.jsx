@@ -11,7 +11,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    const doc = typeof document !== 'undefined' ? document : null;
+    const doc = typeof document !== 'undefined' && document !== null ? document : null;
     if (doc && typeof doc.visibilityState === 'string' && doc.visibilityState !== 'visible') return;
 
     try {
@@ -42,7 +42,7 @@ function App() {
   }, [connected]);
 
   useEffect(() => {
-    const doc = typeof document !== 'undefined' ? document : null;
+    const doc = typeof document !== 'undefined' && document !== null ? document : null;
 
     // Poll every 500ms for "Real-time" feel
     const interval = setInterval(fetchData, 500);
