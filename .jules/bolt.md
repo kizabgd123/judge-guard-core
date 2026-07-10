@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Lazy Loading vs. Test Mocking]
+**Learning:** Moving heavy module-level resources (agents, executors) to a lazy-loading registry using `__getattr__` significantly reduces import latency (~99% in `app.py`). However, internal code using private getters (e.g., `_get_resource`) can bypass standard `unittest.mock.patch` on module attributes.
+**Action:** In lazy-loading registries, ensure the getter checks `globals()` before the internal cache. This allows tests to inject mocks into the module namespace that the lazy-loader will then respect.
