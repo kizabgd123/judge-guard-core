@@ -11,7 +11,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (typeof document !== 'undefined' && document !== null && document.visibilityState === "hidden") return;
+    if (typeof document === 'undefined' || document === null || document.visibilityState === "hidden") return;
 
     try {
       const timestamp = new Date().getTime();
