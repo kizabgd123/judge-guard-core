@@ -389,7 +389,6 @@ class ResearchPipeline:
         if not current_queue:
             return
 
-        import os
         token = os.getenv("NOTION_TOKEN")
         db_id = os.getenv("NOTION_DATABASE_ID")
         
