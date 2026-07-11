@@ -101,7 +101,7 @@ function App() {
 
       {/* Debug/Info Footer */}
       <div className="fixed bottom-4 w-full text-center text-xs opacity-20 font-mono pointer-events-none">
-        ANTIGRAVITY BRIDGE v2.0 • {config?.title || "Disconnect"}
+        ANTIGRAVITY BRIDGE v2.0 • {config?.title || (typeof document === 'undefined' ? "CI/Worker" : "Disconnect")}
       </div>
     </div>
   );
