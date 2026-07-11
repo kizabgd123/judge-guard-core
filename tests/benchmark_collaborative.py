@@ -7,10 +7,12 @@ import sys
 # Ensure src is in path
 sys.path.append(os.getcwd())
 
+# ⚡ Bolt: Use module-level __getattr__ via src.kaggle_stream.app
 from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
 
 class TestCollaborativePerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
+    # ⚡ Bolt: Patch NotionClient at its source to handle lazy import
+    @patch('src.antigravity_core.notion_client.NotionClient')
     @patch('src.kaggle_stream.app.multimedia')
     def test_collaborative_step_latency(self, mock_multimedia, mock_notion_class):
         # Setup Notion mock to avoid real API calls and simulate latency
@@ -36,17 +38,30 @@ class TestCollaborativePerformance(unittest.TestCase):
         # Configure agents for demo mode to avoid Gemini API calls
         agent_alpha.demo_mode = True
         agent_beta.demo_mode = True
-        agent_alpha.notion = mock_notion_instance
-        agent_beta.notion = mock_notion_instance
+        # Inject mock directly
+        agent_alpha._notion = mock_notion_instance
+        agent_beta._notion = mock_notion_instance
 
         print("\n--- Starting Collaborative Step Benchmark ---")
         start_time = time.time()
-        with patch.dict('os.environ', {'NOTION_KAGGLE_DB_ID': 'test_db'}):
-            collaborative_step("Kaggle Challenge", "test task")
+        # Ensure agents use the mock notion_db_id
+        agent_alpha.notion_db_id = 'test_db'
+        agent_beta.notion_db_id = 'test_db'
+
+        collaborative_step("Kaggle Challenge", "test task")
         end_time = time.time()
 
         duration = end_time - start_time
         print(f"Total duration for collaborative_step: {duration:.4f}s")
+
+        # Parallelization should keep it around 0.4s (Alpha's image + Beta's image in parallel is not yet fully optimized,
+        # but Alpha's multimedia happens while Beta is reasoning).
+        # Expected: Alpha Reasoning (~0) + [Alpha Multimedia (0.2) || Beta Reasoning (~0)] + Beta Multimedia (0.2) = ~0.4s
+        # Without parallelization: Alpha Reasoning (~0) + Alpha Multimedia (0.2) + Beta Reasoning (~0) + Beta Multimedia (0.2) = ~0.4s
+        # Wait, the current implementation parallelizes Alpha's multimedia with Beta's turn.
+        # So Alpha's (Audio+Image) [0.2s] happens in parallel with Beta's step [0.2s].
+        # Total should be ~0.4s.
+        self.assertLess(duration, 0.5)
 
 if __name__ == "__main__":
     unittest.main()

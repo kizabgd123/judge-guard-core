@@ -10,8 +10,18 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network.
+    // Extremely defensive guards for CI environments like browser-workers.
+    try {
+      if (typeof document !== 'undefined' && document !== null) {
+        if (typeof document.visibilityState === 'string' && document.visibilityState !== "visible") {
+          return;
+        }
+      }
+    } catch (e) {
+      // If document access throws, we assume we are in a non-browser environment
+      // and continue with the fetch as visibility doesn't apply.
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +56,28 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (typeof document !== 'undefined' && document !== null && document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {
+        // Ignore visibility errors in weird environments
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // Extremely robust guard for environments with throwing proxies or incomplete implementations
+    let hasAddEventListener = false;
+    try {
+      hasAddEventListener = typeof document !== 'undefined' &&
+                            document !== null &&
+                            typeof document.addEventListener === 'function';
+
+      if (hasAddEventListener) {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
+    } catch (e) {
+      console.warn("Could not setup visibilitychange listener", e);
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +87,13 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (hasAddEventListener && typeof document.removeEventListener === 'function') {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (e) {
+        // Ignore cleanup errors
+      }
     };
   }, [fetchData]);
 
