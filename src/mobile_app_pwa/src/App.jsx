@@ -11,7 +11,12 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    // Guard for CI/Browser-Worker environments where 'document' might be missing or throwing
+    try {
+      if (typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string' && document.visibilityState !== "visible") return;
+    } catch (e) {
+      // Fallback: proceed with fetch if visibility check fails or isn't supported
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +51,22 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string' && document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {
+        // Ignore errors in non-browser environments
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    try {
+      if (typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
+    } catch (e) {
+      // Ignore errors in non-browser environments
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +76,13 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (e) {
+        // Ignore errors in non-browser environments
+      }
     };
   }, [fetchData]);
 
