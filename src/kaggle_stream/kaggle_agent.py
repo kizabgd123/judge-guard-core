@@ -2,7 +2,7 @@ import os
 import logging
 import json
 import random
-from concurrent.futures import ThreadPoolExecutor
+import threading
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -19,34 +19,49 @@ class KaggleAgent:
         self.demo_mode = False
         self._gemini = None
         self._notion = None
+        self._lock = threading.RLock()
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
-        # ⚡ Bolt: Executor for offloading synchronous Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=2)
+        # ⚡ Bolt: Lazy executor
+        self._executor = None
 
     @property
     def gemini(self):
         """⚡ Bolt: Lazy property to defer GeminiClient initialization."""
         if self._gemini is None and not self.demo_mode:
-            try:
-                from src.antigravity_core.gemini_client import GeminiClient
-                self._gemini = GeminiClient()
-            except Exception as e:
-                logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
-                self.demo_mode = True
-                self._gemini = None
+            with self._lock:
+                if self._gemini is None and not self.demo_mode:
+                    try:
+                        from src.antigravity_core.gemini_client import GeminiClient
+                        self._gemini = GeminiClient()
+                    except Exception as e:
+                        logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
+                        self.demo_mode = True
+                        self._gemini = None
         return self._gemini
 
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization."""
         if self._notion is None:
-            try:
-                from src.antigravity_core.notion_client import NotionClient
-                self._notion = NotionClient()
-            except Exception:
-                self._notion = None
+            with self._lock:
+                if self._notion is None:
+                    try:
+                        from src.antigravity_core.notion_client import NotionClient
+                        self._notion = NotionClient()
+                    except Exception:
+                        self._notion = None
         return self._notion
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor for offloading Notion API calls."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=2)
+        return self._executor
 
     def __enter__(self):
         return self
@@ -59,7 +74,7 @@ class KaggleAgent:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor:
             self._executor.shutdown(wait=True)
 
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
@@ -116,7 +131,7 @@ class KaggleAgent:
     def _log_to_notion(self, data: Dict[str, Any]):
         if self.notion and self.notion_db_id and self.notion_db_id != "demo":
             # ⚡ Bolt: Offload blocking Notion API call to background thread
-            self._executor.submit(self._execute_notion_append, data)
+            self.executor.submit(self._execute_notion_append, data)
 
     def _execute_notion_append(self, data: Dict[str, Any]):
         try:
