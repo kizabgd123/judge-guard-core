@@ -11,9 +11,15 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network.
-    // Guard for non-browser/worker environments where document might be undefined or not have visibilityState.
-    if (typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string') {
-        if (document.visibilityState !== "visible") return;
+    // Enhanced guards for various non-browser environments.
+    if (typeof document !== 'undefined' && document !== null) {
+      try {
+        if (typeof document.visibilityState === 'string' && document.visibilityState !== "visible") {
+          return;
+        }
+      } catch (e) {
+        // Fall through if visibilityState access throws
+      }
     }
 
     try {
@@ -49,8 +55,12 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (typeof document !== 'undefined' && document !== null && document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (typeof document !== 'undefined' && document !== null && document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {
+        // Ignore visibility errors in weird environments
       }
     };
 
