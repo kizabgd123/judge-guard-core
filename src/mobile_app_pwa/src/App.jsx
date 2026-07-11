@@ -55,8 +55,14 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (typeof document !== 'undefined' && document !== null && document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (typeof document !== 'undefined' && document !== null &&
+            typeof document.visibilityState === 'string' &&
+            document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {
+        // Safe fallback
       }
     };
 
