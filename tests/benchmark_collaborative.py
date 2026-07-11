@@ -10,9 +10,8 @@ sys.path.append(os.getcwd())
 from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
 
 class TestCollaborativePerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
-    @patch('src.kaggle_stream.app.multimedia')
-    def test_collaborative_step_latency(self, mock_multimedia, mock_notion_class):
+    @patch('src.antigravity_core.notion_client.NotionClient')
+    def test_collaborative_step_latency(self, mock_notion_class):
         # Setup Notion mock to avoid real API calls and simulate latency
         mock_notion_instance = MagicMock()
         mock_notion_class.return_value = mock_notion_instance
@@ -23,6 +22,7 @@ class TestCollaborativePerformance(unittest.TestCase):
         mock_notion_instance.append_to_database.side_effect = slow_notion
 
         # Setup Multimedia mock to simulate latency
+        mock_multimedia = MagicMock()
         def slow_audio(*args, **kwargs):
             time.sleep(0.2)
             return "audio.mp3"
@@ -32,6 +32,10 @@ class TestCollaborativePerformance(unittest.TestCase):
 
         mock_multimedia.generate_audio.side_effect = slow_audio
         mock_multimedia.generate_mood_image.side_effect = slow_image
+
+        # Inject mock into lazy resources
+        import src.kaggle_stream.app as app
+        app._lazy_resources['multimedia'] = mock_multimedia
 
         # Configure agents for demo mode to avoid Gemini API calls
         agent_alpha.demo_mode = True
