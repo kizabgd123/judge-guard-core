@@ -10,8 +10,11 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network.
+    // Guard for non-browser/worker environments where document might be undefined or not have visibilityState.
+    if (typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string') {
+        if (document.visibilityState !== "visible") return;
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +49,22 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (typeof document !== 'undefined' && document !== null && document.visibilityState === "visible") {
         fetchData();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // Robust guard for environments with throwing proxies or incomplete implementations
+    const isDocumentAvailable = typeof document !== 'undefined' && document !== null;
+    const hasAddEventListener = isDocumentAvailable && typeof document.addEventListener === 'function';
+
+    if (hasAddEventListener) {
+      try {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      } catch (e) {
+        console.warn("Could not add visibilitychange listener", e);
+      }
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +74,13 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (hasAddEventListener && typeof document.removeEventListener === 'function') {
+        try {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
     };
   }, [fetchData]);
 
