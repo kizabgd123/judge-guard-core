@@ -52,13 +52,21 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (typeof document !== 'undefined' && document !== null && document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string' && document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {
+        // Fallback
       }
     };
 
-    if (typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
-      document.addEventListener("visibilitychange", handleVisibilityChange);
+    try {
+      if (typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
+    } catch (e) {
+      // Non-browser environment
     }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
@@ -69,8 +77,12 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      if (typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (e) {
+        // Non-browser environment
       }
     };
   }, [fetchData]);
