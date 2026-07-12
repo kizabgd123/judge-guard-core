@@ -16,6 +16,7 @@ function App() {
       if (
         typeof document !== 'undefined' &&
         document !== null &&
+        'visibilityState' in document &&
         typeof document.visibilityState === 'string' &&
         document.visibilityState !== "visible"
       ) {
@@ -62,7 +63,7 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (docExists && document.visibilityState === "visible") {
+        if (docExists && 'visibilityState' in document && document.visibilityState === "visible") {
           fetchData();
         }
       } catch (e) {
