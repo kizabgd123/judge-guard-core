@@ -1,25 +1,65 @@
-import gradio as gr
 import os
 import logging
-from concurrent.futures import ThreadPoolExecutor
-from src.kaggle_stream.kaggle_agent import KaggleAgent
-from src.kaggle_stream.multimedia import MultimediaManager
-from src.kaggle_stream.log_streamer import LogStreamer
+import threading
+from typing import Any
 
+# ⚡ Bolt: Defer heavy imports (gradio, KaggleAgent, MultimediaManager) to reduce startup latency.
+# Module-level logging configuration is kept for visibility.
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Agents and tools
-agent_alpha = KaggleAgent(name="Eagle-Alpha")
-agent_beta = KaggleAgent(name="Falcon-Beta")
-multimedia = MultimediaManager()
-executor = ThreadPoolExecutor(max_workers=4)
+# ⚡ Bolt: Thread-safe lazy resource management
+_resource_lock = threading.Lock()
+_lazy_resources = {}
+
+def _get_resource(name: str) -> Any:
+    """
+    ⚡ Bolt: Internal helper to initialize and cache resources on demand.
+    Checks globals() first to support unit test patching.
+    """
+    # Check if already patched or initialized in globals (for tests)
+    if name in globals() and globals()[name] is not None:
+        return globals()[name]
+
+    with _resource_lock:
+        if name in _lazy_resources:
+            return _lazy_resources[name]
+
+        resource = None
+        if name == "agent_alpha":
+            from src.kaggle_stream.kaggle_agent import KaggleAgent
+            resource = KaggleAgent(name="Eagle-Alpha")
+        elif name == "agent_beta":
+            from src.kaggle_stream.kaggle_agent import KaggleAgent
+            resource = KaggleAgent(name="Falcon-Beta")
+        elif name == "multimedia":
+            from src.kaggle_stream.multimedia import MultimediaManager
+            resource = MultimediaManager()
+        elif name == "executor":
+            from concurrent.futures import ThreadPoolExecutor
+            resource = ThreadPoolExecutor(max_workers=4)
+
+        if resource is not None:
+            _lazy_resources[name] = resource
+            return resource
+
+    raise AttributeError(f"Resource '{name}' not found")
+
+def __getattr__(name: str) -> Any:
+    """⚡ Bolt: Support external access to lazy resources (e.g. for tests)."""
+    if name in ["agent_alpha", "agent_beta", "multimedia", "executor"]:
+        return _get_resource(name)
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 def run_agent_turn(agent, task, context="", return_futures=False):
     """
     Generic single turn for an agent.
     ⚡ Bolt: Supports returning futures for pipeline parallelization.
     """
+    # ⚡ Bolt: Use internal helper for multimedia and executor as __getattr__ won't trigger internally
+    multimedia = _get_resource("multimedia")
+    executor = _get_resource("executor")
+
     data = agent.step(task, context)
     message = data.get("message", "Working...")
     mood = data.get("mood", "thinking")
@@ -42,8 +82,13 @@ def collaborative_step(mode, task):
     ⚡ Bolt: Implementing turn-level pipeline parallelization.
     Alpha's multimedia generation now happens in parallel with Beta's thinking process.
     """
+    # ⚡ Bolt: Use internal helper for agents
+    agent_alpha = _get_resource("agent_alpha")
+    agent_beta = _get_resource("agent_beta")
+
     current_task = task
     if mode == "Project Log Stream":
+        from src.kaggle_stream.log_streamer import LogStreamer
         log_chunk = LogStreamer.get_context()
         current_task = f"As project auditors, discuss these recent logs and evaluate our progress: \n\n{log_chunk}"
 
@@ -59,35 +104,43 @@ def collaborative_step(mode, task):
 
     return [msg_a, img_a, aud_a, msg_b, img_b, aud_b]
 
-# Gradio Interface
-with gr.Blocks(title="🦅 Antigravity AI Live Stream") as demo:
-    gr.Markdown("# 🦅 Antigravity AI Live Stream")
-    gr.Markdown("Watch AI Agents collaborate on Kaggle challenges or audit the **Antigravity Project Logs**.")
+def launch_app():
+    """
+    ⚡ Bolt: Encapsulate Gradio UI to defer 'gradio' and 'httpx' imports.
+    This drastically reduces module import time for CLI or test runners.
+    """
+    import gradio as gr
 
-    mode_selector = gr.Radio(["Kaggle Challenge", "Project Log Stream"], label="Stream Mode", value="Kaggle Challenge")
+    with gr.Blocks(title="🦅 Antigravity AI Live Stream") as demo:
+        gr.Markdown("# 🦅 Antigravity AI Live Stream")
+        gr.Markdown("Watch AI Agents collaborate on Kaggle challenges or audit the **Antigravity Project Logs**.")
 
-    with gr.Row():
-        with gr.Column():
-            gr.Markdown("### 🔵 Eagle-Alpha")
-            alpha_img = gr.Image(label="Mood")
-            alpha_status = gr.Textbox(label="Message")
-            alpha_audio = gr.Audio(label="Voice", autoplay=True)
+        mode_selector = gr.Radio(["Kaggle Challenge", "Project Log Stream"], label="Stream Mode", value="Kaggle Challenge")
 
-        with gr.Column():
-            gr.Markdown("### 🔴 Falcon-Beta")
-            beta_img = gr.Image(label="Mood")
-            beta_status = gr.Textbox(label="Message")
-            beta_audio = gr.Audio(label="Voice", autoplay=False)
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("### 🔵 Eagle-Alpha")
+                alpha_img = gr.Image(label="Mood")
+                alpha_status = gr.Textbox(label="Message")
+                alpha_audio = gr.Audio(label="Voice", autoplay=True)
 
-    with gr.Row():
-        input_task = gr.Textbox(label="Challenge/Context", value="House Prices - Advanced Regression Techniques")
-        start_btn = gr.Button("🚀 Next Collaborative Step", variant="primary")
+            with gr.Column():
+                gr.Markdown("### 🔴 Falcon-Beta")
+                beta_img = gr.Image(label="Mood")
+                beta_status = gr.Textbox(label="Message")
+                beta_audio = gr.Audio(label="Voice", autoplay=False)
 
-    start_btn.click(
-        fn=collaborative_step,
-        inputs=[mode_selector, input_task],
-        outputs=[alpha_status, alpha_img, alpha_audio, beta_status, beta_img, beta_audio]
-    )
+        with gr.Row():
+            input_task = gr.Textbox(label="Challenge/Context", value="House Prices - Advanced Regression Techniques")
+            start_btn = gr.Button("🚀 Next Collaborative Step", variant="primary")
+
+        start_btn.click(
+            fn=collaborative_step,
+            inputs=[mode_selector, input_task],
+            outputs=[alpha_status, alpha_img, alpha_audio, beta_status, beta_img, beta_audio]
+        )
+
+    demo.launch()
 
 if __name__ == "__main__":
-    demo.launch()
+    launch_app()
