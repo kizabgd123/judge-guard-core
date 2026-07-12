@@ -12,13 +12,17 @@ function App() {
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     // CI Safety: Robust guards for browser worker environments
-    if (
-      typeof document !== 'undefined' &&
-      document !== null &&
-      typeof document.visibilityState === 'string' &&
-      document.visibilityState !== "visible"
-    ) {
-      return;
+    try {
+      if (
+        typeof document !== 'undefined' &&
+        document !== null &&
+        typeof document.visibilityState === 'string' &&
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
+    } catch (e) {
+      // If document access throws (some workers), proceed with fetch as safe fallback
     }
 
     try {
@@ -57,8 +61,12 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (docExists && document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (docExists && document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {
+        // Ignore
       }
     };
 
