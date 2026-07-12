@@ -10,8 +10,17 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
+    // ⚡ Bolt: CI Safety - Guard document access for browser-worker environments
+    if (typeof document === 'undefined' || document === null) return;
+
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    try {
+      if (typeof document.visibilityState === 'string' && document.visibilityState !== "visible") {
+        return;
+      }
+    } catch (e) {
+      // In some worker environments, visibilityState might throw
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +55,16 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchData();
-      }
+      try {
+        if (typeof document !== 'undefined' && document !== null && document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {}
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    if (typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +74,9 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
   }, [fetchData]);
 
