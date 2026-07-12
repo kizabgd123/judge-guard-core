@@ -10,16 +10,17 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: CI Safety - Guard document access for browser-worker environments
-    if (typeof document === 'undefined' || document === null) return;
+    // ⚡ Bolt: CI Safety - Robust guards for browser-worker environments
+    const hasDocument = typeof document !== 'undefined' && document !== null;
+    if (!hasDocument) return;
 
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     try {
-      if (typeof document.visibilityState === 'string' && document.visibilityState !== "visible") {
+      if ('visibilityState' in document && document.visibilityState !== "visible") {
         return;
       }
     } catch (e) {
-      // In some worker environments, visibilityState might throw
+      // In some restricted environments (like CI workers), visibilityState may throw
     }
 
     try {
