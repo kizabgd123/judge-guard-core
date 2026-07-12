@@ -9,15 +9,23 @@ function App() {
   const [connected, setConnected] = useState(false);
   const prevDataRef = useRef(null);
 
-  const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
+  /**
+   * ⚡ Bolt: Helper to check if the document is visible safely across environments.
+   */
+  const isVisible = useCallback(() => {
     try {
-      if (typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string' && document.visibilityState !== "visible") {
-        return;
+      if (typeof window !== 'undefined' && typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string') {
+        return document.visibilityState === "visible";
       }
     } catch (e) {
-      // Fallback if visibilityState is not accessible
+      // Fallback
     }
+    return true; // Default to visible
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
+    if (!isVisible()) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -44,7 +52,7 @@ function App() {
         prevDataRef.current = null;
       }
     }
-  }, [connected]);
+  }, [connected, isVisible]);
 
   useEffect(() => {
     // Poll every 500ms for "Real-time" feel
@@ -52,17 +60,13 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      try {
-        if (typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string' && document.visibilityState === "visible") {
-          fetchData();
-        }
-      } catch (e) {
-        // Fallback
+      if (isVisible()) {
+        fetchData();
       }
     };
 
     try {
-      if (typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
+      if (typeof window !== 'undefined' && typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
         document.addEventListener("visibilitychange", handleVisibilityChange);
       }
     } catch (e) {
@@ -73,19 +77,23 @@ function App() {
     const initialFetch = async () => {
       await fetchData();
     };
-    initialFetch();
+
+    // ⚡ Bolt: Only trigger initial fetch in browser-like environment
+    if (typeof window !== 'undefined') {
+      initialFetch();
+    }
 
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
+        if (typeof window !== 'undefined' && typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
           document.removeEventListener("visibilitychange", handleVisibilityChange);
         }
       } catch (e) {
         // Non-browser environment
       }
     };
-  }, [fetchData]);
+  }, [fetchData, isVisible]);
 
   return (
     <div className="h-screen w-screen bg-black text-white overflow-hidden font-sans select-none">
