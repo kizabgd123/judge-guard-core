@@ -9,9 +9,23 @@ function App() {
   const [connected, setConnected] = useState(false);
   const prevDataRef = useRef(null);
 
+  /**
+   * ⚡ Bolt: Helper to check if the document is visible safely across environments.
+   */
+  const isVisible = useCallback(() => {
+    try {
+      if (typeof window !== 'undefined' && typeof document !== 'undefined' && document !== null && typeof document.visibilityState === 'string') {
+        return document.visibilityState === "visible";
+      }
+    } catch (e) {
+      // Fallback
+    }
+    return true; // Default to visible
+  }, []);
+
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    if (!isVisible()) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -38,7 +52,7 @@ function App() {
         prevDataRef.current = null;
       }
     }
-  }, [connected]);
+  }, [connected, isVisible]);
 
   useEffect(() => {
     // Poll every 500ms for "Real-time" feel
@@ -46,24 +60,40 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (isVisible()) {
         fetchData();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    try {
+      if (typeof window !== 'undefined' && typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
+    } catch (e) {
+      // Non-browser environment
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
       await fetchData();
     };
-    initialFetch();
+
+    // ⚡ Bolt: Only trigger initial fetch in browser-like environment
+    if (typeof window !== 'undefined') {
+      initialFetch();
+    }
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (typeof window !== 'undefined' && typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (e) {
+        // Non-browser environment
+      }
     };
-  }, [fetchData]);
+  }, [fetchData, isVisible]);
 
   return (
     <div className="h-screen w-screen bg-black text-white overflow-hidden font-sans select-none">
