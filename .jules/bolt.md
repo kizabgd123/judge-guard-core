@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Module-Level Lazy Loading for Heavy UI Frameworks]
+**Learning:** Importing heavy frameworks like `gradio` (~3.5s overhead) or `requests` (~0.17s overhead) at the module level significantly penalizes application startup and unit test discovery, even when the UI/network functionality isn't being used.
+**Action:** Use Python 3.7+ module-level `__getattr__` combined with a thread-safe registry to lazy-load global resources and heavy dependencies. Encapsulate UI definitions (e.g., Gradio Blocks) in a `launch_app()` function. This reduced `src.kaggle_stream.app` import latency from ~4.5s to ~0.04s (~99% reduction).
