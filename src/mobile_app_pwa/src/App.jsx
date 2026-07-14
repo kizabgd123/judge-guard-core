@@ -13,10 +13,12 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     // CI Safety: Robust guard for browser-worker environments
     try {
-      if (typeof document !== "undefined" && document !== null) {
-        // Some proxies throw on 'property in object' check
-        const hasVisibilityState = "visibilityState" in document;
-        if (hasVisibilityState && document.visibilityState !== "visible") return;
+      if (typeof document !== "undefined") {
+        try {
+          if (document !== null && "visibilityState" in document) {
+            if (document.visibilityState !== "visible") return;
+          }
+        } catch (inner) {}
       }
     } catch (e) {
       // If document access throws, assume not visible or restricted environment
@@ -56,8 +58,12 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== "undefined" && document !== null && document.visibilityState === "visible") {
-          fetchData();
+        if (typeof document !== "undefined") {
+          try {
+            if (document !== null && document.visibilityState === "visible") {
+              fetchData();
+            }
+          } catch (inner) {}
         }
       } catch (e) {}
     };
@@ -65,8 +71,16 @@ function App() {
     // CI Safety: Guard event listener attachment
     let hasDocument = false;
     try {
-      hasDocument = typeof document !== "undefined" && document !== null;
-    } catch (e) {}
+      if (typeof document !== "undefined") {
+        try {
+          hasDocument = document !== null;
+        } catch (inner) {
+          hasDocument = false;
+        }
+      }
+    } catch (e) {
+      hasDocument = false;
+    }
 
     if (hasDocument) {
       try {
