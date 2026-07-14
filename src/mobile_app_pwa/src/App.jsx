@@ -10,8 +10,19 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network.
+    // 🛡️ CI Safety: Robust guards for browser-worker environments.
+    let isVisible = true;
+    try {
+      if (typeof document !== 'undefined' && 'visibilityState' in document) {
+        isVisible = document.visibilityState === 'visible';
+      }
+    } catch (e) {
+      // In some environments, accessing visibilityState might throw
+      isVisible = true;
+    }
+
+    if (!isVisible) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +57,19 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchData();
-      }
+      try {
+        if (typeof document !== 'undefined' && document.visibilityState === "visible") {
+          fetchData();
+        }
+      } catch (e) {}
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // 🛡️ CI Safety: Guard event listener attachment
+    try {
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
+    } catch (e) {}
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +79,11 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (e) {}
     };
   }, [fetchData]);
 
