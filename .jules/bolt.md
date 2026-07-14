@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Startup Latency from Global Imports and Eager Resource Initialization]
+**Learning:** Top-level imports of heavy libraries like `gradio` (~3.3s) and `google-generativeai` (~0.6s), combined with eager instantiation of complex resources (agents, thread pools), can create massive startup latency (~4.5s) even when the module is only being imported for testing or as a utility.
+**Action:** Use module-level `__getattr__` and a thread-safe lazy resource registry to defer heavy imports and resource creation until first access. This reduced `src.kaggle_stream.app` import time by ~99% (4.48s -> 0.03s) and significantly improved test suite responsiveness.
