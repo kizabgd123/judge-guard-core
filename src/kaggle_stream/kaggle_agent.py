@@ -48,6 +48,11 @@ class KaggleAgent:
                 self._notion = None
         return self._notion
 
+    @notion.setter
+    def notion(self, value):
+        """⚡ Bolt: Setter for dependency injection during testing/benchmarking."""
+        self._notion = value
+
     def __enter__(self):
         return self
 
