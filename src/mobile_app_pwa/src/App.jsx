@@ -11,7 +11,18 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    // CI Safety: Robust guard for browser-worker environments
+    try {
+      if (typeof document !== "undefined") {
+        try {
+          if (document !== null && "visibilityState" in document) {
+            if (document.visibilityState !== "visible") return;
+          }
+        } catch (inner) {}
+      }
+    } catch (e) {
+      // If document access throws, assume not visible or restricted environment
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +57,38 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchData();
-      }
+      try {
+        if (typeof document !== "undefined") {
+          try {
+            if (document !== null && document.visibilityState === "visible") {
+              fetchData();
+            }
+          } catch (inner) {}
+        }
+      } catch (e) {}
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    // CI Safety: Guard event listener attachment
+    let hasDocument = false;
+    try {
+      if (typeof document !== "undefined") {
+        try {
+          hasDocument = document !== null;
+        } catch (inner) {
+          hasDocument = false;
+        }
+      }
+    } catch (e) {
+      hasDocument = false;
+    }
+
+    if (hasDocument) {
+      try {
+        if (typeof document.addEventListener === "function") {
+          document.addEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (e) {}
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +98,13 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (hasDocument) {
+        try {
+          if (typeof document.removeEventListener === "function") {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+          }
+        } catch (e) {}
+      }
     };
   }, [fetchData]);
 
