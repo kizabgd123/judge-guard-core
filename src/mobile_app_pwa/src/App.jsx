@@ -13,12 +13,13 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     // CI Safety: Robust guard for browser-worker environments
     try {
-      if (typeof document !== "undefined" && document !== null && "visibilityState" in document) {
-        if (document.visibilityState !== "visible") return;
+      if (typeof document !== "undefined" && document !== null) {
+        // Some proxies throw on 'property in object' check
+        const hasVisibilityState = "visibilityState" in document;
+        if (hasVisibilityState && document.visibilityState !== "visible") return;
       }
     } catch (e) {
       // If document access throws, assume not visible or restricted environment
-      return;
     }
 
     try {
@@ -62,10 +63,16 @@ function App() {
     };
 
     // CI Safety: Guard event listener attachment
-    const hasDocument = typeof document !== "undefined" && document !== null;
-    if (hasDocument && typeof document.addEventListener === "function") {
+    let hasDocument = false;
+    try {
+      hasDocument = typeof document !== "undefined" && document !== null;
+    } catch (e) {}
+
+    if (hasDocument) {
       try {
-        document.addEventListener("visibilitychange", handleVisibilityChange);
+        if (typeof document.addEventListener === "function") {
+          document.addEventListener("visibilitychange", handleVisibilityChange);
+        }
       } catch (e) {}
     }
 
@@ -77,9 +84,11 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      if (hasDocument && typeof document.removeEventListener === "function") {
+      if (hasDocument) {
         try {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
+          if (typeof document.removeEventListener === "function") {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+          }
         } catch (e) {}
       }
     };

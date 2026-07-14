@@ -4,9 +4,12 @@ import './index.css'
 import App from './App.jsx'
 
 // CI Safety: Robust guard for browser-worker environments
-const rootElement = typeof document !== 'undefined' && document !== null && typeof document.getElementById === 'function'
-  ? document.getElementById('root')
-  : null;
+let rootElement = null;
+try {
+  if (typeof document !== 'undefined' && document !== null && typeof document.getElementById === 'function') {
+    rootElement = document.getElementById('root');
+  }
+} catch (e) {}
 
 if (rootElement) {
   createRoot(rootElement).render(
