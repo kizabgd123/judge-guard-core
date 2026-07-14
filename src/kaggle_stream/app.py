@@ -107,6 +107,7 @@ def collaborative_step(mode, task):
 
 def create_demo():
     """⚡ Bolt: Builds the Gradio interface only when needed."""
+    gr = _get_resource("gr")
     with gr.Blocks(title="🦅 Antigravity AI Live Stream") as demo:
         gr.Markdown("# 🦅 Antigravity AI Live Stream")
         gr.Markdown("Watch AI Agents collaborate on Kaggle challenges or audit the **Antigravity Project Logs**.")
