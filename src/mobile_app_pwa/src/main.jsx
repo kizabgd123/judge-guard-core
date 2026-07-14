@@ -5,9 +5,14 @@ import App from './App.jsx'
 
 // 🛡️ CI Safety: Ensure document and getElementById exist before attempting to render.
 // This prevents crashes in browser-worker environments (e.g. Cloudflare Workers).
-const rootElement = typeof document !== 'undefined' && document !== null && typeof document.getElementById === 'function'
-  ? document.getElementById('root')
-  : null;
+let rootElement = null;
+try {
+  if (typeof document !== 'undefined' && document !== null && typeof document.getElementById === 'function') {
+    rootElement = document.getElementById('root');
+  }
+} catch (e) {
+  rootElement = null;
+}
 
 if (rootElement) {
   createRoot(rootElement).render(

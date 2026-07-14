@@ -14,11 +14,11 @@ function App() {
     // 🛡️ CI Safety: Robust guards for browser-worker environments.
     let isVisible = true;
     try {
-      if (typeof document !== 'undefined' && 'visibilityState' in document) {
+      if (typeof document !== 'undefined' && document !== null && 'visibilityState' in document) {
         isVisible = document.visibilityState === 'visible';
       }
     } catch (e) {
-      // In some environments, accessing visibilityState might throw
+      // In some environments (e.g. Cloudflare Workers), accessing visibilityState might throw.
       isVisible = true;
     }
 
@@ -58,7 +58,7 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== 'undefined' && document.visibilityState === "visible") {
+        if (typeof document !== 'undefined' && document !== null && 'visibilityState' in document && document.visibilityState === "visible") {
           fetchData();
         }
       } catch (e) {}
@@ -66,7 +66,7 @@ function App() {
 
     // 🛡️ CI Safety: Guard event listener attachment
     try {
-      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      if (typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
         document.addEventListener("visibilitychange", handleVisibilityChange);
       }
     } catch (e) {}
@@ -80,7 +80,7 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+        if (typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
           document.removeEventListener("visibilitychange", handleVisibilityChange);
         }
       } catch (e) {}
