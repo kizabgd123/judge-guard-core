@@ -11,14 +11,17 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network.
-    // 🛡️ CI Safety: Robust guards for browser-worker environments.
+    // 🛡️ CI Safety: Robust guards for browser-worker environments (e.g. Cloudflare Workers).
     let isVisible = true;
     try {
-      if (typeof document !== 'undefined' && document !== null && 'visibilityState' in document) {
-        isVisible = document.visibilityState === 'visible';
+      if (typeof document !== 'undefined' && document !== null) {
+        // Accessing property on a proxy might throw even if it exists.
+        if ('visibilityState' in document) {
+          isVisible = document.visibilityState === 'visible';
+        }
       }
     } catch (e) {
-      // In some environments (e.g. Cloudflare Workers), accessing visibilityState might throw.
+      // If document is a throwing proxy or restricted, assume visible to be safe.
       isVisible = true;
     }
 
@@ -58,8 +61,10 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== 'undefined' && document !== null && 'visibilityState' in document && document.visibilityState === "visible") {
-          fetchData();
+        if (typeof document !== 'undefined' && document !== null && 'visibilityState' in document) {
+          if (document.visibilityState === "visible") {
+            fetchData();
+          }
         }
       } catch (e) {}
     };

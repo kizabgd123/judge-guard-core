@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 
 # ⚡ Bolt: Registry for lazy-loaded resources
 _lazy_resources = {}
-_resource_lock = threading.Lock()
+# ⚡ Bolt: Use RLock to prevent deadlocks during nested resource initialization
+# (e.g., when launch_demo calls _get_resource("gr")).
+_resource_lock = threading.RLock()
 
 def _get_resource(name):
     """
