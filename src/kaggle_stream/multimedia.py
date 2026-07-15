@@ -1,6 +1,6 @@
 import os
-import requests
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -10,15 +10,31 @@ class MultimediaManager:
     Handles Text-to-Audio (TTS) and Image Generation via Hugging Face Inference API.
     Includes a MOCK MODE for demonstrations without API keys.
     """
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy-load requests and initialize session on demand (thread-safe)."""
+        if self._session is None:
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
+                    self._session.headers.update(self.headers)
+        return self._session
+
+    def close(self):
+        """⚡ Bolt: Cleanly shut down the requests session."""
+        if self._session:
+            self._session.close()
+
     def __init__(self, hf_token: Optional[str] = None):
         self.hf_token = hf_token or os.getenv("HF_TOKEN")
         self.headers = {"Authorization": f"Bearer {self.hf_token}"} if self.hf_token else {}
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Lazy property initialization for session
+        self._session = None
+        self._lock = threading.RLock()
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
