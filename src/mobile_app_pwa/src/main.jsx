@@ -5,9 +5,11 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
-  if (typeof document !== 'undefined') {
-    rootElement = document.getElementById('root');
-  }
+  try {
+    if (typeof document !== 'undefined') {
+      rootElement = document.getElementById('root');
+    }
+  } catch (inner) {}
 } catch (e) {
   // Ignore errors in restricted environments
 }

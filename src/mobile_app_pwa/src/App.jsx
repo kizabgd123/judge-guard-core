@@ -13,9 +13,11 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     // Hardened for restricted CI worker environments
     try {
-      if (typeof document !== 'undefined' && 'visibilityState' in document) {
-        if (document.visibilityState !== "visible") return;
-      }
+      try {
+        if (typeof document !== 'undefined' && 'visibilityState' in document) {
+          if (document.visibilityState !== "visible") return;
+        }
+      } catch (inner) {}
     } catch (e) {
       // Ignore errors in environments with restrictive proxies
     }
@@ -78,7 +80,13 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        try {
+          if (typeof document !== 'undefined' && 'removeEventListener' in document) {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+          }
+        } catch (inner) {}
+      } catch (e) {}
     };
   }, [fetchData]);
 
