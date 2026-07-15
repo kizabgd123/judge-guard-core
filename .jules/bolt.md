@@ -33,3 +33,7 @@
 ## 2026-04-22 - [SQLite WAL Mode and Lazy Initialization in ResearchPipeline]
 **Learning:** Enabling SQLite WAL mode and 'synchronous=NORMAL' reduces write latency for 'cache_verdict' by ~12x (~4ms to ~0.3ms). Additionally, deferring 'load_dotenv' and 'ThreadPoolExecutor' initialization to lazy properties reduces class instantiation time by ~80x (0.064s to 0.0008s for 1000 instances), which is critical for high-frequency CLI tools like 'JudgeGuard'.
 **Action:** Use SQLite WAL mode for better write performance and concurrency. Implement lazy initialization for all heavy resources (executors, environment loading, sessions) to minimize module import and class instantiation overhead.
+
+## 2026-04-22 - [Extreme Hardening for Restrictive Proxied Environments]
+**Learning:** Standard checks like 'typeof document !== "undefined"' are insufficient in some CI environments (e.g., Cloudflare Workers) where global objects like 'document' are proxied. Accessing properties on these proxies can throw exceptions even if they 'exist' according to 'typeof'. Using the 'in' operator inside deeply nested try...catch blocks is the only way to ensure build stability without sacrificing browser-only performance features.
+**Action:** Use nested try...catch with the 'in' operator (e.g., "'visibilityState' in document") for all DOM-related guards in PWA entry points to handle restrictive CI proxies.

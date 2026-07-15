@@ -13,15 +13,17 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network.
     // Hardened guards with nested try...catch for restricted CI/Worker environments.
     try {
-      if (typeof document !== 'undefined') {
-        try {
-          if ('visibilityState' in document && document.visibilityState !== "visible") return;
-        } catch (e) {
-          /* Fall through if visibilityState check fails in restricted proxy */
+      let isVisible = true;
+      try {
+        if (typeof document !== 'undefined' && 'visibilityState' in document) {
+          isVisible = document.visibilityState === 'visible';
         }
+      } catch (inner) {
+        /* Fallback to visible if property access is restricted */
       }
-    } catch (e) {
-      /* Skip guard if document access fails */
+      if (!isVisible) return;
+    } catch (outer) {
+      /* Skip guard if document access is completely blocked */
     }
 
     try {
@@ -58,16 +60,24 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== 'undefined' && 'visibilityState' in document && document.visibilityState === "visible") {
+        let isVisible = false;
+        try {
+          if (typeof document !== 'undefined' && 'visibilityState' in document) {
+            isVisible = document.visibilityState === 'visible';
+          }
+        } catch (e) {
+          /* ignore */
+        }
+        if (isVisible) {
           fetchData();
         }
-      } catch (e) {
+      } catch (outer) {
         /* Ignore errors in restricted environments */
       }
     };
 
     try {
-      if (typeof document !== 'undefined') {
+      if (typeof document !== 'undefined' && 'addEventListener' in document) {
         document.addEventListener("visibilitychange", handleVisibilityChange);
       }
     } catch (e) {
@@ -83,7 +93,7 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== 'undefined') {
+        if (typeof document !== 'undefined' && 'removeEventListener' in document) {
           document.removeEventListener("visibilitychange", handleVisibilityChange);
         }
       } catch (e) {
