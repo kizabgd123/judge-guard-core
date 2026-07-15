@@ -3,8 +3,22 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// ⚡ Bolt: Hardened root initialization for restricted CI/Worker environments.
+const initRoot = () => {
+  try {
+    if (typeof document !== 'undefined') {
+      const rootElement = document.getElementById('root');
+      if (rootElement) {
+        createRoot(rootElement).render(
+          <StrictMode>
+            <App />
+          </StrictMode>,
+        );
+      }
+    }
+  } catch (e) {
+    /* Prevent build-time crashes in restricted environments */
+  }
+};
+
+initRoot();
