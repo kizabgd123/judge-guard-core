@@ -15,7 +15,7 @@ function App() {
     try {
       if (typeof document !== 'undefined') {
         try {
-          if (document.visibilityState !== "visible") return;
+          if ('visibilityState' in document && document.visibilityState !== "visible") return;
         } catch (e) {
           /* Fall through if visibilityState check fails in restricted proxy */
         }
@@ -58,7 +58,7 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== 'undefined' && document.visibilityState === "visible") {
+        if (typeof document !== 'undefined' && 'visibilityState' in document && document.visibilityState === "visible") {
           fetchData();
         }
       } catch (e) {

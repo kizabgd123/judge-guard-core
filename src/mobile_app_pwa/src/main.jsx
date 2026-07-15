@@ -6,8 +6,23 @@ import App from './App.jsx'
 // ⚡ Bolt: Hardened root initialization for restricted CI/Worker environments.
 const initRoot = () => {
   try {
-    if (typeof document !== 'undefined') {
-      const rootElement = document.getElementById('root');
+    let hasDoc = false;
+    try {
+      hasDoc = typeof document !== 'undefined';
+    } catch (e) {
+      /* ignore */
+    }
+
+    if (hasDoc) {
+      let rootElement = null;
+      try {
+        if ('getElementById' in document) {
+          rootElement = document.getElementById('root');
+        }
+      } catch (e) {
+        /* ignore */
+      }
+
       if (rootElement) {
         createRoot(rootElement).render(
           <StrictMode>
