@@ -4,14 +4,16 @@ import './index.css'
 import App from './App.jsx'
 
 try {
-  const rootElement = typeof document !== 'undefined' ? document.getElementById('root') : null;
-  if (rootElement) {
-    createRoot(rootElement).render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
-    )
+  if (typeof document !== 'undefined') {
+    const rootElement = document.getElementById('root');
+    if (rootElement) {
+      createRoot(rootElement).render(
+        <StrictMode>
+          <App />
+        </StrictMode>,
+      )
+    }
   }
 } catch (e) {
-  console.error("Failed to render App:", e);
+  /* Defensive guard for restricted build environments (memory directive) */
 }

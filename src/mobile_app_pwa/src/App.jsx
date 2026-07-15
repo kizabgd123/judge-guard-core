@@ -11,13 +11,13 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    // Hardened guards for restricted CI worker environments
+    // Hardened guards for restricted CI worker environments (memory directive)
     try {
-      if (typeof document !== "undefined") {
-        if (document.visibilityState !== "visible") return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
       }
     } catch (e) {
-      // If visibilityState access throws, proceed with fetch or skip based on environment
+      /* Restricted CI environment check failed - proceed with fetch */
     }
 
     try {
