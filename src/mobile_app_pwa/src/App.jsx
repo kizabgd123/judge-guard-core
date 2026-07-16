@@ -11,19 +11,24 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    // Wrap in nested try-catch for restricted CI/CD environments (e.g., Cloudflare Workers)
+    // Wrap in ultra-defensive nested try-catch for restricted CI/CD environments
     try {
-      if (typeof document !== "undefined") {
+      if (typeof document !== 'undefined') {
+        let isHidden = false;
         try {
-          if ("visibilityState" in document) {
-            if (document.visibilityState !== "visible") return;
+          // Check for 'in' first, then access
+          if ('visibilityState' in document) {
+            if (document.visibilityState !== 'visible') {
+              isHidden = true;
+            }
           }
         } catch (inner) {
-          // Inner catch for property access on proxied document
+          // Property access failed on proxied document
         }
+        if (isHidden) return;
       }
     } catch (e) {
-      // Outer catch for extreme environments
+      // document itself or its proxy is extremely restrictive
     }
 
     try {
@@ -60,14 +65,21 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== "undefined") {
+        if (typeof document !== 'undefined') {
+          let isVisible = false;
           try {
-            if ("visibilityState" in document) {
-              if (document.visibilityState === "visible") {
-                fetchData();
+            if ('visibilityState' in document) {
+              if (document.visibilityState === 'visible') {
+                isVisible = true;
               }
+            } else {
+              // If we can't check, assume visible to be safe
+              isVisible = true;
             }
-          } catch (inner) {}
+          } catch (inner) {
+            isVisible = true;
+          }
+          if (isVisible) fetchData();
         }
       } catch (e) {
         // Safe skip
@@ -75,10 +87,10 @@ function App() {
     };
 
     try {
-      if (typeof document !== "undefined") {
+      if (typeof document !== 'undefined') {
         try {
-          if ("addEventListener" in document) {
-            document.addEventListener("visibilitychange", handleVisibilityChange);
+          if ('addEventListener' in document) {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
           }
         } catch (inner) {}
       }
@@ -95,10 +107,10 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== "undefined") {
+        if (typeof document !== 'undefined') {
           try {
-            if ("removeEventListener" in document) {
-              document.removeEventListener("visibilitychange", handleVisibilityChange);
+            if ('removeEventListener' in document) {
+              document.removeEventListener('visibilitychange', handleVisibilityChange);
             }
           } catch (inner) {}
         }
