@@ -5,7 +5,7 @@ import App from './App.jsx'
 
 const container = (() => {
   try {
-    if (typeof document !== 'undefined' && 'getElementById' in document) {
+    if (typeof document !== 'undefined' && document && 'getElementById' in document) {
       try {
         return document.getElementById('root');
       } catch (e) {

@@ -13,7 +13,7 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     // ⚡ Bolt: Hardened guard for restricted CI worker environments
     try {
-      if (typeof document !== 'undefined' && 'visibilityState' in document) {
+      if (typeof document !== 'undefined' && document && 'visibilityState' in document) {
         try {
           if (document.visibilityState !== "visible") return;
         } catch (e) {
@@ -58,7 +58,7 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== 'undefined' && 'visibilityState' in document) {
+        if (typeof document !== 'undefined' && document && 'visibilityState' in document) {
           try {
             if (document.visibilityState === "visible") {
               fetchData();
@@ -69,7 +69,7 @@ function App() {
     };
 
     try {
-      if (typeof document !== 'undefined' && 'addEventListener' in document) {
+      if (typeof document !== 'undefined' && document && 'addEventListener' in document) {
         try {
           document.addEventListener("visibilitychange", handleVisibilityChange);
         } catch (e) {}
@@ -85,7 +85,7 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== 'undefined' && 'removeEventListener' in document) {
+        if (typeof document !== 'undefined' && document && 'removeEventListener' in document) {
           try {
             document.removeEventListener("visibilitychange", handleVisibilityChange);
           } catch (e) {}
