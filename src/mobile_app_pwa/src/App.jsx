@@ -14,7 +14,11 @@ function App() {
     // ⚡ Bolt: Hardened guard for restricted CI worker environments
     try {
       if (typeof document !== 'undefined' && 'visibilityState' in document) {
-        if (document.visibilityState !== "visible") return;
+        try {
+          if (document.visibilityState !== "visible") return;
+        } catch (e) {
+          // Accessing document.visibilityState failed even though it exists
+        }
       }
     } catch (e) {
       // If document access fails in CI, continue to fetch once to satisfy tests
@@ -55,16 +59,20 @@ function App() {
     const handleVisibilityChange = () => {
       try {
         if (typeof document !== 'undefined' && 'visibilityState' in document) {
-          if (document.visibilityState === "visible") {
-            fetchData();
-          }
+          try {
+            if (document.visibilityState === "visible") {
+              fetchData();
+            }
+          } catch (e) {}
         }
       } catch (e) {}
     };
 
     try {
       if (typeof document !== 'undefined' && 'addEventListener' in document) {
-        document.addEventListener("visibilitychange", handleVisibilityChange);
+        try {
+          document.addEventListener("visibilitychange", handleVisibilityChange);
+        } catch (e) {}
       }
     } catch (e) {}
 
@@ -78,7 +86,9 @@ function App() {
       clearInterval(interval);
       try {
         if (typeof document !== 'undefined' && 'removeEventListener' in document) {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
+          try {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+          } catch (e) {}
         }
       } catch (e) {}
     };
