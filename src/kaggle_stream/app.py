@@ -1,19 +1,41 @@
-import gradio as gr
 import os
 import logging
-from concurrent.futures import ThreadPoolExecutor
-from src.kaggle_stream.kaggle_agent import KaggleAgent
-from src.kaggle_stream.multimedia import MultimediaManager
-from src.kaggle_stream.log_streamer import LogStreamer
+import threading
+from typing import Any
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Agents and tools
-agent_alpha = KaggleAgent(name="Eagle-Alpha")
-agent_beta = KaggleAgent(name="Falcon-Beta")
-multimedia = MultimediaManager()
-executor = ThreadPoolExecutor(max_workers=4)
+# ⚡ Bolt: Registry for lazily initialized resources
+_lazy_resources = {}
+_resource_lock = threading.Lock()
+
+def _get_resource(name: str) -> Any:
+    """⚡ Bolt: Thread-safe lazy resource initializer."""
+    if name not in _lazy_resources:
+        with _resource_lock:
+            if name not in _lazy_resources:
+                if name == "agent_alpha":
+                    from src.kaggle_stream.kaggle_agent import KaggleAgent
+                    _lazy_resources[name] = KaggleAgent(name="Eagle-Alpha")
+                elif name == "agent_beta":
+                    from src.kaggle_stream.kaggle_agent import KaggleAgent
+                    _lazy_resources[name] = KaggleAgent(name="Falcon-Beta")
+                elif name == "multimedia":
+                    from src.kaggle_stream.multimedia import MultimediaManager
+                    _lazy_resources[name] = MultimediaManager()
+                elif name == "executor":
+                    from concurrent.futures import ThreadPoolExecutor
+                    _lazy_resources[name] = ThreadPoolExecutor(max_workers=4)
+                elif name == "demo":
+                    _lazy_resources[name] = _build_demo()
+    return _lazy_resources[name]
+
+def __getattr__(name: str) -> Any:
+    """⚡ Bolt: Support lazy module-level attribute access."""
+    if name in ["agent_alpha", "agent_beta", "multimedia", "executor", "demo"]:
+        return _get_resource(name)
+    raise AttributeError(f"module {__name__} has no attribute {name}")
 
 def run_agent_turn(agent, task, context="", return_futures=False):
     """
@@ -24,9 +46,13 @@ def run_agent_turn(agent, task, context="", return_futures=False):
     message = data.get("message", "Working...")
     mood = data.get("mood", "thinking")
 
+    # ⚡ Bolt: Use explicit resource getters for internal module calls
+    exec_tool = _get_resource("executor")
+    mm_tool = _get_resource("multimedia")
+
     # ⚡ Bolt: Parallelize multimedia generation to reduce latency
-    audio_future = executor.submit(multimedia.generate_audio, message, f"{agent.name}_speech.mp3")
-    image_future = executor.submit(multimedia.generate_mood_image, f"{mood} mascot", f"{agent.name}_mood.png")
+    audio_future = exec_tool.submit(mm_tool.generate_audio, message, f"{agent.name}_speech.mp3")
+    image_future = exec_tool.submit(mm_tool.generate_mood_image, f"{mood} mascot", f"{agent.name}_mood.png")
 
     if return_futures:
         return message, image_future, audio_future, data.get("thought", "")
@@ -44,14 +70,15 @@ def collaborative_step(mode, task):
     """
     current_task = task
     if mode == "Project Log Stream":
+        from src.kaggle_stream.log_streamer import LogStreamer
         log_chunk = LogStreamer.get_context()
         current_task = f"As project auditors, discuss these recent logs and evaluate our progress: \n\n{log_chunk}"
 
     # 1. Start Alpha (returns futures for multimedia immediately after reasoning)
-    msg_a, img_fut_a, aud_fut_a, thought_a = run_agent_turn(agent_alpha, current_task, return_futures=True)
+    msg_a, img_fut_a, aud_fut_a, thought_a = run_agent_turn(_get_resource("agent_alpha"), current_task, return_futures=True)
 
     # 2. Start Beta (Reasoning happens while Alpha's Audio/Images are still generating)
-    msg_b, img_b, aud_b, thought_b = run_agent_turn(agent_beta, current_task, context=thought_a)
+    msg_b, img_b, aud_b, thought_b = run_agent_turn(_get_resource("agent_beta"), current_task, context=thought_a)
 
     # 3. Finalize Alpha's assets
     img_a = img_fut_a.result()
@@ -59,35 +86,38 @@ def collaborative_step(mode, task):
 
     return [msg_a, img_a, aud_a, msg_b, img_b, aud_b]
 
-# Gradio Interface
-with gr.Blocks(title="🦅 Antigravity AI Live Stream") as demo:
-    gr.Markdown("# 🦅 Antigravity AI Live Stream")
-    gr.Markdown("Watch AI Agents collaborate on Kaggle challenges or audit the **Antigravity Project Logs**.")
+def _build_demo():
+    """⚡ Bolt: Deferred Gradio interface construction."""
+    import gradio as gr
+    with gr.Blocks(title="🦅 Antigravity AI Live Stream") as demo:
+        gr.Markdown("# 🦅 Antigravity AI Live Stream")
+        gr.Markdown("Watch AI Agents collaborate on Kaggle challenges or audit the **Antigravity Project Logs**.")
 
-    mode_selector = gr.Radio(["Kaggle Challenge", "Project Log Stream"], label="Stream Mode", value="Kaggle Challenge")
+        mode_selector = gr.Radio(["Kaggle Challenge", "Project Log Stream"], label="Stream Mode", value="Kaggle Challenge")
 
-    with gr.Row():
-        with gr.Column():
-            gr.Markdown("### 🔵 Eagle-Alpha")
-            alpha_img = gr.Image(label="Mood")
-            alpha_status = gr.Textbox(label="Message")
-            alpha_audio = gr.Audio(label="Voice", autoplay=True)
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("### 🔵 Eagle-Alpha")
+                alpha_img = gr.Image(label="Mood")
+                alpha_status = gr.Textbox(label="Message")
+                alpha_audio = gr.Audio(label="Voice", autoplay=True)
 
-        with gr.Column():
-            gr.Markdown("### 🔴 Falcon-Beta")
-            beta_img = gr.Image(label="Mood")
-            beta_status = gr.Textbox(label="Message")
-            beta_audio = gr.Audio(label="Voice", autoplay=False)
+            with gr.Column():
+                gr.Markdown("### 🔴 Falcon-Beta")
+                beta_img = gr.Image(label="Mood")
+                beta_status = gr.Textbox(label="Message")
+                beta_audio = gr.Audio(label="Voice", autoplay=False)
 
-    with gr.Row():
-        input_task = gr.Textbox(label="Challenge/Context", value="House Prices - Advanced Regression Techniques")
-        start_btn = gr.Button("🚀 Next Collaborative Step", variant="primary")
+        with gr.Row():
+            input_task = gr.Textbox(label="Challenge/Context", value="House Prices - Advanced Regression Techniques")
+            start_btn = gr.Button("🚀 Next Collaborative Step", variant="primary")
 
-    start_btn.click(
-        fn=collaborative_step,
-        inputs=[mode_selector, input_task],
-        outputs=[alpha_status, alpha_img, alpha_audio, beta_status, beta_img, beta_audio]
-    )
+        start_btn.click(
+            fn=collaborative_step,
+            inputs=[mode_selector, input_task],
+            outputs=[alpha_status, alpha_img, alpha_audio, beta_status, beta_img, beta_audio]
+        )
+    return demo
 
 if __name__ == "__main__":
-    demo.launch()
+    _get_resource("demo").launch()
