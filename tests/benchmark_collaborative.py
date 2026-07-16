@@ -10,7 +10,7 @@ sys.path.append(os.getcwd())
 from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
 
 class TestCollaborativePerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
+    @patch('src.antigravity_core.notion_client.NotionClient')
     @patch('src.kaggle_stream.app.multimedia')
     def test_collaborative_step_latency(self, mock_multimedia, mock_notion_class):
         # Setup Notion mock to avoid real API calls and simulate latency
