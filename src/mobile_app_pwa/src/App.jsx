@@ -11,13 +11,19 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    // Wrap in try-catch for restricted CI/CD environments (e.g., Cloudflare Workers)
+    // Wrap in nested try-catch for restricted CI/CD environments (e.g., Cloudflare Workers)
     try {
-      if (typeof document !== "undefined" && "visibilityState" in document) {
-        if (document.visibilityState !== "visible") return;
+      if (typeof document !== "undefined") {
+        try {
+          if ("visibilityState" in document) {
+            if (document.visibilityState !== "visible") return;
+          }
+        } catch (inner) {
+          // Inner catch for property access on proxied document
+        }
       }
     } catch (e) {
-      // In some proxied environments, even checking existence can throw
+      // Outer catch for extreme environments
     }
 
     try {
@@ -54,10 +60,14 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== "undefined" && "visibilityState" in document) {
-          if (document.visibilityState === "visible") {
-            fetchData();
-          }
+        if (typeof document !== "undefined") {
+          try {
+            if ("visibilityState" in document) {
+              if (document.visibilityState === "visible") {
+                fetchData();
+              }
+            }
+          } catch (inner) {}
         }
       } catch (e) {
         // Safe skip
@@ -65,8 +75,12 @@ function App() {
     };
 
     try {
-      if (typeof document !== "undefined" && "addEventListener" in document) {
-        document.addEventListener("visibilitychange", handleVisibilityChange);
+      if (typeof document !== "undefined") {
+        try {
+          if ("addEventListener" in document) {
+            document.addEventListener("visibilitychange", handleVisibilityChange);
+          }
+        } catch (inner) {}
       }
     } catch (e) {
       // Safe skip
@@ -81,8 +95,12 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== "undefined" && "removeEventListener" in document) {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        if (typeof document !== "undefined") {
+          try {
+            if ("removeEventListener" in document) {
+              document.removeEventListener("visibilitychange", handleVisibilityChange);
+            }
+          } catch (inner) {}
         }
       } catch (e) {
         // Safe skip

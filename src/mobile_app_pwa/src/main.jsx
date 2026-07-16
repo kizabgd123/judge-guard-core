@@ -4,9 +4,14 @@ import './index.css'
 import App from './App.jsx'
 
 try {
-  const rootElement = typeof document !== 'undefined' && 'getElementById' in document
-    ? document.getElementById('root')
-    : null;
+  let rootElement = null;
+  if (typeof document !== 'undefined') {
+    try {
+      if ('getElementById' in document) {
+        rootElement = document.getElementById('root');
+      }
+    } catch (inner) {}
+  }
 
   if (rootElement) {
     createRoot(rootElement).render(
