@@ -3,10 +3,23 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-// ⚡ Bolt: Hardened root mounting for restrictive CI environments
+// ⚡ Bolt: Ultra-hardened root mounting for restrictive CI environments
 try {
-  if (typeof document !== 'undefined' && 'getElementById' in document) {
-    const rootElement = document.getElementById('root');
+  let docAvailable = false;
+  try {
+    if (typeof document !== 'undefined') {
+      docAvailable = true;
+    }
+  } catch (e0) {}
+
+  if (docAvailable) {
+    let rootElement = null;
+    try {
+      if ('getElementById' in document) {
+        rootElement = document.getElementById('root');
+      }
+    } catch (e1) {}
+
     if (rootElement) {
       createRoot(rootElement).render(
         <StrictMode>
