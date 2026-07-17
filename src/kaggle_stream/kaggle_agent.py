@@ -48,6 +48,10 @@ class KaggleAgent:
                 self._notion = None
         return self._notion
 
+    @notion.setter
+    def notion(self, value):
+        self._notion = value
+
     def __enter__(self):
         return self
 

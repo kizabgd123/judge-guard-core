@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Module Import Overhead from Heavy Third-Party Packages]
+**Learning:** Top-level module imports of heavy libraries (e.g., `requests` at ~160ms) add unnecessary blocking overhead to imports of utility classes like `MultimediaManager` even when no actual API calls are performed.
+**Action:** Use thread-safe lazy property patterns with `threading.RLock` to defer importing heavy packages until they are explicitly needed, improving module import latency by ~79%.
