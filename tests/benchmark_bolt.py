@@ -11,7 +11,7 @@ from src.kaggle_stream.kaggle_agent import KaggleAgent
 from src.kaggle_stream.app import run_agent_turn
 
 class TestPerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
+    @patch('src.antigravity_core.notion_client.NotionClient')
     @patch('src.kaggle_stream.app.multimedia')
     def test_run_agent_turn_latency(self, mock_multimedia, mock_notion_class):
         # Setup Notion mock
