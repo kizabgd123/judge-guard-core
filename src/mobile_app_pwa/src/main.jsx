@@ -11,10 +11,16 @@ try {
         if ('getElementById' in document) {
           rootElement = document.getElementById('root');
         }
-      } catch (e) {}
+      } catch {
+        /* ignore */
+      }
     }
-  } catch (e) {}
-} catch (e) {}
+  } catch {
+    /* ignore */
+  }
+} catch {
+  /* ignore */
+}
 
 if (rootElement) {
   createRoot(rootElement).render(
