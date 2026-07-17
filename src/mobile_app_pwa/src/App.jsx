@@ -10,26 +10,22 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
+    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network.
+    // 🛡️ CI Safety: Robust guards for browser-worker environments (e.g. Cloudflare Workers).
+    let isVisible = true;
     try {
-      let isVisible = true;
-      try {
-        if (typeof globalThis !== "undefined" && "document" in globalThis) {
-          try {
-            if (globalThis.document && "visibilityState" in globalThis.document) {
-              isVisible = globalThis.document.visibilityState === "visible";
-            }
-          } catch (e) {
-            // Nested catch
-          }
+      if (typeof document !== 'undefined' && document !== null) {
+        // Accessing property on a proxy might throw even if it exists.
+        if ('visibilityState' in document) {
+          isVisible = document.visibilityState === 'visible';
         }
-      } catch (e) {
-        // Outer catch
       }
-      if (!isVisible) return;
     } catch (e) {
-      // Safely ignore
+      // If document is a throwing proxy or restricted, assume visible to be safe.
+      isVisible = true;
     }
+
+    if (!isVisible) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -65,41 +61,20 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        let isVisible = true;
-        try {
-          if (typeof globalThis !== "undefined" && "document" in globalThis) {
-            try {
-              if (globalThis.document && "visibilityState" in globalThis.document) {
-                isVisible = globalThis.document.visibilityState === "visible";
-              }
-            } catch (e) {
-              // Nested catch
-            }
+        if (typeof document !== 'undefined' && document !== null && 'visibilityState' in document) {
+          if (document.visibilityState === "visible") {
+            fetchData();
           }
-        } catch (e) {
-          // Outer catch
         }
-        if (isVisible) {
-          fetchData();
-        }
-      } catch (e) {
-        // Safely ignore
-      }
+      } catch (e) {}
     };
 
+    // 🛡️ CI Safety: Guard event listener attachment
     try {
-      if (typeof globalThis !== "undefined" && "document" in globalThis) {
-        try {
-          if (globalThis.document && "addEventListener" in globalThis.document) {
-            globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
-          }
-        } catch (e) {
-          // Nested catch
-        }
+      if (typeof document !== 'undefined' && document !== null && typeof document.addEventListener === 'function') {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
       }
-    } catch (e) {
-      // Safely ignore
-    }
+    } catch (e) {}
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -110,18 +85,10 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof globalThis !== "undefined" && "document" in globalThis) {
-          try {
-            if (globalThis.document && "removeEventListener" in globalThis.document) {
-              globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
-            }
-          } catch (e) {
-            // Nested catch
-          }
+        if (typeof document !== 'undefined' && document !== null && typeof document.removeEventListener === 'function') {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
         }
-      } catch (e) {
-        // Safely ignore
-      }
+      } catch (e) {}
     };
   }, [fetchData]);
 

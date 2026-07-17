@@ -3,36 +3,22 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
+// 🛡️ CI Safety: Ensure document and getElementById exist before attempting to render.
+// This prevents crashes in browser-worker environments (e.g. Cloudflare Workers).
+let rootElement = null;
 try {
-  let hasDocument = false;
-  try {
-    if (typeof globalThis !== 'undefined' && 'document' in globalThis) {
-      try {
-        if (globalThis.document && 'getElementById' in globalThis.document) {
-          hasDocument = true;
-        }
-      } catch (e) {
-        // Nested catch for property access on globalThis.document
-      }
-    }
-  } catch (e) {
-    // Outer catch
-  }
-
-  if (hasDocument) {
-    try {
-      const container = globalThis.document.getElementById('root');
-      if (container) {
-        createRoot(container).render(
-          <StrictMode>
-            <App />
-          </StrictMode>,
-        )
-      }
-    } catch (e) {
-      // Catch for render
-    }
+  // Defensive check against environment proxies that might throw on property access
+  if (typeof document !== 'undefined' && document !== null && typeof document.getElementById === 'function') {
+    rootElement = document.getElementById('root');
   }
 } catch (e) {
-  // Silent catch to prevent build/import-time crashes
+  rootElement = null;
+}
+
+if (rootElement) {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
 }
