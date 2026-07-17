@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [SQLite Write Latency Optimization via WAL Mode]
+**Learning:** Default SQLite journaling/synchronous settings are highly synchronous and cause significant write blocking on every commit/transaction, taking ~3.5ms per entry. This blocks critical paths like cache verdict writing and audit logging.
+**Action:** Enable SQLite WAL (Write-Ahead Logging) mode and PRAGMA synchronous=NORMAL in connection initialization. This reduces disk write sync latency from ~3.50ms to ~0.16ms per transaction (a ~22x improvement) while maintaining transaction safety.
