@@ -16,7 +16,7 @@ function App() {
       if (typeof document !== "undefined" && "visibilityState" in document) {
         isVisible = document.visibilityState === "visible";
       }
-    } catch (e) {
+    } catch {
       // Safe fallback
     }
     if (!isVisible) return;
@@ -59,7 +59,7 @@ function App() {
         if (typeof document !== "undefined" && "visibilityState" in document) {
           isVisible = document.visibilityState === "visible";
         }
-      } catch (e) {
+      } catch {
         // Safe fallback
       }
       if (isVisible) {
@@ -71,7 +71,7 @@ function App() {
       if (typeof document !== "undefined" && "addEventListener" in document) {
         document.addEventListener("visibilitychange", handleVisibilityChange);
       }
-    } catch (e) {
+    } catch {
       // Safe fallback
     }
 
@@ -87,7 +87,7 @@ function App() {
         if (typeof document !== "undefined" && "removeEventListener" in document) {
           document.removeEventListener("visibilitychange", handleVisibilityChange);
         }
-      } catch (e) {
+      } catch {
         // Safe fallback
       }
     };
