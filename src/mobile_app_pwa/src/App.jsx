@@ -14,11 +14,17 @@ function App() {
     try {
       let isVisible = true;
       try {
-        if (typeof document !== "undefined" && "visibilityState" in document) {
-          isVisible = document.visibilityState === "visible";
+        if (typeof globalThis !== "undefined" && "document" in globalThis) {
+          try {
+            if (globalThis.document && "visibilityState" in globalThis.document) {
+              isVisible = globalThis.document.visibilityState === "visible";
+            }
+          } catch (e) {
+            // Nested catch
+          }
         }
       } catch (e) {
-        // Restrictive CI worker environments can throw on typeof/in checks
+        // Outer catch
       }
       if (!isVisible) return;
     } catch (e) {
@@ -61,11 +67,17 @@ function App() {
       try {
         let isVisible = true;
         try {
-          if (typeof document !== "undefined" && "visibilityState" in document) {
-            isVisible = document.visibilityState === "visible";
+          if (typeof globalThis !== "undefined" && "document" in globalThis) {
+            try {
+              if (globalThis.document && "visibilityState" in globalThis.document) {
+                isVisible = globalThis.document.visibilityState === "visible";
+              }
+            } catch (e) {
+              // Nested catch
+            }
           }
         } catch (e) {
-          // Restrictive CI worker environments can throw on typeof/in checks
+          // Outer catch
         }
         if (isVisible) {
           fetchData();
@@ -76,8 +88,14 @@ function App() {
     };
 
     try {
-      if (typeof document !== "undefined" && "addEventListener" in document) {
-        document.addEventListener("visibilitychange", handleVisibilityChange);
+      if (typeof globalThis !== "undefined" && "document" in globalThis) {
+        try {
+          if (globalThis.document && "addEventListener" in globalThis.document) {
+            globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
+          }
+        } catch (e) {
+          // Nested catch
+        }
       }
     } catch (e) {
       // Safely ignore
@@ -92,8 +110,14 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== "undefined" && "removeEventListener" in document) {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        if (typeof globalThis !== "undefined" && "document" in globalThis) {
+          try {
+            if (globalThis.document && "removeEventListener" in globalThis.document) {
+              globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
+            }
+          } catch (e) {
+            // Nested catch
+          }
         }
       } catch (e) {
         // Safely ignore

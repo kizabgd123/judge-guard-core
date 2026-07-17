@@ -6,21 +6,31 @@ import App from './App.jsx'
 try {
   let hasDocument = false;
   try {
-    if (typeof document !== 'undefined' && 'getElementById' in document) {
-      hasDocument = true;
+    if (typeof globalThis !== 'undefined' && 'document' in globalThis) {
+      try {
+        if (globalThis.document && 'getElementById' in globalThis.document) {
+          hasDocument = true;
+        }
+      } catch (e) {
+        // Nested catch for property access on globalThis.document
+      }
     }
   } catch (e) {
-    // Restrictive CI worker environments can throw on typeof/in checks
+    // Outer catch
   }
 
   if (hasDocument) {
-    const container = document.getElementById('root');
-    if (container) {
-      createRoot(container).render(
-        <StrictMode>
-          <App />
-        </StrictMode>,
-      )
+    try {
+      const container = globalThis.document.getElementById('root');
+      if (container) {
+        createRoot(container).render(
+          <StrictMode>
+            <App />
+          </StrictMode>,
+        )
+      }
+    } catch (e) {
+      // Catch for render
     }
   }
 } catch (e) {
