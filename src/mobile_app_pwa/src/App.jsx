@@ -3,6 +3,38 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import StatusPulse from "./components/StatusPulse";
 import VerdictCard from "./components/VerdictCard";
 
+// Safe document state helpers to protect against restrictive proxy environments like Cloudflare Workers CI
+const isDocumentVisible = () => {
+  try {
+    if (typeof document !== "undefined" && "visibilityState" in document) {
+      return document.visibilityState === "visible";
+    }
+  } catch (e) {
+    // Falls back to true in non-standard environments to allow building
+  }
+  return true;
+};
+
+const safeAddEventListener = (event, callback) => {
+  try {
+    if (typeof document !== "undefined" && "addEventListener" in document) {
+      document.addEventListener(event, callback);
+    }
+  } catch (e) {
+    // Ignored in non-browser environments
+  }
+};
+
+const safeRemoveEventListener = (event, callback) => {
+  try {
+    if (typeof document !== "undefined" && "removeEventListener" in document) {
+      document.removeEventListener(event, callback);
+    }
+  } catch (e) {
+    // Ignored in non-browser environments
+  }
+};
+
 function App() {
   const [config, setConfig] = useState(null);
   const [lastVerdict, setLastVerdict] = useState(null);
@@ -11,7 +43,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    if (!isDocumentVisible()) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +78,12 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (isDocumentVisible()) {
         fetchData();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    safeAddEventListener("visibilitychange", handleVisibilityChange);
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +93,7 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      safeRemoveEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchData]);
 
