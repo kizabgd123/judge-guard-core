@@ -5,13 +5,18 @@ import VerdictCard from "./components/VerdictCard";
 
 const isDocumentVisible = () => {
   try {
-    if (typeof document !== "undefined" && document && "visibilityState" in document) {
-      return document.visibilityState === "visible";
+    if (typeof document !== "undefined") {
+      try {
+        if (document) {
+          try {
+            if ("visibilityState" in document) {
+              return document.visibilityState === "visible";
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
     }
-  } catch (e) {
-    // Return true by default in environments where existence checks fail or throw
-    return true;
-  }
+  } catch (e) {}
   return true;
 };
 
@@ -64,8 +69,16 @@ function App() {
     };
 
     try {
-      if (typeof document !== "undefined" && document && "addEventListener" in document) {
-        document.addEventListener("visibilitychange", handleVisibilityChange);
+      if (typeof document !== "undefined") {
+        try {
+          if (document) {
+            try {
+              if ("addEventListener" in document) {
+                document.addEventListener("visibilitychange", handleVisibilityChange);
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
       }
     } catch (e) {}
 
@@ -78,8 +91,16 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== "undefined" && document && "removeEventListener" in document) {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        if (typeof document !== "undefined") {
+          try {
+            if (document) {
+              try {
+                if ("removeEventListener" in document) {
+                  document.removeEventListener("visibilitychange", handleVisibilityChange);
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
         }
       } catch (e) {}
     };
