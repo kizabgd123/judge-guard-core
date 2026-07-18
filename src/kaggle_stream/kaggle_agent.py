@@ -37,6 +37,10 @@ class KaggleAgent:
                 self._gemini = None
         return self._gemini
 
+    @gemini.setter
+    def gemini(self, value):
+        self._gemini = value
+
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization."""
@@ -47,6 +51,10 @@ class KaggleAgent:
             except Exception:
                 self._notion = None
         return self._notion
+
+    @notion.setter
+    def notion(self, value):
+        self._notion = value
 
     def __enter__(self):
         return self
