@@ -6,33 +6,54 @@ import VerdictCard from "./components/VerdictCard";
 // Safe document state helpers to protect against restrictive proxy environments like Cloudflare Workers CI
 const isDocumentVisible = () => {
   try {
-    if (typeof document !== "undefined" && "visibilityState" in document) {
-      return document.visibilityState === "visible";
+    let hasDoc = false;
+    try {
+      hasDoc = typeof document !== "undefined" && document !== null;
+    } catch (e) {}
+
+    if (hasDoc) {
+      try {
+        if ("visibilityState" in document) {
+          return document.visibilityState === "visible";
+        }
+      } catch (e) {}
     }
-  } catch (e) {
-    // Falls back to true in non-standard environments to allow building
-  }
+  } catch (e) {}
   return true;
 };
 
 const safeAddEventListener = (event, callback) => {
   try {
-    if (typeof document !== "undefined" && "addEventListener" in document) {
-      document.addEventListener(event, callback);
+    let hasDoc = false;
+    try {
+      hasDoc = typeof document !== "undefined" && document !== null;
+    } catch (e) {}
+
+    if (hasDoc) {
+      try {
+        if ("addEventListener" in document) {
+          document.addEventListener(event, callback);
+        }
+      } catch (e) {}
     }
-  } catch (e) {
-    // Ignored in non-browser environments
-  }
+  } catch (e) {}
 };
 
 const safeRemoveEventListener = (event, callback) => {
   try {
-    if (typeof document !== "undefined" && "removeEventListener" in document) {
-      document.removeEventListener(event, callback);
+    let hasDoc = false;
+    try {
+      hasDoc = typeof document !== "undefined" && document !== null;
+    } catch (e) {}
+
+    if (hasDoc) {
+      try {
+        if ("removeEventListener" in document) {
+          document.removeEventListener(event, callback);
+        }
+      } catch (e) {}
     }
-  } catch (e) {
-    // Ignored in non-browser environments
-  }
+  } catch (e) {}
 };
 
 function App() {
