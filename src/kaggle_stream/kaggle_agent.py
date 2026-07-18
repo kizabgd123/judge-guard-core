@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import random
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Any, Optional
 
@@ -21,8 +22,9 @@ class KaggleAgent:
         self._notion = None
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
-        # ⚡ Bolt: Executor for offloading synchronous Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=2)
+        # ⚡ Bolt: Initialize locking and lazy fields for the executor
+        self._lock = threading.RLock()
+        self._executor_instance = None
 
     @property
     def gemini(self):
@@ -48,6 +50,20 @@ class KaggleAgent:
                 self._notion = None
         return self._notion
 
+    @notion.setter
+    def notion(self, value):
+        """⚡ Bolt: Support dependency injection of mock/custom Notion clients."""
+        self._notion = value
+
+    @property
+    def _executor(self):
+        """⚡ Bolt: Lazy property to defer ThreadPoolExecutor creation until first access."""
+        if self._executor_instance is None:
+            with self._lock:
+                if self._executor_instance is None:
+                    self._executor_instance = ThreadPoolExecutor(max_workers=2)
+        return self._executor_instance
+
     def __enter__(self):
         return self
 
@@ -59,8 +75,9 @@ class KaggleAgent:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
-            self._executor.shutdown(wait=True)
+        # ⚡ Bolt: Only shutdown the executor if it has actually been instantiated, avoiding lazy load on shutdown.
+        if hasattr(self, "_executor_instance") and self._executor_instance is not None:
+            self._executor_instance.shutdown(wait=True)
 
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
         # If Gemini is present but API key is dummy/invalid, it might still fail at runtime

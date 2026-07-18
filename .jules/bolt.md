@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Lazy Resource Instantiation in High-Frequency Agents]
+**Learning:** Eagerly instantiating threads/executors (like `ThreadPoolExecutor(max_workers=2)`) in agent classes during startup introduces needless system resource consumption and latency when those resources are not used (e.g. mock runs or offline test suites). Furthermore, implementing lazy properties with setters is vital for preserving testing and mock patterns that rely on mock injection.
+**Action:** Defer `ThreadPoolExecutor` creation using thread-safe double-checked lock lazy properties, and provide corresponding property setters for testing dependency injection.
