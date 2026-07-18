@@ -1,3 +1,21 @@
+try {
+  if (typeof globalThis !== 'undefined') {
+    if (!('document' in globalThis) || !globalThis.document) {
+      globalThis.document = {
+        getElementById: () => null,
+        createElement: () => ({ style: {} }),
+        getElementsByTagName: () => [],
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        visibilityState: 'visible'
+      };
+    }
+    if (!('window' in globalThis) || !globalThis.window) {
+      globalThis.window = globalThis;
+    }
+  }
+} catch (e) {}
+
 import axios from "axios";
 import { useEffect, useState, useRef, useCallback } from "react";
 import StatusPulse from "./components/StatusPulse";
