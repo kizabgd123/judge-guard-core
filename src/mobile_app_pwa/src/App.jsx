@@ -3,6 +3,18 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import StatusPulse from "./components/StatusPulse";
 import VerdictCard from "./components/VerdictCard";
 
+const isDocumentVisible = () => {
+  try {
+    if (typeof document !== "undefined" && document && "visibilityState" in document) {
+      return document.visibilityState === "visible";
+    }
+  } catch (e) {
+    // Return true by default in environments where existence checks fail or throw
+    return true;
+  }
+  return true;
+};
+
 function App() {
   const [config, setConfig] = useState(null);
   const [lastVerdict, setLastVerdict] = useState(null);
@@ -11,7 +23,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    if (!isDocumentVisible()) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +58,16 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (isDocumentVisible()) {
         fetchData();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    try {
+      if (typeof document !== "undefined" && document && "addEventListener" in document) {
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+      }
+    } catch (e) {}
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +77,11 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (typeof document !== "undefined" && document && "removeEventListener" in document) {
+          document.removeEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (e) {}
     };
   }, [fetchData]);
 
