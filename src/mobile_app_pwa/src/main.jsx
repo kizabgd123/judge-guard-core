@@ -5,11 +5,21 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
-  if (typeof document !== "undefined" && 'getElementById' in document) {
-    rootElement = document.getElementById('root');
+  try {
+    if (typeof document !== 'undefined') {
+      try {
+        if ('getElementById' in document) {
+          rootElement = document.getElementById('root');
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore */
   }
-} catch (e) {
-  // Ignore exceptions in restrictive environments (e.g. Cloudflare Worker builder Proxies)
+} catch {
+  /* ignore */
 }
 
 if (rootElement) {
