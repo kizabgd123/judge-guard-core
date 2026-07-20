@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Internal Reference Failure with PEP 562 __getattr__]
+**Learning:** In Python, referencing a module-level global variable from within a function in the same module bypasses `__getattr__` (PEP 562) because global lookup is resolved directly from the module's dictionary first, resulting in `NameError` if the attribute isn't set in `globals()`.
+**Action:** Use an internal thread-safe getter helper (`_get_resource`) to resolve lazy attributes internally inside the module, while using `__getattr__` exclusively for external callers and mock patching.
