@@ -41,6 +41,8 @@ def collaborative_step(mode, task):
     Processes either a Kaggle challenge or the local project logs.
     ⚡ Bolt: Implementing turn-level pipeline parallelization.
     Alpha's multimedia generation now happens in parallel with Beta's thinking process.
+    Beta's multimedia generation is also parallelized, so that both agents' multimedia
+    assets are generated concurrently, minimizing total step latency.
     """
     current_task = task
     if mode == "Project Log Stream":
@@ -51,11 +53,15 @@ def collaborative_step(mode, task):
     msg_a, img_fut_a, aud_fut_a, thought_a = run_agent_turn(agent_alpha, current_task, return_futures=True)
 
     # 2. Start Beta (Reasoning happens while Alpha's Audio/Images are still generating)
-    msg_b, img_b, aud_b, thought_b = run_agent_turn(agent_beta, current_task, context=thought_a)
+    msg_b, img_fut_b, aud_fut_b, thought_b = run_agent_turn(agent_beta, current_task, context=thought_a, return_futures=True)
 
-    # 3. Finalize Alpha's assets
+    # 3. Finalize Alpha's assets (Wait for Alpha's media generation)
     img_a = img_fut_a.result()
     aud_a = aud_fut_a.result()
+
+    # 4. Finalize Beta's assets (Wait for Beta's media generation)
+    img_b = img_fut_b.result()
+    aud_b = aud_fut_b.result()
 
     return [msg_a, img_a, aud_a, msg_b, img_b, aud_b]
 
