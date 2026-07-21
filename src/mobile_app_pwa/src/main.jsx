@@ -23,29 +23,29 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-let rootElement = null;
 try {
-  if (typeof document !== 'undefined' && document) {
+  if (typeof document !== 'undefined') {
     try {
-      if ('getElementById' in document) {
-        rootElement = document.getElementById('root');
+      if (document) {
+        try {
+          if ('getElementById' in document) {
+            const rootElement = document.getElementById('root');
+            if (rootElement) {
+              createRoot(rootElement).render(
+                <StrictMode>
+                  <App />
+                </StrictMode>,
+              );
+            }
+          }
+        } catch {
+          // Ignored
+        }
       }
     } catch {
-      // In restricted environments, checking 'in' document can throw
+      // Ignored
     }
   }
 } catch {
-  // Outer safeguard
-}
-
-if (rootElement) {
-  try {
-    createRoot(rootElement).render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
-    );
-  } catch {
-    // Avoid build/load-time execution crashes in restrictive CI workers
-  }
+  // Ignored
 }

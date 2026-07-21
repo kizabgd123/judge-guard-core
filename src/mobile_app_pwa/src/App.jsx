@@ -23,6 +23,29 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import StatusPulse from "./components/StatusPulse";
 import VerdictCard from "./components/VerdictCard";
 
+const isDocumentVisible = () => {
+  try {
+    if (typeof document !== "undefined") {
+      try {
+        if (document) {
+          try {
+            if ("visibilityState" in document) {
+              return document.visibilityState === "visible";
+            }
+          } catch {
+            // Ignored property check
+          }
+        }
+      } catch {
+        // Ignored object check
+      }
+    }
+  } catch {
+    // Ignored presence check
+  }
+  return true;
+};
+
 function App() {
   const [config, setConfig] = useState(null);
   const [lastVerdict, setLastVerdict] = useState(null);
@@ -31,19 +54,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    try {
-      if (typeof document !== 'undefined' && document) {
-        try {
-          if ('visibilityState' in document) {
-            if (document.visibilityState !== "visible") return;
-          }
-        } catch {
-          // Guard for proxied document property access
-        }
-      }
-    } catch {
-      // Guard for outer document checks
-    }
+    if (!isDocumentVisible()) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -78,33 +89,29 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      try {
-        if (typeof document !== 'undefined' && document) {
-          try {
-            if ('visibilityState' in document && document.visibilityState === "visible") {
-              fetchData();
-            }
-          } catch {
-            // Guard visibility check inside event callback
-          }
-        }
-      } catch {
-        // Outer guard inside event callback
+      if (isDocumentVisible()) {
+        fetchData();
       }
     };
 
     try {
-      if (typeof document !== 'undefined' && document) {
+      if (typeof document !== "undefined") {
         try {
-          if ('addEventListener' in document) {
-            document.addEventListener("visibilitychange", handleVisibilityChange);
+          if (document) {
+            try {
+              if ("addEventListener" in document) {
+                document.addEventListener("visibilitychange", handleVisibilityChange);
+              }
+            } catch {
+              // Ignored
+            }
           }
         } catch {
-          // Guard addEventListener check
+          // Ignored
         }
       }
     } catch {
-      // Outer guard
+      // Ignored
     }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
@@ -116,17 +123,23 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== 'undefined' && document) {
+        if (typeof document !== "undefined") {
           try {
-            if ('removeEventListener' in document) {
-              document.removeEventListener("visibilitychange", handleVisibilityChange);
+            if (document) {
+              try {
+                if ("removeEventListener" in document) {
+                  document.removeEventListener("visibilitychange", handleVisibilityChange);
+                }
+              } catch {
+                // Ignored
+              }
             }
           } catch {
-            // Guard removeEventListener check
+            // Ignored
           }
         }
       } catch {
-        // Outer guard
+        // Ignored
       }
     };
   }, [fetchData]);
