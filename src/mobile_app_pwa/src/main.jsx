@@ -3,8 +3,19 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+try {
+  let rootEl = null;
+  try {
+    if (typeof document !== 'undefined' && document && 'getElementById' in document) {
+      rootEl = document.getElementById('root');
+    }
+  } catch (e) {}
+
+  if (rootEl) {
+    createRoot(rootEl).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+  }
+} catch (e) {}
