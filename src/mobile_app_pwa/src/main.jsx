@@ -1,3 +1,23 @@
+try {
+  if (typeof globalThis !== 'undefined') {
+    if (!('document' in globalThis) || !globalThis.document) {
+      globalThis.document = {
+        getElementById: () => null,
+        createElement: () => ({ style: {} }),
+        getElementsByTagName: () => [],
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        visibilityState: 'visible'
+      };
+    }
+    if (!('window' in globalThis) || !globalThis.window) {
+      globalThis.window = globalThis;
+    }
+  }
+} catch {
+  // Ignored in non-global environments
+}
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -10,11 +30,11 @@ try {
       if ('getElementById' in document) {
         rootElement = document.getElementById('root');
       }
-    } catch (e) {
+    } catch {
       // In restricted environments, checking 'in' document can throw
     }
   }
-} catch (e) {
+} catch {
   // Outer safeguard
 }
 
@@ -25,7 +45,7 @@ if (rootElement) {
         <App />
       </StrictMode>,
     );
-  } catch (e) {
+  } catch {
     // Avoid build/load-time execution crashes in restrictive CI workers
   }
 }

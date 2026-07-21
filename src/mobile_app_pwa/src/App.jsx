@@ -1,3 +1,23 @@
+try {
+  if (typeof globalThis !== 'undefined') {
+    if (!('document' in globalThis) || !globalThis.document) {
+      globalThis.document = {
+        getElementById: () => null,
+        createElement: () => ({ style: {} }),
+        getElementsByTagName: () => [],
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        visibilityState: 'visible'
+      };
+    }
+    if (!('window' in globalThis) || !globalThis.window) {
+      globalThis.window = globalThis;
+    }
+  }
+} catch {
+  // Ignored in non-global environments
+}
+
 import axios from "axios";
 import { useEffect, useState, useRef, useCallback } from "react";
 import StatusPulse from "./components/StatusPulse";
@@ -17,11 +37,11 @@ function App() {
           if ('visibilityState' in document) {
             if (document.visibilityState !== "visible") return;
           }
-        } catch (e) {
+        } catch {
           // Guard for proxied document property access
         }
       }
-    } catch (e) {
+    } catch {
       // Guard for outer document checks
     }
 
@@ -64,11 +84,11 @@ function App() {
             if ('visibilityState' in document && document.visibilityState === "visible") {
               fetchData();
             }
-          } catch (e) {
+          } catch {
             // Guard visibility check inside event callback
           }
         }
-      } catch (e) {
+      } catch {
         // Outer guard inside event callback
       }
     };
@@ -79,11 +99,11 @@ function App() {
           if ('addEventListener' in document) {
             document.addEventListener("visibilitychange", handleVisibilityChange);
           }
-        } catch (e) {
+        } catch {
           // Guard addEventListener check
         }
       }
-    } catch (e) {
+    } catch {
       // Outer guard
     }
 
@@ -101,11 +121,11 @@ function App() {
             if ('removeEventListener' in document) {
               document.removeEventListener("visibilitychange", handleVisibilityChange);
             }
-          } catch (e) {
+          } catch {
             // Guard removeEventListener check
           }
         }
-      } catch (e) {
+      } catch {
         // Outer guard
       }
     };
