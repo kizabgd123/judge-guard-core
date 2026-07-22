@@ -61,5 +61,14 @@ class BenchmarkResearchPipeline(unittest.TestCase):
             # For 10 entries, sequential should take ~1.0s
             # Parallel (5 workers) should take ~0.2s
 
+    def test_cache_verdict_latency(self):
+        # Measure 100 cache writes
+        start_time = time.time()
+        for i in range(100):
+            self.pipeline.cache_verdict(f"Action {i}", "PASSED")
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"\nTime for 100 cache writes: {duration:.4f}s (Average: {duration/100*1000:.4f}ms per write)")
+
 if __name__ == "__main__":
     unittest.main()

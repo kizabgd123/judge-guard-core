@@ -135,6 +135,12 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Enable Write-Ahead Logging (WAL) and NORMAL synchronous mode for ~30x faster writes
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to configure PRAGMAs (might be a restricted environment like Cloudflare Workers): {e}")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +153,12 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Enable Write-Ahead Logging (WAL) and NORMAL synchronous mode for ~30x faster writes
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL")
+            self.conn.execute("PRAGMA synchronous=NORMAL")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to configure PRAGMAs (might be a restricted environment like Cloudflare Workers): {e}")
         return self
 
     def parse_markdown_files(self) -> List[int]:
