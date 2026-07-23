@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Module-level __getattr__ inside Local Namespace]
+**Learning:** In Python, accessing a lazily-loaded module-level attribute as a bare name from within the same module's functions does not trigger `__getattr__` because local lookup of globals bypasses module attribute lookups and directly throws a `NameError`.
+**Action:** Always access deferred attributes via a central retriever/resource helper or `getattr(sys.modules[__name__], name)` to ensure module-level lookup is triggered correctly.
