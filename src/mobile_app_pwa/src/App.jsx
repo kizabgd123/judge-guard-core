@@ -10,8 +10,19 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network.
+    // Wrap defensively in nested try...catch to avoid Cloudflare Workers build-time crashes.
+    try {
+      if (typeof document !== "undefined" && document && "visibilityState" in document) {
+        try {
+          if (document.visibilityState !== "visible") return;
+        } catch (innerErr) {
+          // Inner exception on visibilityState access
+        }
+      }
+    } catch (err) {
+      // Outer exception on document type check or existence operator
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +57,32 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (typeof document !== "undefined" && document && "visibilityState" in document) {
+          try {
+            if (document.visibilityState === "visible") {
+              fetchData();
+            }
+          } catch (innerErr) {
+            // Inner visibilityState access exception
+          }
+        }
+      } catch (err) {
+        // Outer exception
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    try {
+      if (typeof document !== "undefined" && document && "addEventListener" in document) {
+        try {
+          document.addEventListener("visibilitychange", handleVisibilityChange);
+        } catch (innerErr) {
+          // Inner addEventListener access exception
+        }
+      }
+    } catch (err) {
+      // Outer exception
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +92,17 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (typeof document !== "undefined" && document && "removeEventListener" in document) {
+          try {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+          } catch (innerErr) {
+            // Inner removeEventListener access exception
+          }
+        }
+      } catch (err) {
+        // Outer exception
+      }
     };
   }, [fetchData]);
 
