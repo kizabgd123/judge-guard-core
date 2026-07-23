@@ -13,19 +13,20 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     let isVisible = true;
     try {
-      try {
-        if (typeof document !== 'undefined') {
-          try {
-            if (document) {
-              try {
-                if ('visibilityState' in document) {
-                  isVisible = (document.visibilityState === "visible");
-                }
-              } catch (e) {}
-            }
-          } catch (e) {}
-        }
-      } catch (e) {}
+      if (typeof globalThis !== 'undefined' && globalThis) {
+        try {
+          if ('document' in globalThis) {
+            try {
+              const doc = globalThis.document;
+              if (doc && 'visibilityState' in doc) {
+                try {
+                  isVisible = (doc.visibilityState === "visible");
+                } catch (e) {}
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+      }
     } catch (e) {}
 
     if (!isVisible) return;
@@ -65,19 +66,20 @@ function App() {
     const handleVisibilityChange = () => {
       let isVisible = true;
       try {
-        try {
-          if (typeof document !== 'undefined') {
-            try {
-              if (document) {
-                try {
-                  if ('visibilityState' in document) {
-                    isVisible = (document.visibilityState === "visible");
-                  }
-                } catch (e) {}
-              }
-            } catch (e) {}
-          }
-        } catch (e) {}
+        if (typeof globalThis !== 'undefined' && globalThis) {
+          try {
+            if ('document' in globalThis) {
+              try {
+                const doc = globalThis.document;
+                if (doc && 'visibilityState' in doc) {
+                  try {
+                    isVisible = (doc.visibilityState === "visible");
+                  } catch (e) {}
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
+        }
       } catch (e) {}
 
       if (isVisible) {
@@ -87,20 +89,21 @@ function App() {
 
     let registered = false;
     try {
-      try {
-        if (typeof document !== 'undefined') {
-          try {
-            if (document) {
-              try {
-                if ('addEventListener' in document) {
-                  document.addEventListener("visibilitychange", handleVisibilityChange);
+      if (typeof globalThis !== 'undefined' && globalThis) {
+        try {
+          if ('document' in globalThis) {
+            try {
+              const doc = globalThis.document;
+              if (doc && 'addEventListener' in doc) {
+                try {
+                  doc.addEventListener("visibilitychange", handleVisibilityChange);
                   registered = true;
-                }
-              } catch (e) {}
-            }
-          } catch (e) {}
-        }
-      } catch (e) {}
+                } catch (e) {}
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
+      }
     } catch (e) {}
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
@@ -113,19 +116,20 @@ function App() {
       clearInterval(interval);
       if (registered) {
         try {
-          try {
-            if (typeof document !== 'undefined') {
-              try {
-                if (document) {
-                  try {
-                    if ('removeEventListener' in document) {
-                      document.removeEventListener("visibilitychange", handleVisibilityChange);
-                    }
-                  } catch (e) {}
-                }
-              } catch (e) {}
-            }
-          } catch (e) {}
+          if (typeof globalThis !== 'undefined' && globalThis) {
+            try {
+              if ('document' in globalThis) {
+                try {
+                  const doc = globalThis.document;
+                  if (doc && 'removeEventListener' in doc) {
+                    try {
+                      doc.removeEventListener("visibilitychange", handleVisibilityChange);
+                    } catch (e) {}
+                  }
+                } catch (e) {}
+              }
+            } catch (e) {}
+          }
         } catch (e) {}
       }
     };

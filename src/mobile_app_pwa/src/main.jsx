@@ -5,32 +5,21 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
-  try {
-    if (typeof document !== 'undefined') {
-      try {
-        if (document) {
-          try {
-            if ('getElementById' in document) {
-              try {
-                rootElement = document.getElementById('root');
-              } catch (e) {
-                console.error(e);
-              }
-            }
-          } catch (e) {
-            console.error(e);
+  if (typeof globalThis !== 'undefined' && globalThis) {
+    try {
+      if ('document' in globalThis) {
+        try {
+          const doc = globalThis.document;
+          if (doc && 'getElementById' in doc) {
+            try {
+              rootElement = doc.getElementById('root');
+            } catch (e) {}
           }
-        }
-      } catch (e) {
-        console.error(e);
+        } catch (e) {}
       }
-    }
-  } catch (e) {
-    console.error(e);
+    } catch (e) {}
   }
-} catch (e) {
-  console.error(e);
-}
+} catch (e) {}
 
 if (rootElement) {
   createRoot(rootElement).render(
