@@ -13,13 +13,19 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     let isVisible = true;
     try {
-      if (typeof document !== 'undefined' && document) {
-        try {
-          if ('visibilityState' in document) {
-            isVisible = (document.visibilityState === "visible");
-          }
-        } catch (e) {}
-      }
+      try {
+        if (typeof document !== 'undefined') {
+          try {
+            if (document) {
+              try {
+                if ('visibilityState' in document) {
+                  isVisible = (document.visibilityState === "visible");
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
     } catch (e) {}
 
     if (!isVisible) return;
@@ -59,13 +65,19 @@ function App() {
     const handleVisibilityChange = () => {
       let isVisible = true;
       try {
-        if (typeof document !== 'undefined' && document) {
-          try {
-            if ('visibilityState' in document) {
-              isVisible = (document.visibilityState === "visible");
-            }
-          } catch (e) {}
-        }
+        try {
+          if (typeof document !== 'undefined') {
+            try {
+              if (document) {
+                try {
+                  if ('visibilityState' in document) {
+                    isVisible = (document.visibilityState === "visible");
+                  }
+                } catch (e) {}
+              }
+            } catch (e) {}
+          }
+        } catch (e) {}
       } catch (e) {}
 
       if (isVisible) {
@@ -75,14 +87,20 @@ function App() {
 
     let registered = false;
     try {
-      if (typeof document !== 'undefined' && document) {
-        try {
-          if ('addEventListener' in document) {
-            document.addEventListener("visibilitychange", handleVisibilityChange);
-            registered = true;
-          }
-        } catch (e) {}
-      }
+      try {
+        if (typeof document !== 'undefined') {
+          try {
+            if (document) {
+              try {
+                if ('addEventListener' in document) {
+                  document.addEventListener("visibilitychange", handleVisibilityChange);
+                  registered = true;
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
+        }
+      } catch (e) {}
     } catch (e) {}
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
@@ -95,13 +113,19 @@ function App() {
       clearInterval(interval);
       if (registered) {
         try {
-          if (typeof document !== 'undefined' && document) {
-            try {
-              if ('removeEventListener' in document) {
-                document.removeEventListener("visibilitychange", handleVisibilityChange);
-              }
-            } catch (e) {}
-          }
+          try {
+            if (typeof document !== 'undefined') {
+              try {
+                if (document) {
+                  try {
+                    if ('removeEventListener' in document) {
+                      document.removeEventListener("visibilitychange", handleVisibilityChange);
+                    }
+                  } catch (e) {}
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
         } catch (e) {}
       }
     };

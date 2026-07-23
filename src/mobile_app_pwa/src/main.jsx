@@ -5,14 +5,28 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
-  if (typeof document !== 'undefined' && document) {
-    try {
-      if ('getElementById' in document) {
-        rootElement = document.getElementById('root');
+  try {
+    if (typeof document !== 'undefined') {
+      try {
+        if (document) {
+          try {
+            if ('getElementById' in document) {
+              try {
+                rootElement = document.getElementById('root');
+              } catch (e) {
+                console.error(e);
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
     }
+  } catch (e) {
+    console.error(e);
   }
 } catch (e) {
   console.error(e);
