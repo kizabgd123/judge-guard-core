@@ -17,11 +17,10 @@ import hashlib
 import json
 import re
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -35,9 +34,18 @@ NOTION_LOG = Path("./.cache/notion_queue.json")
 # ⚡ Bolt: Pre-compiled regex for efficient pattern extraction
 PATTERN_RE = re.compile(r"^###?\s+(?:\d+\.\s+)?(.+?)(?:\s*[-–]\s*(.+))?$", re.MULTILINE)
 
-# Notion API (user must set these)
-NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
-NOTION_DB_ID = os.getenv("NOTION_DATABASE_ID", "")
+# ⚡ Bolt: Global lock and flag for thread-safe deferred load_dotenv()
+_env_lock = threading.RLock()
+_env_loaded = False
+
+def ensure_env_loaded():
+    global _env_loaded
+    if not _env_loaded:
+        with _env_lock:
+            if not _env_loaded:
+                from dotenv import load_dotenv
+                load_dotenv()
+                _env_loaded = True
 
 
 # === DATABASE SCHEMA ===
@@ -86,13 +94,21 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 class ResearchPipeline:
     def __init__(self):
-        # ⚡ Bolt: Load environment variables once during initialization
-        load_dotenv()
         self.conn = None
         self.notion_queue = []
         self._session = None
-        # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        self._executor = None
+        self._lock = threading.RLock()
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy property to defer ThreadPoolExecutor initialization (thread-safe)."""
+        if self._executor is None:
+            with self._lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
@@ -104,11 +120,11 @@ class ResearchPipeline:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if getattr(self, "_executor", None) is not None:
             self._executor.shutdown(wait=True)
-        if hasattr(self, "_session") and self._session:
+        if getattr(self, "_session", None) is not None:
             self._session.close()
-        if hasattr(self, "conn") and self.conn:
+        if getattr(self, "conn", None) is not None:
             self.conn.close()
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
@@ -135,6 +151,8 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +165,8 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -351,6 +371,9 @@ class ResearchPipeline:
         """
         Sync queued audit entries to Notion or persist them to the local cache when Notion credentials are unavailable.
         """
+        # ⚡ Bolt: Ensure environment is loaded thread-safely
+        ensure_env_loaded()
+
         # ⚡ Bolt: Snapshot and clear queue immediately to prevent leaks and race conditions
         current_queue = self.notion_queue[:]
         self.notion_queue = []
@@ -406,7 +429,7 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
