@@ -166,18 +166,41 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
+            # ⚡ Bolt: Direct O(1) dictionary lookup checks for standard keys ('Name', 'Entry', 'title')
+            # to eliminate generator overhead and expensive Python exception-handling paths.
+            props = page.get("properties") or {}
             
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            # Check 'Name' first (standard key for Goals)
+            name_prop = props.get("Name")
+            if name_prop:
+                title_list = name_prop.get("title")
+                if title_list:
+                    return title_list[0]["text"]["content"]
+
+            # Check 'Entry' next (standard key for Logs)
+            entry_prop = props.get("Entry")
+            if entry_prop:
+                title_list = entry_prop.get("title")
+                if title_list:
+                    return title_list[0]["text"]["content"]
+                rt_list = entry_prop.get("rich_text")
+                if rt_list:
+                    return rt_list[0]["text"]["content"]
+
+            # Check 'title' next
+            title_prop = props.get("title")
+            if title_prop:
+                title_list = title_prop.get("title")
+                if title_list:
+                    return title_list[0]["text"]["content"]
+
+            # Fallback to linear scan for any property with ID == 'title'
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title":
+                    title_list = v.get("title")
+                    if title_list:
+                        return title_list[0]["text"]["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
