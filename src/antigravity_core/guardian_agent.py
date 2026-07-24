@@ -166,18 +166,43 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            props = page.get("properties")
+            if not props:
+                return "Untitled"
+
+            # Direct O(1) dictionary lookups for standard keys to bypass O(N) scan and exception overhead
+            for key in ("Name", "Entry", "title"):
+                prop = props.get(key)
+                if isinstance(prop, dict):
+                    # Try getting "title" list
+                    t_list = prop.get("title")
+                    if isinstance(t_list, list) and t_list:
+                        item = t_list[0]
+                        if isinstance(item, dict):
+                            text_obj = item.get("text")
+                            if isinstance(text_obj, dict):
+                                return text_obj.get("content", "")
+
+                    # Try getting "rich_text" list as fallback
+                    rt_list = prop.get("rich_text")
+                    if isinstance(rt_list, list) and rt_list:
+                        item = rt_list[0]
+                        if isinstance(item, dict):
+                            text_obj = item.get("text")
+                            if isinstance(text_obj, dict):
+                                return text_obj.get("content", "")
+
+            # Fallback to O(N) scan ONLY if standard keys are missing or don't have content
+            for prop in props.values():
+                if isinstance(prop, dict) and prop.get("id") == "title":
+                    t_list = prop.get("title")
+                    if isinstance(t_list, list) and t_list:
+                        item = t_list[0]
+                        if isinstance(item, dict):
+                            text_obj = item.get("text")
+                            if isinstance(text_obj, dict):
+                                return text_obj.get("content", "")
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
