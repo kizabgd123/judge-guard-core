@@ -10,11 +10,11 @@ try {
       if ('getElementById' in document) {
         rootElement = document.getElementById('root');
       }
-    } catch (e) {
+    } catch {
       // Ignored
     }
   }
-} catch (e) {
+} catch {
   // Ignored
 }
 

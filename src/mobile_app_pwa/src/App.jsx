@@ -18,11 +18,11 @@ function App() {
           if ('visibilityState' in document) {
             isVisible = (document.visibilityState === 'visible');
           }
-        } catch (e) {
+        } catch {
           // Ignored
         }
       }
-    } catch (e) {
+    } catch {
       // Ignored
     }
     if (!isVisible) return;
@@ -67,11 +67,11 @@ function App() {
             if ('visibilityState' in document) {
               isVisible = (document.visibilityState === 'visible');
             }
-          } catch (e) {
+          } catch {
             // Ignored
           }
         }
-      } catch (e) {
+      } catch {
         // Ignored
       }
       if (isVisible) {
@@ -87,11 +87,11 @@ function App() {
             document.addEventListener("visibilitychange", handleVisibilityChange);
             hasEventListener = true;
           }
-        } catch (e) {
+        } catch {
           // Ignored
         }
       }
-    } catch (e) {
+    } catch {
       // Ignored
     }
 
@@ -110,11 +110,11 @@ function App() {
               if ('removeEventListener' in document) {
                 document.removeEventListener("visibilitychange", handleVisibilityChange);
               }
-            } catch (e) {
+            } catch {
               // Ignored
             }
           }
-        } catch (e) {
+        } catch {
           // Ignored
         }
       }
