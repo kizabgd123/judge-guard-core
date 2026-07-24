@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Exception-Induced Latency and Correctness Bugs in Property Parsing]
+**Learning:** Falling back on sequential generator-expression scans (like `next((v for k,v in props.items() if v["id"] == "title"), None)`) on missing/un-standard fields in dynamic dictionary structures (e.g., Notion pages) introduces severe exception-raising overhead (KeyErrors/AttributeErrors). In this codebase, it added 2.5x extra latency per page in benchmark scenarios and broke extraction by returning generic error strings instead of actual data.
+**Action:** Always prioritize direct, exception-free $O(1)$ dictionary lookup patterns (`.get()`) with simple `if` type-checks for common expected schemas before executing dynamic sequential scans or fallback pathways.
