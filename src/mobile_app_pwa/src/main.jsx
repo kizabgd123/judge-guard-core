@@ -8,7 +8,7 @@ try {
   if (typeof document !== 'undefined' && 'getElementById' in document) {
     rootElement = document.getElementById('root');
   }
-} catch (e) {
+} catch {
   // Silent catch for build-time safety in restrictive CI environments
 }
 
