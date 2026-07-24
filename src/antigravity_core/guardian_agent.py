@@ -165,50 +165,19 @@ class GuardianAgent:
 
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
-        props = page.get("properties")
-        if not props:
+        try:
+            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
+            # Creating resilient getter
+            props = page["properties"]
+            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
+            if title_prop and title_prop["title"]:
+                return title_prop["title"][0]["text"]["content"]
+
+            # Fallback for 'Entry' property if it's a Rich Text, not Title
+            entry = props.get("Entry", {}).get("rich_text", [])
+            if entry:
+                return entry[0]["text"]["content"]
+
             return "Untitled"
-
-        # ⚡ Bolt: Direct O(1) checks for common properties first, avoiding slow exceptions/loops
-        for key in ("Name", "Entry", "title"):
-            prop = props.get(key)
-            if not prop:
-                continue
-
-            # Check for title
-            title_list = prop.get("title")
-            if title_list and isinstance(title_list, list) and len(title_list) > 0:
-                text_obj = title_list[0].get("text")
-                if text_obj:
-                    return text_obj.get("content", "Untitled")
-
-            # Check for rich_text
-            rt_list = prop.get("rich_text")
-            if rt_list and isinstance(rt_list, list) and len(rt_list) > 0:
-                text_obj = rt_list[0].get("text")
-                if text_obj:
-                    return text_obj.get("content", "Untitled")
-
-        # Fallback 1: Resiliently scan for any property with id "title" or type "title"
-        for prop in props.values():
-            if not isinstance(prop, dict):
-                continue
-            if prop.get("id") == "title" or prop.get("type") == "title":
-                title_list = prop.get("title")
-                if title_list and isinstance(title_list, list) and len(title_list) > 0:
-                    text_obj = title_list[0].get("text")
-                    if text_obj:
-                        return text_obj.get("content", "Untitled")
-
-        # Fallback 2: Resiliently scan for any property containing a non-empty rich_text/title list
-        for prop in props.values():
-            if not isinstance(prop, dict):
-                continue
-            for list_key in ("title", "rich_text"):
-                lst = prop.get(list_key)
-                if lst and isinstance(lst, list) and len(lst) > 0:
-                    text_obj = lst[0].get("text")
-                    if text_obj:
-                        return text_obj.get("content", "Untitled")
-
-        return "Untitled"
+        except Exception:
+            return "Error extracting title"
