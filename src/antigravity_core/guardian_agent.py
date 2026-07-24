@@ -172,12 +172,12 @@ class GuardianAgent:
             title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
             if title_prop and title_prop["title"]:
                 return title_prop["title"][0]["text"]["content"]
-            
+
             # Fallback for 'Entry' property if it's a Rich Text, not Title
             entry = props.get("Entry", {}).get("rich_text", [])
             if entry:
                 return entry[0]["text"]["content"]
-                
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
