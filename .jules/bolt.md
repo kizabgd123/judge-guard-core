@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Redundant seek, read, and decode in WORK_LOG.md tail retrieval]
+**Learning:** For continuous-monitoring or verification loops, repeatedly calling separate functions that read the tail of the exact same log file (`_check_work_log` and `_load_context`) creates multiple expensive disk seeks, I/O operations, and string decodes on the hot path. Caching the file tail based on its path, size, and mtime allows subsequent reads to serve directly from memory.
+**Action:** Implement `_get_work_log_tail` with a robust `(path, size, mtime)` cache validator, and pre-populate the cache with the maximum required context length on the first access. This completely avoids subsequent disk reads.
