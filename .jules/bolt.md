@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [SQLite Write Performance and Mocking Lazy Imports]
+**Learning:** SQLite database writes (e.g., `cache_verdict` in `ResearchPipeline`) are heavily disk I/O bound if `PRAGMA synchronous=NORMAL` and `journal_mode=WAL` are not enabled per-connection, taking ~10ms per write. Enabling them reduces write latency to ~0.18ms (a ~56x speedup). Additionally, unit and benchmark tests that mock lazy-imported objects must patch the original source paths (e.g., `src.antigravity_core.notion_client.NotionClient` instead of the importing module's scope) and assign mock instances directly to private variables (e.g., `_notion` on `KaggleAgent`) when public properties lack setters.
+**Action:** Always configure SQLite WAL mode and set synchronous=NORMAL on database connect. Ensure mock patches target original definition paths rather than lazy-importing scopes.

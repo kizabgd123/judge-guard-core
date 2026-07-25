@@ -135,6 +135,10 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Optimize SQLite performance with WAL mode and synchronous=NORMAL
+        # WAL mode permits concurrent reads/writes; synchronous=NORMAL reduces fsync frequency
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -147,6 +151,10 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Optimize SQLite performance with WAL mode and synchronous=NORMAL
+        # WAL mode permits concurrent reads/writes; synchronous=NORMAL reduces fsync frequency
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         return self
 
     def parse_markdown_files(self) -> List[int]:
