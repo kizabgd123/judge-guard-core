@@ -8,7 +8,7 @@ try {
   if (typeof document !== 'undefined' && 'getElementById' in document) {
     rootElement = document.getElementById('root');
   }
-} catch (e) {
+} catch {
   // Defensive guard for restrictive environments like Cloudflare Workers CI
 }
 

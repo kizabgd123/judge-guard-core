@@ -15,7 +15,7 @@ function App() {
       if (typeof document !== "undefined" && "visibilityState" in document) {
         if (document.visibilityState !== "visible") return;
       }
-    } catch (e) {
+    } catch {
       // Defensive guard for restrictive environments like Cloudflare Workers CI
     }
 
@@ -58,7 +58,7 @@ function App() {
             fetchData();
           }
         }
-      } catch (e) {
+      } catch {
         // Defensive guard for restrictive environments like Cloudflare Workers CI
       }
     };
@@ -69,7 +69,7 @@ function App() {
         document.addEventListener("visibilitychange", handleVisibilityChange);
         registered = true;
       }
-    } catch (e) {
+    } catch {
       // Defensive guard for restrictive environments like Cloudflare Workers CI
     }
 
@@ -86,7 +86,7 @@ function App() {
           if (typeof document !== "undefined" && "removeEventListener" in document) {
             document.removeEventListener("visibilitychange", handleVisibilityChange);
           }
-        } catch (e) {
+        } catch {
           // Defensive guard for restrictive environments like Cloudflare Workers CI
         }
       }
