@@ -5,12 +5,12 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
-  if (typeof document !== 'undefined' && 'getElementById' in document) {
-    rootElement = document.getElementById('root');
-  }
-} catch (e) {
-  // Defensive guard for Cloudflare Worker CI/CD builds
-}
+  try {
+    if ('getElementById' in document) {
+      rootElement = document.getElementById('root');
+    }
+  } catch (e) {}
+} catch (e) {}
 
 if (rootElement) {
   createRoot(rootElement).render(
