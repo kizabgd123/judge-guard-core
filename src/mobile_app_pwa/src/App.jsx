@@ -15,7 +15,7 @@ function App() {
       if (typeof document !== 'undefined' && 'visibilityState' in document) {
         if (document.visibilityState !== "visible") return;
       }
-    } catch (e) {
+    } catch {
       // Suppress CI environment exceptions
     }
 
@@ -58,7 +58,7 @@ function App() {
             fetchData();
           }
         }
-      } catch (e) {
+      } catch {
         // Suppress CI environment exceptions
       }
     };
@@ -67,7 +67,7 @@ function App() {
       if (typeof document !== 'undefined' && 'addEventListener' in document) {
         document.addEventListener("visibilitychange", handleVisibilityChange);
       }
-    } catch (e) {
+    } catch {
       // Suppress CI environment exceptions
     }
 
@@ -83,7 +83,7 @@ function App() {
         if (typeof document !== 'undefined' && 'removeEventListener' in document) {
           document.removeEventListener("visibilitychange", handleVisibilityChange);
         }
-      } catch (e) {
+      } catch {
         // Suppress CI environment exceptions
       }
     };

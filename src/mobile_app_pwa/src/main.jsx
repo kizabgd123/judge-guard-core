@@ -9,7 +9,7 @@ try {
     if (typeof document !== 'undefined' && 'getElementById' in document) {
       rootEl = document.getElementById('root');
     }
-  } catch (e) {
+  } catch {
     // Suppress document check exceptions in restrictive CI worker environments
   }
 
@@ -20,6 +20,6 @@ try {
       </StrictMode>,
     )
   }
-} catch (e) {
+} catch {
   // Suppress top-level rendering exceptions
 }
