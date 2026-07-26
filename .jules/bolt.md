@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-21 - [Tail-Cache Size-Checking and Truncation Guard]
+**Learning:** When implementing O(1) file tail caching across multiple functions requesting varying read sizes (`max_chars`), a simpler cache invalidation based strictly on path/mtime/size can lead to truncation bugs. If a smaller chunk is cached first, a subsequent larger request retrieves the truncated cached string.
+**Action:** Validate that cached contents are at least as large as the requested `max_chars` or equal to the total file size before returning the cached hit. Otherwise, perform a cache miss and reload.
