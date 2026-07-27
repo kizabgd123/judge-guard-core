@@ -6,7 +6,7 @@
   "last_verdict": {
     "action": "Valid Action",
     "status": "PASSED",
-    "reason": "Approved (Unified Verification)",
+    "reason": "Approved (Cached)",
     "timestamp": "Now"
   }
 }
