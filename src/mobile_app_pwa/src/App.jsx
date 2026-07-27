@@ -12,12 +12,12 @@ function App() {
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     try {
-      if (typeof document !== 'undefined' && 'visibilityState' in document) {
-        if (document.visibilityState !== "visible") return;
-      }
-    } catch (e) {
-      // Safe fallback
-    }
+      try {
+        if ('visibilityState' in document) {
+          if (document.visibilityState !== "visible") return;
+        }
+      } catch (inner) {}
+    } catch (outer) {}
 
     try {
       const timestamp = new Date().getTime();
@@ -53,19 +53,23 @@ function App() {
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
       try {
-        if (typeof document !== 'undefined' && 'visibilityState' in document) {
-          if (document.visibilityState === "visible") {
-            fetchData();
+        try {
+          if ('visibilityState' in document) {
+            if (document.visibilityState === "visible") {
+              fetchData();
+            }
           }
-        }
-      } catch (e) {}
+        } catch (inner) {}
+      } catch (outer) {}
     };
 
     try {
-      if (typeof document !== 'undefined' && 'addEventListener' in document) {
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-      }
-    } catch (e) {}
+      try {
+        if ('addEventListener' in document) {
+          document.addEventListener("visibilitychange", handleVisibilityChange);
+        }
+      } catch (inner) {}
+    } catch (outer) {}
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -76,10 +80,12 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== 'undefined' && 'removeEventListener' in document) {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
-        }
-      } catch (e) {}
+        try {
+          if ('removeEventListener' in document) {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+          }
+        } catch (inner) {}
+      } catch (outer) {}
     };
   }, [fetchData]);
 

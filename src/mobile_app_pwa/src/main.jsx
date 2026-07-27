@@ -6,11 +6,15 @@ import App from './App.jsx'
 let rootElement = null;
 
 try {
-  if (typeof document !== 'undefined' && 'getElementById' in document) {
-    rootElement = document.getElementById('root');
+  try {
+    if ('getElementById' in document) {
+      rootElement = document.getElementById('root');
+    }
+  } catch (innerErr) {
+    // Inner catch for property access throwing on proxied document
   }
-} catch (e) {
-  // Suppress exceptions in restrictive proxied environments like Cloudflare Workers
+} catch (outerErr) {
+  // Outer catch for typeof or document reference throwing
 }
 
 if (rootElement) {
