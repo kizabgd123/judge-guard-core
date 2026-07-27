@@ -6,15 +6,11 @@ import App from './App.jsx'
 let rootElement = null;
 
 try {
-  try {
-    if ('getElementById' in document) {
-      rootElement = document.getElementById('root');
-    }
-  } catch (innerErr) {
-    // Inner catch for property access throwing on proxied document
+  if (typeof document !== 'undefined' && 'getElementById' in document) {
+    rootElement = document.getElementById('root');
   }
-} catch (outerErr) {
-  // Outer catch for typeof or document reference throwing
+} catch {
+  // Safe fallback for restricted global document environments
 }
 
 if (rootElement) {
