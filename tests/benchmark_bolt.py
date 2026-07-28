@@ -11,7 +11,7 @@ from src.kaggle_stream.kaggle_agent import KaggleAgent
 from src.kaggle_stream.app import run_agent_turn
 
 class TestPerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
+    @patch('src.antigravity_core.notion_client.NotionClient')
     @patch('src.kaggle_stream.app.multimedia')
     def test_run_agent_turn_latency(self, mock_multimedia, mock_notion_class):
         # Setup Notion mock
@@ -36,8 +36,8 @@ class TestPerformance(unittest.TestCase):
 
         agent = KaggleAgent(name="TestAgent")
         # In KaggleAgent.__init__, it might fail to init Notion if no key.
-        # We manually set it for the test.
-        agent.notion = mock_notion_instance
+        # We manually set it for the test using the private attribute to bypass lack of property setter.
+        agent._notion = mock_notion_instance
         agent.demo_mode = True # Use demo data to avoid Gemini API calls
 
         print("\n--- Starting Benchmark (Baseline) ---")
