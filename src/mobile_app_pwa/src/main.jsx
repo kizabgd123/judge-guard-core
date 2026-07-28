@@ -11,10 +11,10 @@ try {
         rootElement = document.getElementById('root');
       }
     }
-  } catch (e) {
+  } catch {
     // Nested catch block to fully insulate from restrictively proxied global document checks
   }
-} catch (e) {
+} catch {
   // Outer fallback
 }
 

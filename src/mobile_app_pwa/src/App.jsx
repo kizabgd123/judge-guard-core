@@ -11,10 +11,10 @@ const isDocumentVisible = () => {
           return document.visibilityState === 'visible';
         }
       }
-    } catch (e) {
+    } catch {
       // Defensive nested catch
     }
-  } catch (e) {
+  } catch {
     // Outer catch
   }
   return true; // fallback to visible if we can't check
@@ -77,10 +77,10 @@ function App() {
             hasEventListener = true;
           }
         }
-      } catch (e) {
+      } catch {
         // Defensive nested catch
       }
-    } catch (e) {
+    } catch {
       // Outer catch
     }
 
@@ -100,10 +100,10 @@ function App() {
                 document.removeEventListener("visibilitychange", handleVisibilityChange);
               }
             }
-          } catch (e) {
+          } catch {
             // Defensive nested catch
           }
-        } catch (e) {
+        } catch {
           // Outer catch
         }
       }
