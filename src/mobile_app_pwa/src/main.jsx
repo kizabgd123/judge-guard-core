@@ -11,10 +11,12 @@ try {
         rootElement = document.getElementById('root');
       }
     }
-  } catch {
+  // eslint-disable-next-line no-unused-vars
+  } catch (e) {
     // Nested catch block to fully insulate from restrictively proxied global document checks
   }
-} catch {
+// eslint-disable-next-line no-unused-vars
+} catch (e) {
   // Outer fallback
 }
 

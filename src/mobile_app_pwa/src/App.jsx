@@ -11,10 +11,12 @@ const isDocumentVisible = () => {
           return document.visibilityState === 'visible';
         }
       }
-    } catch {
+    // eslint-disable-next-line no-unused-vars
+    } catch (e) {
       // Defensive nested catch
     }
-  } catch {
+  // eslint-disable-next-line no-unused-vars
+  } catch (e) {
     // Outer catch
   }
   return true; // fallback to visible if we can't check
@@ -77,10 +79,12 @@ function App() {
             hasEventListener = true;
           }
         }
-      } catch {
+      // eslint-disable-next-line no-unused-vars
+      } catch (e) {
         // Defensive nested catch
       }
-    } catch {
+    // eslint-disable-next-line no-unused-vars
+    } catch (e) {
       // Outer catch
     }
 
@@ -100,10 +104,12 @@ function App() {
                 document.removeEventListener("visibilitychange", handleVisibilityChange);
               }
             }
-          } catch {
+          } // eslint-disable-next-line no-unused-vars
+          catch (e) {
             // Defensive nested catch
           }
-        } catch {
+        } // eslint-disable-next-line no-unused-vars
+        catch (e) {
           // Outer catch
         }
       }
