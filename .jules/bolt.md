@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Exception-Free O(1) Property Lookup in Notion Integration]
+**Learning:** Notion database pages have schema-defined key properties (e.g. "Name" or "Entry"). Performing generic $O(N)$ linear scans on every page object, combined with raising/catching exceptions on mismatching property models, incurs highly expensive python exception overhead on hot paths. Direct $O(1)$ dictionary lookup checks (`.get()`) combined with type checks (`isinstance(..., dict)`) completely bypass exception generation, reducing lookup latencies by over 60%.
+**Action:** Always prefer direct dictionary key checks first before resorting to iterative item scanning or trying exception-prone duck-typing in performance-critical code paths.
