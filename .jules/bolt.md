@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Mocking Lazy Attributes and Property Setters in Unit/Benchmark Tests]
+**Learning:** Mocking lazy-loaded attributes in unit/benchmark tests requires patching the original source path of the module rather than the local target module where they are imported dynamically or inside property getters, which avoids AttributeErrors. Furthermore, mock instances must be assigned directly to the private backing variable (e.g., `_notion` instead of `notion`) when there is no property setter.
+**Action:** Ensure unit/benchmark tests use the original source path for patching, and mock underlying private fields when properties are read-only.
