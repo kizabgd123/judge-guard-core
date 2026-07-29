@@ -4,16 +4,22 @@ import './index.css'
 import App from './App.jsx'
 
 try {
-  if (typeof document !== 'undefined' && 'getElementById' in document) {
-    const rootEl = document.getElementById('root');
-    if (rootEl) {
-      createRoot(rootEl).render(
-        <StrictMode>
-          <App />
-        </StrictMode>,
-      );
+  try {
+    if (typeof document !== 'undefined') {
+      try {
+        if ('getElementById' in document) {
+          try {
+            const rootEl = document.getElementById('root');
+            if (rootEl) {
+              createRoot(rootEl).render(
+                <StrictMode>
+                  <App />
+                </StrictMode>,
+              );
+            }
+          } catch (err) {}
+        }
+      } catch (err) {}
     }
-  }
-} catch (e) {
-  // Ignore errors from restrictively proxied global objects in worker environment
-}
+  } catch (err) {}
+} catch (err) {}
