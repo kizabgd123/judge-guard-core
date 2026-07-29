@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Mocking Deferral Dependencies in Tests]
+**Learning:** When classes use lazy-loading properties or local scopes to import dependencies (e.g., `requests`), standard module-level mocking using `@patch('module.Dependency')` raises `AttributeError` because the dependency name is not bound to the module dictionary on import.
+**Action:** Patch dependencies at their original package/source paths (e.g., `@patch('requests.Session')`) and assign mock client instances directly to private backing variables (e.g., `_notion`) when property setters are unavailable.
