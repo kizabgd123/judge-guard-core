@@ -8,7 +8,7 @@ function isDocumentVisible() {
     if (typeof document !== 'undefined' && document && 'visibilityState' in document) {
       return document.visibilityState === "visible";
     }
-  } catch (e) {
+  } catch {
     // Safe guard
   }
   return true; // Default to true if check fails or document is not present
@@ -19,7 +19,7 @@ function safeAddEventListener(event, handler) {
     if (typeof document !== 'undefined' && document && 'addEventListener' in document) {
       document.addEventListener(event, handler);
     }
-  } catch (e) {
+  } catch {
     // Safe guard
   }
 }
@@ -29,7 +29,7 @@ function safeRemoveEventListener(event, handler) {
     if (typeof document !== 'undefined' && document && 'removeEventListener' in document) {
       document.removeEventListener(event, handler);
     }
-  } catch (e) {
+  } catch {
     // Safe guard
   }
 }

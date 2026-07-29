@@ -9,10 +9,10 @@ try {
     if (typeof document !== 'undefined' && document && 'getElementById' in document) {
       rootElement = document.getElementById('root');
     }
-  } catch (e) {
+  } catch {
     // Nested safe catch
   }
-} catch (e) {
+} catch {
   // Safe fallback
 }
 
