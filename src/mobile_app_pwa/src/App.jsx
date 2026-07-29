@@ -21,12 +21,20 @@ function App() {
                 if (document.visibilityState !== "visible") {
                   isVisible = false;
                 }
-              } catch (err) {}
+              } catch {
+                void 0;
+              }
             }
-          } catch (err) {}
+          } catch {
+            void 0;
+          }
         }
-      } catch (err) {}
-    } catch (err) {}
+      } catch {
+        void 0;
+      }
+    } catch {
+      void 0;
+    }
 
     if (!isVisible) return;
 
@@ -73,12 +81,20 @@ function App() {
                   if (document.visibilityState === "visible") {
                     shouldFetch = true;
                   }
-                } catch (err) {}
+                } catch {
+                  void 0;
+                }
               }
-            } catch (err) {}
+            } catch {
+              void 0;
+            }
           }
-        } catch (err) {}
-      } catch (err) {}
+        } catch {
+          void 0;
+        }
+      } catch {
+        void 0;
+      }
 
       if (shouldFetch) {
         fetchData();
@@ -92,10 +108,16 @@ function App() {
             if ("addEventListener" in document) {
               document.addEventListener("visibilitychange", handleVisibilityChange);
             }
-          } catch (err) {}
+          } catch {
+            void 0;
+          }
         }
-      } catch (err) {}
-    } catch (err) {}
+      } catch {
+        void 0;
+      }
+    } catch {
+      void 0;
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -112,10 +134,16 @@ function App() {
               if ("removeEventListener" in document) {
                 document.removeEventListener("visibilitychange", handleVisibilityChange);
               }
-            } catch (err) {}
+            } catch {
+              void 0;
+            }
           }
-        } catch (err) {}
-      } catch (err) {}
+        } catch {
+          void 0;
+        }
+      } catch {
+        void 0;
+      }
     };
   }, [fetchData]);
 

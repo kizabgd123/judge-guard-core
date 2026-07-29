@@ -17,9 +17,17 @@ try {
                 </StrictMode>,
               );
             }
-          } catch (err) {}
+          } catch {
+            void 0;
+          }
         }
-      } catch (err) {}
+      } catch {
+        void 0;
+      }
     }
-  } catch (err) {}
-} catch (err) {}
+  } catch {
+    void 0;
+  }
+} catch {
+  void 0;
+}
