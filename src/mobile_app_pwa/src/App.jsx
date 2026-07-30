@@ -11,13 +11,22 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
+    let isHidden = false;
     try {
-      if (typeof document !== 'undefined' && 'visibilityState' in document) {
-        if (document.visibilityState !== "visible") return;
-      }
-    } catch (e) {
-      // Ignore exception if document is restrictively proxied
-    }
+      try {
+        if (typeof document !== 'undefined') {
+          try {
+            if ('visibilityState' in document) {
+              if (document.visibilityState !== "visible") {
+                isHidden = true;
+              }
+            }
+          } catch (e1) {}
+        }
+      } catch (e2) {}
+    } catch (e) {}
+
+    if (isHidden) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -52,19 +61,33 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
+      let isVisible = true;
       try {
-        if (typeof document !== 'undefined' && 'visibilityState' in document) {
-          if (document.visibilityState === "visible") {
-            fetchData();
+        try {
+          if (typeof document !== 'undefined') {
+            try {
+              if ('visibilityState' in document) {
+                isVisible = document.visibilityState === "visible";
+              }
+            } catch (e1) {}
           }
-        }
+        } catch (e2) {}
       } catch (e) {}
+      if (isVisible) {
+        fetchData();
+      }
     };
 
     try {
-      if (typeof document !== 'undefined' && 'addEventListener' in document) {
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-      }
+      try {
+        if (typeof document !== 'undefined') {
+          try {
+            if ('addEventListener' in document) {
+              document.addEventListener("visibilitychange", handleVisibilityChange);
+            }
+          } catch (e1) {}
+        }
+      } catch (e2) {}
     } catch (e) {}
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
@@ -76,9 +99,15 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof document !== 'undefined' && 'removeEventListener' in document) {
-          document.removeEventListener("visibilitychange", handleVisibilityChange);
-        }
+        try {
+          if (typeof document !== 'undefined') {
+            try {
+              if ('removeEventListener' in document) {
+                document.removeEventListener("visibilitychange", handleVisibilityChange);
+              }
+            } catch (e1) {}
+          }
+        } catch (e2) {}
       } catch (e) {}
     };
   }, [fetchData]);
