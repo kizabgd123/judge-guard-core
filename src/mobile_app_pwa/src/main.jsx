@@ -14,6 +14,6 @@ try {
       )
     }
   }
-} catch (e) {
+} catch {
   // Silent catch to prevent build-time crash in restrictive environments like Cloudflare Workers
 }

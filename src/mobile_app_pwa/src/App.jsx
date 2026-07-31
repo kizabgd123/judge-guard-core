@@ -15,7 +15,7 @@ function App() {
       if (typeof document !== "undefined" && document && "visibilityState" in document) {
         if (document.visibilityState !== "visible") return;
       }
-    } catch (e) {
+    } catch {
       // Defensive guard for restrictive environments
     }
 
@@ -58,7 +58,7 @@ function App() {
             fetchData();
           }
         }
-      } catch (e) {
+      } catch {
         // Defensive guard
       }
     };
@@ -67,7 +67,7 @@ function App() {
       if (typeof document !== "undefined" && document && "addEventListener" in document) {
         document.addEventListener("visibilitychange", handleVisibilityChange);
       }
-    } catch (e) {
+    } catch {
       // Defensive guard
     }
 
@@ -83,7 +83,7 @@ function App() {
         if (typeof document !== "undefined" && document && "removeEventListener" in document) {
           document.removeEventListener("visibilitychange", handleVisibilityChange);
         }
-      } catch (e) {
+      } catch {
         // Defensive guard
       }
     };
