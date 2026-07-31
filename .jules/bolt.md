@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Mocking and Attribute Resolution with Lazy Loading]
+**Learning:** When core modules implement dynamic/lazy property imports, standard module-level unittest mock patching (e.g., `@patch('src.kaggle_stream.kaggle_agent.NotionClient')`) fails with an AttributeError because the class is not bound at import time. Additionally, overriding properties without setters raises AttributeErrors.
+**Action:** Mock-patch the original source paths (e.g., `src.antigravity_core.notion_client.NotionClient`) so dynamic import hooks fetch the mock. To override property-based clients on class instances in tests, assign mock instances directly to the underlying private state variables (e.g., `_notion`).

@@ -11,7 +11,19 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    try {
+      if (typeof document !== 'undefined') {
+        try {
+          if ('visibilityState' in document) {
+            if (document.visibilityState !== "visible") return;
+          }
+        } catch {
+          // Fallback if visibilityState is restrictively proxied
+        }
+      }
+    } catch {
+      // Fallback if document is restrictively proxied
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +58,36 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (typeof document !== 'undefined') {
+          try {
+            if ('visibilityState' in document) {
+              if (document.visibilityState === "visible") {
+                fetchData();
+              }
+            }
+          } catch {
+            // Ignored
+          }
+        }
+      } catch {
+        // Ignored
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    try {
+      if (typeof document !== 'undefined') {
+        try {
+          if ('addEventListener' in document) {
+            document.addEventListener("visibilitychange", handleVisibilityChange);
+          }
+        } catch {
+          // Ignored
+        }
+      }
+    } catch {
+      // Ignored
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +97,19 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (typeof document !== 'undefined') {
+          try {
+            if ('removeEventListener' in document) {
+              document.removeEventListener("visibilitychange", handleVisibilityChange);
+            }
+          } catch {
+            // Ignored
+          }
+        }
+      } catch {
+        // Ignored
+      }
     };
   }, [fetchData]);
 

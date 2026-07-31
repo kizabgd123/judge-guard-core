@@ -164,20 +164,32 @@ class GuardianAgent:
             logger.error(f"Failed to update Notion page {page_id}: {e}")
 
     def _get_title(self, page: Dict) -> str:
-        """Helper to extract title from Notion page object."""
+        """
+        Helper to extract title from Notion page object.
+        ⚡ Bolt: Optimized by replacing O(N) linear scans with O(1) direct dictionary
+        lookups for known/common properties ('Name', 'Entry') before falling back to full scan.
+        """
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
+            props = page.get("properties", {})
+
+            # Direct O(1) lookup on common property keys
+            for key in ("Name", "Entry"):
+                prop = props.get(key)
+                if prop:
+                    title = prop.get("title")
+                    if title:
+                        return title[0]["text"]["content"]
+                    rich_text = prop.get("rich_text")
+                    if rich_text:
+                        return rich_text[0]["text"]["content"]
+
+            # Fallback scan only if direct lookups fail to find title-id property
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title":
+                    title = v.get("title")
+                    if title:
+                        return title[0]["text"]["content"]
             
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
             return "Untitled"
         except Exception:
             return "Error extracting title"
