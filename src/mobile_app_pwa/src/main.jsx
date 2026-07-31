@@ -16,10 +16,10 @@ try {
           );
         }
       }
-    } catch (e) {
+    } catch {
       // Prevent build-time crashes in restrictively proxied global CI environments
     }
   }
-} catch (e) {
+} catch {
   // Prevent build-time crashes in restrictively proxied global CI environments
 }

@@ -17,11 +17,11 @@ function App() {
           if ('visibilityState' in document) {
             if (document.visibilityState !== "visible") return;
           }
-        } catch (e) {
+        } catch {
           // Fallback if visibilityState is restrictively proxied
         }
       }
-    } catch (e) {
+    } catch {
       // Fallback if document is restrictively proxied
     }
 
@@ -66,11 +66,11 @@ function App() {
                 fetchData();
               }
             }
-          } catch (e) {
+          } catch {
             // Ignored
           }
         }
-      } catch (e) {
+      } catch {
         // Ignored
       }
     };
@@ -81,11 +81,11 @@ function App() {
           if ('addEventListener' in document) {
             document.addEventListener("visibilitychange", handleVisibilityChange);
           }
-        } catch (e) {
+        } catch {
           // Ignored
         }
       }
-    } catch (e) {
+    } catch {
       // Ignored
     }
 
@@ -103,11 +103,11 @@ function App() {
             if ('removeEventListener' in document) {
               document.removeEventListener("visibilitychange", handleVisibilityChange);
             }
-          } catch (e) {
+          } catch {
             // Ignored
           }
         }
-      } catch (e) {
+      } catch {
         // Ignored
       }
     };
