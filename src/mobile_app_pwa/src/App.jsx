@@ -11,7 +11,16 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    try {
+      if (typeof globalThis !== "undefined" && "document" in globalThis) {
+        const doc = globalThis.document;
+        if (doc && "visibilityState" in doc && doc.visibilityState !== "visible") {
+          return;
+        }
+      }
+    } catch {
+      // Ignore exceptions in restrictive CI environments
+    }
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +55,28 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        fetchData();
+      try {
+        if (typeof globalThis !== "undefined" && "document" in globalThis) {
+          const doc = globalThis.document;
+          if (doc && "visibilityState" in doc && doc.visibilityState === "visible") {
+            fetchData();
+          }
+        }
+      } catch {
+        // Ignore exceptions in restrictive CI environments
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    try {
+      if (typeof globalThis !== "undefined" && "document" in globalThis) {
+        const doc = globalThis.document;
+        if (doc && "addEventListener" in doc) {
+          doc.addEventListener("visibilitychange", handleVisibilityChange);
+        }
+      }
+    } catch {
+      // Ignore exceptions in restrictive CI environments
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +86,16 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      try {
+        if (typeof globalThis !== "undefined" && "document" in globalThis) {
+          const doc = globalThis.document;
+          if (doc && "removeEventListener" in doc) {
+            doc.removeEventListener("visibilitychange", handleVisibilityChange);
+          }
+        }
+      } catch {
+        // Ignore exceptions in restrictive CI environments
+      }
     };
   }, [fetchData]);
 
