@@ -11,16 +11,34 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
+    let isHidden = false;
     try {
-      if (typeof globalThis !== "undefined" && "document" in globalThis) {
-        const doc = globalThis.document;
-        if (doc && "visibilityState" in doc && doc.visibilityState !== "visible") {
-          return;
+      let doc;
+      try {
+        doc = document;
+      } catch {}
+
+      if (doc) {
+        let hasVisibilityState = false;
+        try {
+          hasVisibilityState = 'visibilityState' in doc;
+        } catch {}
+
+        if (hasVisibilityState) {
+          let visState;
+          try {
+            visState = doc.visibilityState;
+          } catch {}
+          if (visState !== "visible") {
+            isHidden = true;
+          }
         }
       }
     } catch {
       // Ignore exceptions in restrictive CI environments
     }
+
+    if (isHidden) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -55,23 +73,54 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
+      let isVisible = false;
       try {
-        if (typeof globalThis !== "undefined" && "document" in globalThis) {
-          const doc = globalThis.document;
-          if (doc && "visibilityState" in doc && doc.visibilityState === "visible") {
-            fetchData();
+        let doc;
+        try {
+          doc = document;
+        } catch {}
+
+        if (doc) {
+          let hasVisibilityState = false;
+          try {
+            hasVisibilityState = 'visibilityState' in doc;
+          } catch {}
+
+          if (hasVisibilityState) {
+            let visState;
+            try {
+              visState = doc.visibilityState;
+            } catch {}
+            if (visState === "visible") {
+              isVisible = true;
+            }
           }
         }
       } catch {
         // Ignore exceptions in restrictive CI environments
       }
+
+      if (isVisible) {
+        fetchData();
+      }
     };
 
     try {
-      if (typeof globalThis !== "undefined" && "document" in globalThis) {
-        const doc = globalThis.document;
-        if (doc && "addEventListener" in doc) {
-          doc.addEventListener("visibilitychange", handleVisibilityChange);
+      let doc;
+      try {
+        doc = document;
+      } catch {}
+
+      if (doc) {
+        let hasAddEventListener = false;
+        try {
+          hasAddEventListener = 'addEventListener' in doc;
+        } catch {}
+
+        if (hasAddEventListener) {
+          try {
+            doc.addEventListener("visibilitychange", handleVisibilityChange);
+          } catch {}
         }
       }
     } catch {
@@ -87,10 +136,21 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        if (typeof globalThis !== "undefined" && "document" in globalThis) {
-          const doc = globalThis.document;
-          if (doc && "removeEventListener" in doc) {
-            doc.removeEventListener("visibilitychange", handleVisibilityChange);
+        let doc;
+        try {
+          doc = document;
+        } catch {}
+
+        if (doc) {
+          let hasRemoveEventListener = false;
+          try {
+            hasRemoveEventListener = 'removeEventListener' in doc;
+          } catch {}
+
+          if (hasRemoveEventListener) {
+            try {
+              doc.removeEventListener("visibilitychange", handleVisibilityChange);
+            } catch {}
           }
         }
       } catch {
