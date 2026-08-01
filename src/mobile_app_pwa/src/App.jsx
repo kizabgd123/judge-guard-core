@@ -1,3 +1,4 @@
+/* eslint-disable no-empty */
 import axios from "axios";
 import { useEffect, useState, useRef, useCallback } from "react";
 import StatusPulse from "./components/StatusPulse";
@@ -13,27 +14,17 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     let isHidden = false;
     try {
-      let doc;
       try {
-        doc = document;
-      } catch {}
-
-      if (doc) {
-        let hasVisibilityState = false;
-        try {
-          hasVisibilityState = 'visibilityState' in doc;
-        } catch {}
-
-        if (hasVisibilityState) {
-          let visState;
+        if (typeof document !== 'undefined' && document !== null) {
           try {
-            visState = doc.visibilityState;
+            if ('visibilityState' in document) {
+              if (document.visibilityState !== "visible") {
+                isHidden = true;
+              }
+            }
           } catch {}
-          if (visState !== "visible") {
-            isHidden = true;
-          }
         }
-      }
+      } catch {}
     } catch {
       // Ignore exceptions in restrictive CI environments
     }
@@ -75,27 +66,17 @@ function App() {
     const handleVisibilityChange = () => {
       let isVisible = false;
       try {
-        let doc;
         try {
-          doc = document;
-        } catch {}
-
-        if (doc) {
-          let hasVisibilityState = false;
-          try {
-            hasVisibilityState = 'visibilityState' in doc;
-          } catch {}
-
-          if (hasVisibilityState) {
-            let visState;
+          if (typeof document !== 'undefined' && document !== null) {
             try {
-              visState = doc.visibilityState;
+              if ('visibilityState' in document) {
+                if (document.visibilityState === "visible") {
+                  isVisible = true;
+                }
+              }
             } catch {}
-            if (visState === "visible") {
-              isVisible = true;
-            }
           }
-        }
+        } catch {}
       } catch {
         // Ignore exceptions in restrictive CI environments
       }
@@ -106,23 +87,15 @@ function App() {
     };
 
     try {
-      let doc;
       try {
-        doc = document;
-      } catch {}
-
-      if (doc) {
-        let hasAddEventListener = false;
-        try {
-          hasAddEventListener = 'addEventListener' in doc;
-        } catch {}
-
-        if (hasAddEventListener) {
+        if (typeof document !== 'undefined' && document !== null) {
           try {
-            doc.addEventListener("visibilitychange", handleVisibilityChange);
+            if ('addEventListener' in document) {
+              document.addEventListener("visibilitychange", handleVisibilityChange);
+            }
           } catch {}
         }
-      }
+      } catch {}
     } catch {
       // Ignore exceptions in restrictive CI environments
     }
@@ -136,23 +109,15 @@ function App() {
     return () => {
       clearInterval(interval);
       try {
-        let doc;
         try {
-          doc = document;
-        } catch {}
-
-        if (doc) {
-          let hasRemoveEventListener = false;
-          try {
-            hasRemoveEventListener = 'removeEventListener' in doc;
-          } catch {}
-
-          if (hasRemoveEventListener) {
+          if (typeof document !== 'undefined' && document !== null) {
             try {
-              doc.removeEventListener("visibilitychange", handleVisibilityChange);
+              if ('removeEventListener' in document) {
+                document.removeEventListener("visibilitychange", handleVisibilityChange);
+              }
             } catch {}
           }
-        }
+        } catch {}
       } catch {
         // Ignore exceptions in restrictive CI environments
       }

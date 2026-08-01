@@ -1,35 +1,26 @@
+/* eslint-disable no-empty */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
 try {
-  let doc;
   try {
-    doc = document;
-  } catch {}
-
-  if (doc) {
-    let hasGetElementById = false;
-    try {
-      hasGetElementById = 'getElementById' in doc;
-    } catch {}
-
-    if (hasGetElementById) {
-      let rootEl;
+    if (typeof document !== 'undefined' && document !== null) {
       try {
-        rootEl = doc.getElementById('root');
+        if ('getElementById' in document) {
+          const rootEl = document.getElementById('root');
+          if (rootEl) {
+            createRoot(rootEl).render(
+              <StrictMode>
+                <App />
+              </StrictMode>,
+            );
+          }
+        }
       } catch {}
-
-      if (rootEl) {
-        createRoot(rootEl).render(
-          <StrictMode>
-            <App />
-          </StrictMode>,
-        );
-      }
     }
-  }
+  } catch {}
 } catch {
   // Suppress errors during Cloudflare Worker builds
 }
