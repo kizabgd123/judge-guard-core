@@ -165,19 +165,37 @@ class GuardianAgent:
 
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
-        try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+        if not page or not isinstance(page, dict):
             return "Untitled"
-        except Exception:
-            return "Error extracting title"
+        props = page.get("properties")
+        if not props or not isinstance(props, dict):
+            return "Untitled"
+
+        # ⚡ Bolt: Direct O(1) check for 'Name' title to bypass slow exception paths & linear scans
+        name_prop = props.get("Name")
+        if isinstance(name_prop, dict):
+            title_list = name_prop.get("title")
+            if isinstance(title_list, list) and title_list:
+                text_obj = title_list[0].get("text")
+                if isinstance(text_obj, dict):
+                    return text_obj.get("content", "Untitled")
+
+        # ⚡ Bolt: Direct O(1) check for 'Entry' rich text fallback to bypass slow exception paths & linear scans
+        entry_prop = props.get("Entry")
+        if isinstance(entry_prop, dict):
+            rich_text_list = entry_prop.get("rich_text")
+            if isinstance(rich_text_list, list) and rich_text_list:
+                text_obj = rich_text_list[0].get("text")
+                if isinstance(text_obj, dict):
+                    return text_obj.get("content", "Untitled")
+
+        # ⚡ Bolt: Fallback to O(N) only if specific properties aren't at expected locations
+        for v in props.values():
+            if isinstance(v, dict) and v.get("id") == "title":
+                title_list = v.get("title")
+                if isinstance(title_list, list) and title_list:
+                    text_obj = title_list[0].get("text")
+                    if isinstance(text_obj, dict):
+                        return text_obj.get("content", "Untitled")
+
+        return "Untitled"

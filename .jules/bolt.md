@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Mock Patching Failures under Lazy-Import Patterns]
+**Learning:** In a codebase using aggressive lazy-property loading of heavy external classes (e.g., `NotionClient`, `GeminiClient` loaded inside functions or properties), attempting to patch those attributes on the consumer module namespaces (like `src.kaggle_stream.kaggle_agent.NotionClient`) results in runtime `AttributeError` because module-level attributes do not exist yet.
+**Action:** Always patch original module definitions (such as `src.antigravity_core.notion_client.NotionClient` and `src.antigravity_core.gemini_client.GeminiClient`) directly rather than consumer namespaces when classes are lazily-loaded inside methods.
