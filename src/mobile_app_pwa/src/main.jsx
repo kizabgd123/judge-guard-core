@@ -12,11 +12,11 @@ try {
         rootElement = document.getElementById('root');
       }
     }
-  } catch {
-    // Insulate from restrictive global proxies
+  } catch (innerErr) {
+    void innerErr;
   }
-} catch {
-  // Safe fallback
+} catch (outerErr) {
+  void outerErr;
 }
 
 if (rootElement) {
@@ -26,7 +26,7 @@ if (rootElement) {
         <App />
       </StrictMode>,
     );
-  } catch {
-    // Prevent build-time rendering crashes
+  } catch (renderErr) {
+    void renderErr;
   }
 }

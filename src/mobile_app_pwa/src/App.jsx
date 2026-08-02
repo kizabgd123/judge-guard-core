@@ -19,11 +19,11 @@ function App() {
             isVisible = document.visibilityState === "visible";
           }
         }
-      } catch {
-        // Safe default in restrictive environments
+      } catch (innerErr) {
+        void innerErr;
       }
-    } catch {
-      // Safe fallback
+    } catch (outerErr) {
+      void outerErr;
     }
 
     if (!isVisible) return;
@@ -69,11 +69,11 @@ function App() {
               isVisible = document.visibilityState === "visible";
             }
           }
-        } catch {
-          // Safe default
+        } catch (innerErr) {
+          void innerErr;
         }
-      } catch {
-        // Safe fallback
+      } catch (outerErr) {
+        void outerErr;
       }
 
       if (isVisible) {
@@ -88,11 +88,11 @@ function App() {
             document.addEventListener("visibilitychange", handleVisibilityChange);
           }
         }
-      } catch {
-        // Safe default
+      } catch (innerErr) {
+        void innerErr;
       }
-    } catch {
-      // Safe fallback
+    } catch (outerErr) {
+      void outerErr;
     }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
@@ -110,11 +110,11 @@ function App() {
               document.removeEventListener("visibilitychange", handleVisibilityChange);
             }
           }
-        } catch {
-          // Safe default
+        } catch (innerErr) {
+          void innerErr;
         }
-      } catch {
-        // Safe fallback
+      } catch (outerErr) {
+        void outerErr;
       }
     };
   }, [fetchData]);
