@@ -6,19 +6,33 @@ import App from './App.jsx'
 try {
   let rootElement = null;
   try {
-    if (typeof document !== 'undefined' && 'getElementById' in document) {
-      rootElement = document.getElementById('root');
+    if (typeof document !== 'undefined') {
+      try {
+        if ('getElementById' in document) {
+          try {
+            rootElement = document.getElementById('root');
+          } catch {
+            // ignore
+          }
+        }
+      } catch {
+        // ignore
+      }
     }
   } catch {
-    // Suppress property access errors in restrictive environments like Cloudflare Worker CI
+    // ignore
   }
 
   if (rootElement) {
-    createRoot(rootElement).render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
-    );
+    try {
+      createRoot(rootElement).render(
+        <StrictMode>
+          <App />
+        </StrictMode>,
+      );
+    } catch {
+      // ignore
+    }
   }
 } catch {
   // Global defensive catch to prevent build-time crashes
