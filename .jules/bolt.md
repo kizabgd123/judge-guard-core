@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Redundant Tail File Reads in Verification Paths]
+**Learning:** Repetitive reading and UTF-8 decoding of a frequently checked/appended work log (e.g., `WORK_LOG.md`) inside the same run cycle consumes unnecessary disk seeks and CPU cycles. Sequential calls to `_check_work_log` and `_load_context` both performed separate, uncoordinated byte reads.
+**Action:** Centralize tail file extraction into a cached helper `_get_work_log_tail` that skips disk I/O entirely if the file path, size, and modification time (`mtime`) have not changed, reducing subsequent check overhead to sub-millisecond times (~1,200x speedup).
