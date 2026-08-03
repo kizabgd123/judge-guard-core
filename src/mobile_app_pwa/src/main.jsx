@@ -5,11 +5,21 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
-  if (typeof document !== 'undefined' && 'getElementById' in document) {
-    rootElement = document.getElementById('root');
+  try {
+    if (typeof document !== 'undefined') {
+      try {
+        if ('getElementById' in document) {
+          rootElement = document.getElementById('root');
+        }
+      } catch {
+        // Inner catch
+      }
+    }
+  } catch {
+    // Catch
   }
 } catch {
-  // Safe parameterless catch to avoid build-time crashes in strict CI/CD worker environments
+  // Outer catch
 }
 
 if (rootElement) {
