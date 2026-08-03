@@ -205,6 +205,10 @@ class JudgeGuard:
         """
         ⚡ Bolt: Cached tail retrieval of WORK_LOG.md to eliminate duplicate seeks, reads, and decodes.
         """
+        # Validate max_chars before any operations
+        if max_chars <= 0:
+            return ""
+
         path = self.work_log_path
         if not path or not os.path.exists(path):
             return ""
@@ -230,11 +234,23 @@ class JudgeGuard:
         try:
             with open(path, "rb") as f:
                 f.seek(0, 2)
-                to_read = min(file_size, max(max_chars, 15000))
-                if to_read > 0:
-                    f.seek(-to_read, 2)
-                content = f.read().decode('utf-8', errors='ignore')
-                self._tail_cache = (path, file_size, mtime, content, to_read == file_size)
+                # UTF-8 characters can be up to 4 bytes, so read up to 4x max_chars to ensure
+                # we get enough bytes to decode at least max_chars characters
+                byte_estimate = min(file_size, max(max_chars * 4, 15000))
+                if byte_estimate > 0:
+                    f.seek(-byte_estimate, 2)
+                raw_bytes = f.read()
+                content = raw_bytes.decode('utf-8', errors='ignore')
+
+                # If we didn't get enough characters and didn't read the full file, read more
+                if len(content) < max_chars and byte_estimate < file_size:
+                    # Read the entire file
+                    f.seek(0)
+                    raw_bytes = f.read()
+                    content = raw_bytes.decode('utf-8', errors='ignore')
+                    byte_estimate = file_size
+
+                self._tail_cache = (path, file_size, mtime, content, byte_estimate == file_size)
                 return content[-max_chars:]
         except Exception:
             return ""

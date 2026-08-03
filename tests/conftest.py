@@ -11,11 +11,8 @@ def restore_app_config():
     # Capture original content
     original_content = None
     if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                original_content = f.read()
-        except Exception:
-            pass
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            original_content = f.read()
 
     yield
 
@@ -24,13 +21,11 @@ def restore_app_config():
         from src.antigravity_core.mobile_bridge import bridge
         if hasattr(bridge, "_executor") and bridge._executor is not None:
             bridge._executor.shutdown(wait=True)
-    except Exception:
+    except ImportError:
+        # Expected when bridge is not available
         pass
 
     # Restore original content
     if original_content is not None:
-        try:
-            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-                f.write(original_content)
-        except Exception:
-            pass
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            f.write(original_content)
