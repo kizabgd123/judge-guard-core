@@ -11,7 +11,21 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    if (document.visibilityState !== "visible") return;
+    let isVisible = true;
+    try {
+      try {
+        if ('document' in globalThis && globalThis.document) {
+          if ('visibilityState' in globalThis.document) {
+            isVisible = globalThis.document.visibilityState === 'visible';
+          }
+        }
+      } catch {
+        // ignored
+      }
+    } catch {
+      // Ignore errors in restrictively proxied environment
+    }
+    if (!isVisible) return;
 
     try {
       const timestamp = new Date().getTime();
@@ -46,12 +60,40 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      let isVisible = false;
+      try {
+        try {
+          if ('document' in globalThis && globalThis.document) {
+            if ('visibilityState' in globalThis.document) {
+              isVisible = globalThis.document.visibilityState === 'visible';
+            }
+          }
+        } catch {
+          // ignored
+        }
+      } catch {
+        // ignored
+      }
+      if (isVisible) {
         fetchData();
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    let hasEvent = false;
+    try {
+      try {
+        if ('document' in globalThis && globalThis.document) {
+          if ('addEventListener' in globalThis.document) {
+            globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
+            hasEvent = true;
+          }
+        }
+      } catch {
+        // ignored
+      }
+    } catch {
+      // ignored
+    }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
     const initialFetch = async () => {
@@ -61,7 +103,21 @@ function App() {
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (hasEvent) {
+        try {
+          try {
+            if ('document' in globalThis && globalThis.document) {
+              if ('removeEventListener' in globalThis.document) {
+                globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
+              }
+            }
+          } catch {
+            // ignored
+          }
+        } catch {
+          // ignored
+        }
+      }
     };
   }, [fetchData]);
 

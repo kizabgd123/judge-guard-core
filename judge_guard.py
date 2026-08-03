@@ -201,19 +201,63 @@ class JudgeGuard:
         except Exception as e:
             return f"Error loading rules: {e}"
 
+    def _get_work_log_tail(self, max_chars: int = 15000) -> str:
+        """
+        ⚡ Bolt: Cached tail retrieval of WORK_LOG.md to eliminate duplicate seeks, reads, and decodes.
+        """
+        # Validate max_chars before any operations
+        if max_chars <= 0:
+            return ""
+
+        path = self.work_log_path
+        if not path or not os.path.exists(path):
+            return ""
+
+        try:
+            stat = os.stat(path)
+            mtime = stat.st_mtime
+            file_size = stat.st_size
+        except Exception:
+            return ""
+
+        # Check if we have a valid cache hit
+        # The cache is only valid if path, size, and mtime match, and the cached content length
+        # is at least max_chars, OR the cached content covers the entire file.
+        if hasattr(self, "_tail_cache") and self._tail_cache is not None:
+            cache_path, cache_size, cache_mtime, cache_content, is_full_file = self._tail_cache
+            if cache_path == path and cache_size == file_size and cache_mtime == mtime:
+                if len(cache_content) >= max_chars or is_full_file:
+                    # Return only the requested number of trailing characters from cache
+                    return cache_content[-max_chars:]
+
+        # Cache miss or insufficient cache length, perform read
+        try:
+            with open(path, "rb") as f:
+                f.seek(0, 2)
+                # UTF-8 characters can be up to 4 bytes, so read up to 4x max_chars to ensure
+                # we get enough bytes to decode at least max_chars characters
+                byte_estimate = min(file_size, max(max_chars * 4, 15000))
+                if byte_estimate > 0:
+                    f.seek(-byte_estimate, 2)
+                raw_bytes = f.read()
+                content = raw_bytes.decode('utf-8', errors='ignore')
+
+                # If we didn't get enough characters and didn't read the full file, read more
+                if len(content) < max_chars and byte_estimate < file_size:
+                    # Read the entire file
+                    f.seek(0)
+                    raw_bytes = f.read()
+                    content = raw_bytes.decode('utf-8', errors='ignore')
+                    byte_estimate = file_size
+
+                self._tail_cache = (path, file_size, mtime, content, byte_estimate == file_size)
+                return content[-max_chars:]
+        except Exception:
+            return ""
+
     def _load_context(self, max_chars: int = 15000) -> str:
-        if self.work_log_path and os.path.exists(self.work_log_path):
-            try:
-                # ⚡ Bolt: Efficient O(1) tail retrieval
-                with open(self.work_log_path, "rb") as f:
-                    f.seek(0, 2)
-                    file_size = f.tell()
-                    to_read = min(file_size, max_chars)
-                    f.seek(-to_read, 2)
-                    return f.read().decode('utf-8', errors='ignore')
-            except Exception:
-                pass
-        return "(No work log context)"
+        content = self._get_work_log_tail(max_chars)
+        return content if content else "(No work log context)"
 
     def _detect_phase(self, context: str) -> str:
         """
@@ -294,23 +338,18 @@ class JudgeGuard:
         
         # Read last few lines to check if action was logged
         try:
-            # ⚡ Bolt: Efficient O(1) tail retrieval
-            with open(self.work_log_path, 'rb') as f:
-                f.seek(0, 2)
-                file_size = f.tell()
-                to_read = min(file_size, 1000)
-                f.seek(-to_read, 2)
-                last_lines = f.read().decode('utf-8', errors='ignore').lower()
-                
-                # Check if this action or 'starting' is in recent log
-                # We allow up to 120 seconds for slower API calls or manual logging
-                if '🟡' in last_lines or 'starting' in last_lines:
-                    if age_seconds < 120:
-                        return True
-                    else:
-                        self.logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
+            # ⚡ Bolt: Use cached tail retrieval to eliminate duplicate reads
+            last_lines = self._get_work_log_tail(1000).lower()
+
+            # Check if this action or 'starting' is in recent log
+            # We allow up to 120 seconds for slower API calls or manual logging
+            if '🟡' in last_lines or 'starting' in last_lines:
+                if age_seconds < 120:
+                    return True
                 else:
-                    self.logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
+                    self.logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
+            else:
+                self.logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
 
         except Exception as e:
             self.logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
