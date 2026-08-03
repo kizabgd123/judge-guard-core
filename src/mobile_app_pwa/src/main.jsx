@@ -5,8 +5,14 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
-  if (typeof document !== 'undefined' && document && 'getElementById' in document) {
-    rootElement = document.getElementById('root');
+  try {
+    if (typeof document !== 'undefined' && document) {
+      if ('getElementById' in document) {
+        rootElement = document.getElementById('root');
+      }
+    }
+  } catch {
+    // ignored
   }
 } catch {
   // Silent fallback for restrictive proxied environment like Cloudflare Workers
