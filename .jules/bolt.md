@@ -29,3 +29,7 @@
 ## 2026-04-20 - [Startup Latency from Global Imports and I/O]
 **Learning:** Module-level imports of `dotenv`, `logging`, and `glob` combined with synchronous disk I/O in `__init__` methods can add ~50-100ms of overhead to CLI startup. This is significant for high-frequency tools where the core task (e.g., cache lookup) takes <1ms.
 **Action:** Use lazy property initialization with `threading.RLock` and defer heavy imports (`dotenv`, `logging`, `json`) to method scopes or lazy properties. This reduced `JudgeGuard` instantiation time by ~93% (0.24ms -> 0.016ms) and improved CLI turnaround by ~5%.
+
+## 2026-04-22 - [Mocking and Patching Lazy-Loaded Properties in Benchmarks]
+**Learning:** In Python, attempting to patch a class attribute that is imported lazily inside methods (like `NotionClient` or `GeminiClient` in `KaggleAgent` or `GuardianAgent`) fails if you target the importing module, because the class is not present in its module namespace at load time. Furthermore, if the lazy properties have no setters, mock instances cannot be assigned to the property getters and must instead be assigned to their underlying private cache variables (e.g., `_notion`).
+**Action:** Patch lazy-loaded dependencies at their original source module paths (e.g., `src.antigravity_core.notion_client.NotionClient`). To inject mock instances, assign them directly to the private properties (e.g., `agent._notion = mock_notion`).
