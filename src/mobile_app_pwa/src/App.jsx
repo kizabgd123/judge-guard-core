@@ -14,9 +14,9 @@ function App() {
     let isVisible = true;
     try {
       try {
-        if (typeof document !== 'undefined' && document) {
-          if ('visibilityState' in document) {
-            isVisible = document.visibilityState === 'visible';
+        if ('document' in globalThis && globalThis.document) {
+          if ('visibilityState' in globalThis.document) {
+            isVisible = globalThis.document.visibilityState === 'visible';
           }
         }
       } catch {
@@ -63,9 +63,9 @@ function App() {
       let isVisible = false;
       try {
         try {
-          if (typeof document !== 'undefined' && document) {
-            if ('visibilityState' in document) {
-              isVisible = document.visibilityState === 'visible';
+          if ('document' in globalThis && globalThis.document) {
+            if ('visibilityState' in globalThis.document) {
+              isVisible = globalThis.document.visibilityState === 'visible';
             }
           }
         } catch {
@@ -82,9 +82,9 @@ function App() {
     let hasEvent = false;
     try {
       try {
-        if (typeof document !== 'undefined' && document) {
-          if ('addEventListener' in document) {
-            document.addEventListener("visibilitychange", handleVisibilityChange);
+        if ('document' in globalThis && globalThis.document) {
+          if ('addEventListener' in globalThis.document) {
+            globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
             hasEvent = true;
           }
         }
@@ -106,9 +106,9 @@ function App() {
       if (hasEvent) {
         try {
           try {
-            if (typeof document !== 'undefined' && document) {
-              if ('removeEventListener' in document) {
-                document.removeEventListener("visibilitychange", handleVisibilityChange);
+            if ('document' in globalThis && globalThis.document) {
+              if ('removeEventListener' in globalThis.document) {
+                globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
               }
             }
           } catch {
