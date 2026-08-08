@@ -163,40 +163,50 @@ class GuardianAgent:
         except Exception as e:
             logger.error(f"Failed to update Notion page {page_id}: {e}")
 
+    @staticmethod
+    def _extract_text(items: Any) -> str | None:
+        """Safely extract Notion rich-text content without exception-driven control flow."""
+        if not isinstance(items, list) or not items:
+            return None
+        first = items[0]
+        if not isinstance(first, dict):
+            return None
+        text = first.get("text")
+        if not isinstance(text, dict):
+            return None
+        content = text.get("content")
+        return content if isinstance(content, str) else None
+
     def _get_title(self, page: Dict) -> str:
-        """Helper to extract title from Notion page object."""
-        try:
-            # ⚡ Bolt: Use direct O(1) checks to avoid looping and throwing/catching slow exceptions on mock properties
-            props = page.get("properties", {})
-            
-            name_prop = props.get("Name")
-            if isinstance(name_prop, dict):
-                title_list = name_prop.get("title")
-                if title_list:
-                    return title_list[0]["text"]["content"]
-
-            entry_prop = props.get("Entry")
-            if isinstance(entry_prop, dict):
-                title_list = entry_prop.get("title")
-                if title_list:
-                    return title_list[0]["text"]["content"]
-                rich_text_list = entry_prop.get("rich_text")
-                if rich_text_list:
-                    return rich_text_list[0]["text"]["content"]
-
-            title_prop = props.get("title")
-            if isinstance(title_prop, dict):
-                title_list = title_prop.get("title")
-                if title_list:
-                    return title_list[0]["text"]["content"]
-
-            # Fallback to scanning safely for property with id == "title"
-            for v in props.values():
-                if isinstance(v, dict) and v.get("id") == "title":
-                    title_list = v.get("title")
-                    if title_list:
-                        return title_list[0]["text"]["content"]
-
+        """Helper to extract a title from common and generic Notion page schemas."""
+        if not isinstance(page, dict):
             return "Untitled"
-        except Exception:
-            return "Error extracting title"
+
+        props = page.get("properties")
+        if not isinstance(props, dict):
+            return "Untitled"
+
+        # Fast paths for the schemas used by this project.
+        for key in ("Name", "Entry", "title"):
+            prop = props.get(key)
+            if not isinstance(prop, dict):
+                continue
+
+            content = self._extract_text(prop.get("title"))
+            if content is not None:
+                return content
+
+            if key == "Entry":
+                content = self._extract_text(prop.get("rich_text"))
+                if content is not None:
+                    return content
+
+        # Generic fallback for Notion properties whose display name is unknown.
+        for prop in props.values():
+            if not isinstance(prop, dict) or prop.get("id") != "title":
+                continue
+            content = self._extract_text(prop.get("title"))
+            if content is not None:
+                return content
+
+        return "Untitled"

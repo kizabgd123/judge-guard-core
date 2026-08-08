@@ -72,3 +72,43 @@ def test_process_logs(mock_clients, monkeypatch):
     assert mock_notion.query_database.call_count == 2
     mock_notion.update_page_properties.assert_called_once()
     assert mock_get_title.call_count == 2
+
+
+def test_get_title_fast_paths(mock_clients, monkeypatch):
+    monkeypatch.setenv("GOALS_DB_ID", "goals_id")
+    monkeypatch.setenv("LOGS_DB_ID", "logs_id")
+    agent = GuardianAgent()
+
+    assert agent._get_title({"properties": {
+        "Name": {"title": [{"text": {"content": "name title"}}]}
+    }}) == "name title"
+
+    assert agent._get_title({"properties": {
+        "Entry": {"rich_text": [{"text": {"content": "entry text"}}]}
+    }}) == "entry text"
+
+    assert agent._get_title({"properties": {
+        "custom": {"id": "title", "title": [{"text": {"content": "fallback title"}}]}
+    }}) == "fallback title"
+    agent.close()
+
+
+def test_get_title_malformed_payload_is_safe(mock_clients, monkeypatch):
+    monkeypatch.setenv("GOALS_DB_ID", "goals_id")
+    monkeypatch.setenv("LOGS_DB_ID", "logs_id")
+    agent = GuardianAgent()
+
+    malformed_pages = [
+        None,
+        {},
+        {"properties": None},
+        {"properties": {"Name": {"title": []}}},
+        {"properties": {"Name": {"title": [{}]}}},
+        {"properties": {"Name": {"title": [{"text": None}]}}},
+        {"properties": {"Name": {"title": ["not-a-dict"]}}},
+    ]
+
+    for page in malformed_pages:
+        assert agent._get_title(page) == "Untitled"
+
+    agent.close()
