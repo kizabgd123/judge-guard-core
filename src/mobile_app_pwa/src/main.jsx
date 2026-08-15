@@ -5,21 +5,23 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
-  if (typeof document !== 'undefined' && document && typeof document.getElementById === 'function') {
-    rootElement = document.getElementById('root');
+  try {
+    if ('document' in globalThis && globalThis.document) {
+      if ('getElementById' in globalThis.document) {
+        rootElement = globalThis.document.getElementById('root');
+      }
+    }
+  } catch {
+    // ignored
   }
 } catch {
-  // Silent fallback for restrictive proxied environments like Cloudflare Workers
+  // Silent fallback for restrictive proxied environment like Cloudflare Workers
 }
 
 if (rootElement) {
-  try {
-    createRoot(rootElement).render(
-      <StrictMode>
-        <App />
-      </StrictMode>,
-    )
-  } catch {
-    // Ignore render error in non-DOM worker environment
-  }
+  createRoot(rootElement).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
 }
