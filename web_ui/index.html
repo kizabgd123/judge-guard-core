@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>JudgeGuard — Mobile PWA Console</title>
+  <meta name="description" content="Mobile-First Agent Security & Safety Halt Dashboard for Jugard System Integration." />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#050a15" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #050a15;
+      --bg-card: rgba(15, 23, 42, 0.85);
+      --bg-card-hover: rgba(30, 41, 59, 0.9);
+      --bg-input: #0f172a;
+      --border: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(56, 189, 248, 0.5);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --cyan: #38bdf8;
+      --cyan-glow: rgba(56, 189, 248, 0.25);
+      --purple: #a855f7;
+      --purple-glow: rgba(168, 85, 247, 0.25);
+      --green: #22c55e;
+      --green-glow: rgba(34, 197, 94, 0.25);
+      --red: #ef4444;
+      --red-glow: rgba(239, 68, 68, 0.3);
+      --amber: #f59e0b;
+      --amber-glow: rgba(245, 158, 11, 0.25);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(56, 189, 248, 0.1) 0%, transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(239, 68, 68, 0.08) 0%, transparent 50%);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* --- Mobile Header --- */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+
+    .brand-text h1 {
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    .brand-text p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--green-glow);
+      border: 1px solid var(--green);
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green);
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.6s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.7; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* --- Safety Halt Alert Banner --- */
+    .halt-banner {
+      display: none;
+      background: var(--red-glow);
+      border: 2px solid var(--red);
+      border-radius: 16px;
+      padding: 16px 20px;
+      animation: shake 0.4s ease;
+      box-shadow: 0 0 30px var(--red-glow);
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+
+    .halt-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--red);
+    }
+
+    .halt-body {
+      font-size: 12px;
+      color: #fca5a5;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
+    .reset-halt-btn {
+      margin-top: 12px;
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      border: none;
+      background: var(--red);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(239,68,68,0.5);
+    }
+
+    /* --- Mobile Metrics Grid --- */
+    .metrics-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px 10px;
+      text-align: center;
+    }
+
+    .metric-val {
+      font-size: 22px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .metric-lbl {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-top: 4px;
+      letter-spacing: 0.4px;
+    }
+
+    /* --- Action Card / Form --- */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      resize: none;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--cyan);
+    }
+
+    .preset-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+    }
+
+    .chip.danger { color: var(--red); }
+    .chip.warning { color: var(--amber); }
+
+    .action-btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(135deg, var(--cyan), var(--purple));
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 18px var(--cyan-glow);
+    }
+
+    .action-btn:disabled { opacity: 0.5; }
+
+    /* --- Verdict Display Box --- */
+    .verdict-box {
+      display: none;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .verdict-box.PASS { display: block; background: var(--green-glow); border: 1px solid var(--green); color: var(--green); }
+    .verdict-box.BLOCK { display: block; background: var(--red-glow); border: 1px solid var(--red); color: var(--red); }
+    .verdict-box.SOFT { display: block; background: var(--amber-glow); border: 1px solid var(--amber); color: var(--amber); }
+    .verdict-box.HALT { display: block; background: var(--red-glow); border: 2px solid var(--red); color: #fca5a5; }
+
+    .verdict-meta {
+      font-size: 10px;
+      font-family: 'JetBrains Mono', monospace;
+      opacity: 0.8;
+      margin-top: 6px;
+    }
+
+    /* --- History Stream --- */
+    .stream {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .stream-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 9px;
+    }
+
+    .badge.PASS { background: var(--green-glow); color: var(--green); border: 1px solid var(--green); }
+    .badge.BLOCK { background: var(--red-glow); color: var(--red); border: 1px solid var(--red); }
+    .badge.SOFT { background: var(--amber-glow); color: var(--amber); border: 1px solid var(--amber); }
+    .badge.HALT { background: var(--red-glow); color: var(--red); border: 1px solid var(--red); }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-logo">🛡️</div>
+        <div class="brand-text">
+          <h1>JudgeGuard PWA</h1>
+          <p>Agent Nexus 2 Mobile Gatekeeper</p>
+        </div>
+      </div>
+      <div class="status-badge" id="status-badge">
+        <div class="pulse"></div>
+        <span id="status-text">ONLINE</span>
+      </div>
+    </header>
+
+    <!-- Safety Halt Alert Banner -->
+    <div class="halt-banner" id="halt-banner">
+      <div class="halt-header">
+        <span>🚨</span> SAFETY HALT TRIGGERED
+      </div>
+      <div class="halt-body" id="halt-reason">
+        3 consecutive Hard Blocks detected. Service is locked until manual operator reset.
+      </div>
+      <button class="reset-halt-btn" onclick="resetHalt()">
+        🔓 RESET SAFETY HALT & UNLOCK SERVICE
+      </button>
+    </div>
+
+    <!-- Metrics Row -->
+    <div class="metrics-row">
+      <div class="metric-card">
+        <div class="metric-val" id="val-keys" style="color: var(--purple)">13</div>
+        <div class="metric-lbl">Gemini Keys</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="val-verdicts" style="color: var(--cyan)">0</div>
+        <div class="metric-lbl">Verdicts</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="val-uptime" style="color: var(--green)">0m</div>
+        <div class="metric-lbl">Uptime</div>
+      </div>
+    </div>
+
+    <!-- Action Verification Form -->
+    <div class="card">
+      <div class="card-title">⚡ Verify Agent Action</div>
+      
+      <textarea id="action-input" rows="2" placeholder="Describe agent action..."></textarea>
+      
+      <div class="preset-chips">
+        <div class="chip" onclick="setPreset('git status')">git status</div>
+        <div class="chip" onclick="setPreset('pytest tests/')">pytest</div>
+        <div class="chip warning" onclick="setPreset('edit file integration/mir_adapter.py')">edit integration/</div>
+        <div class="chip danger" onclick="setPreset('drop table users')">drop table</div>
+        <div class="chip danger" onclick="setPreset('rm -rf /')">rm -rf /</div>
+      </div>
+
+      <button class="action-btn" id="verify-btn" onclick="runVerify()">
+        Verify Action via GuardianAgent
+      </button>
+
+      <div class="verdict-box" id="verdict-box">
+        <div id="verdict-text"></div>
+        <div class="verdict-meta" id="verdict-meta"></div>
+      </div>
+    </div>
+
+    <!-- Live Stream -->
+    <div class="card">
+      <div class="card-title">📋 Audit Verdict Stream</div>
+      <div class="stream" id="stream"></div>
+    </div>
+
+  </div>
+
+  <script>
+    let uptimeSeconds = 0;
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+
+    function setPreset(val) {
+      document.getElementById('action-input').value = val;
+    }
+
+    function formatTime() {
+      return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    async function pollStatus() {
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('val-keys').textContent = data.gemini_keys || 13;
+          if (data.verdicts) {
+            const total = (data.verdicts.PASS || 0) + (data.verdicts.BLOCK || 0) + (data.verdicts.SOFT || 0) + (data.verdicts.HALT || 0);
+            document.getElementById('val-verdicts').textContent = total;
+          }
+          if (data.safety_halt) {
+            document.getElementById('halt-banner').style.display = 'block';
+          } else {
+            document.getElementById('halt-banner').style.display = 'none';
+          }
+        }
+      } catch (err) {}
+    }
+
+    async function pollHealth() {
+      try {
+        const res = await fetch('/api/health');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.uptime_seconds) {
+            uptimeSeconds = data.uptime_seconds;
+            const m = Math.floor(uptimeSeconds / 60);
+            document.getElementById('val-uptime').textContent = m + 'm';
+          }
+        }
+      } catch (err) {}
+    }
+
+    async function runVerify() {
+      const input = document.getElementById('action-input').value.trim();
+      if (!input) return;
+
+      const btn = document.getElementById('verify-btn');
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+
+      try {
+        const res = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: input })
+        });
+        const data = await res.json();
+
+        const box = document.getElementById('verdict-box');
+        const text = document.getElementById('verdict-text');
+        const meta = document.getElementById('verdict-meta');
+
+        box.className = 'verdict-box ' + data.status;
+        text.textContent = `[${data.status}] ${data.reason}`;
+        meta.textContent = `Key: ${data.key_used || 'N/A'} | Time: ${data.timestamp || formatTime()}`;
+
+        if (data.status === 'HALT') {
+          document.getElementById('halt-banner').style.display = 'block';
+          document.getElementById('halt-reason').textContent = data.reason;
+        }
+
+        addStreamItem(data.status, input);
+        pollStatus();
+      } catch (err) {
+        alert('Verification error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verify Action via GuardianAgent';
+      }
+    }
+
+    async function resetHalt() {
+      try {
+        const res = await fetch('/api/reset_halt', { method: 'POST' });
+        if (res.ok) {
+          document.getElementById('halt-banner').style.display = 'none';
+          alert('🟢 Safety Halt cleared! Services unlocked.');
+          pollStatus();
+        }
+      } catch (err) {
+        alert('Failed to reset halt: ' + err.message);
+      }
+    }
+
+    function addStreamItem(status, action) {
+      const stream = document.getElementById('stream');
+      const item = document.createElement('div');
+      item.className = 'stream-item';
+      item.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
+          <span class="badge ${status}">${status}</span>
+          <span style="white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${escapeHtml(action)}</span>
+        </div>
+        <span style="color:var(--text-muted); margin-left:8px;">${formatTime()}</span>
+      `;
+      stream.insertBefore(item, stream.firstChild);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    setInterval(pollStatus, 4000);
+    setInterval(pollHealth, 5000);
+
+    pollStatus();
+    pollHealth();
+  </script>
+</body>
+</html>

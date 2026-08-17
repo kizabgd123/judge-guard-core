@@ -1,0 +1,16 @@
+{
+  "name": "JudgeGuard Mobile Console",
+  "short_name": "JudgeGuard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050a15",
+  "theme_color": "#050a15",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/default_mascot.jpg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

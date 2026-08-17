@@ -1,0 +1,17 @@
+import { memo } from "react";
+
+const StatusPulse = memo(({ active }) => {
+  return (
+    <div className={`fixed top-4 right-4 flex items-center gap-2 `}>
+      <div
+        className={`w-3 h-3 rounded-full ${active ? "bg-green-500 animate-ping" : "bg-gray-500"}`}
+      ></div>
+      <span className="text-xs font-mono opacity-50">
+        {active ? "LIVE" : "OFFLINE"}
+      </span>
+    </div>
+  );
+});
+
+StatusPulse.displayName = "StatusPulse";
+export default StatusPulse;
