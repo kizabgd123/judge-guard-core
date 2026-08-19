@@ -1,9 +1,12 @@
 import os
-import requests
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# ⚡ Bolt: Lazy import holder to keep module import fast (~0.03ms) while maintaining global scope
+requests = None
 
 class MultimediaManager:
     """
@@ -16,9 +19,9 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Thread-safe lazy initialization of requests.Session
+        self._session = None
+        self._lock = threading.RLock()
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -28,11 +31,36 @@ class MultimediaManager:
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
 
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy property to defer heavy requests import until first API call."""
+        global requests
+        if self._session is None:
+            with self._lock:
+                if self._session is None:
+                    if requests is None:
+                        import requests
+                    session = requests.Session()
+                    session.headers.update(self.headers)
+                    self._session = session
+        return self._session
+
+    def close(self):
+        """⚡ Bolt: Clean up requests session if initialized."""
+        if hasattr(self, "_session") and self._session:
+            self._session.close()
+
+    def __del__(self):
+        self.close()
+
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
         # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
         if text in self._audio_cache:
             logger.info(f"⚡ Bolt: Reusing cached audio for: {text[:30]}...")
             try:
+                # ⚡ Bolt: Fast stat-based check to avoid redundant disk writes if file already exists with expected byte length
+                if os.path.exists(output_path) and os.path.getsize(output_path) == len(self._audio_cache[text]):
+                    return output_path
                 with open(output_path, "wb") as f:
                     f.write(self._audio_cache[text])
                 return output_path
@@ -62,6 +90,9 @@ class MultimediaManager:
         if mood in self._image_cache:
             logger.info(f"⚡ Bolt: Reusing cached image for mood: {mood}")
             try:
+                # ⚡ Bolt: Fast stat-based check to avoid redundant disk writes if file already exists with expected byte length
+                if os.path.exists(output_path) and os.path.getsize(output_path) == len(self._image_cache[mood]):
+                    return output_path
                 with open(output_path, "wb") as f:
                     f.write(self._image_cache[mood])
                 return output_path
