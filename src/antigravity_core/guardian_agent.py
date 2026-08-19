@@ -165,19 +165,35 @@ class GuardianAgent:
 
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
+        # ⚡ Bolt: Fast O(1) title extraction bypassing linear scans and generator expressions
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
             props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+
+            # Fast path 1: Check 'Name' property (standard Notion title column for Goals)
+            name_prop = props.get("Name")
+            if isinstance(name_prop, dict) and name_prop.get("id") == "title":
+                title_arr = name_prop.get("title")
+                if title_arr:
+                    return title_arr[0]["text"]["content"]
+
+            # Fast path 2: Check 'Entry' property (standard column for Logs)
+            entry_prop = props.get("Entry")
+            if isinstance(entry_prop, dict):
+                if entry_prop.get("id") == "title":
+                    title_arr = entry_prop.get("title")
+                    if title_arr:
+                        return title_arr[0]["text"]["content"]
+                rich_text_arr = entry_prop.get("rich_text")
+                if rich_text_arr:
+                    return rich_text_arr[0]["text"]["content"]
+
+            # Fallback scan: search for any property with id == 'title'
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title":
+                    title_arr = v.get("title")
+                    if title_arr:
+                        return title_arr[0]["text"]["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
