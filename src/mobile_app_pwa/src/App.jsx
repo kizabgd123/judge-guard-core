@@ -3,17 +3,6 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import StatusPulse from "./components/StatusPulse";
 import VerdictCard from "./components/VerdictCard";
 
-function getDocument() {
-  try {
-    if (typeof globalThis !== "undefined" && "document" in globalThis) {
-      return globalThis.document;
-    }
-  } catch {
-    // Return undefined if accessing globalThis.document throws in strict proxied environments
-  }
-  return undefined;
-}
-
 function App() {
   const [config, setConfig] = useState(null);
   const [lastVerdict, setLastVerdict] = useState(null);
@@ -24,12 +13,17 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     let isVisible = true;
     try {
-      const doc = getDocument();
-      if (doc && "visibilityState" in doc) {
-        isVisible = doc.visibilityState === "visible";
+      try {
+        if ('document' in globalThis && globalThis.document) {
+          if ('visibilityState' in globalThis.document) {
+            isVisible = globalThis.document.visibilityState === 'visible';
+          }
+        }
+      } catch {
+        // ignored
       }
     } catch {
-      // Ignore errors in restrictively proxied environments
+      // Ignore errors in restrictively proxied environment
     }
     if (!isVisible) return;
 
@@ -68,9 +62,14 @@ function App() {
     const handleVisibilityChange = () => {
       let isVisible = false;
       try {
-        const doc = getDocument();
-        if (doc && "visibilityState" in doc) {
-          isVisible = doc.visibilityState === "visible";
+        try {
+          if ('document' in globalThis && globalThis.document) {
+            if ('visibilityState' in globalThis.document) {
+              isVisible = globalThis.document.visibilityState === 'visible';
+            }
+          }
+        } catch {
+          // ignored
         }
       } catch {
         // ignored
@@ -82,10 +81,15 @@ function App() {
 
     let hasEvent = false;
     try {
-      const doc = getDocument();
-      if (doc && "addEventListener" in doc) {
-        doc.addEventListener("visibilitychange", handleVisibilityChange);
-        hasEvent = true;
+      try {
+        if ('document' in globalThis && globalThis.document) {
+          if ('addEventListener' in globalThis.document) {
+            globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
+            hasEvent = true;
+          }
+        }
+      } catch {
+        // ignored
       }
     } catch {
       // ignored
@@ -101,9 +105,14 @@ function App() {
       clearInterval(interval);
       if (hasEvent) {
         try {
-          const doc = getDocument();
-          if (doc && "removeEventListener" in doc) {
-            doc.removeEventListener("visibilitychange", handleVisibilityChange);
+          try {
+            if ('document' in globalThis && globalThis.document) {
+              if ('removeEventListener' in globalThis.document) {
+                globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
+              }
+            }
+          } catch {
+            // ignored
           }
         } catch {
           // ignored

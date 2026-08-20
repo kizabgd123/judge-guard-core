@@ -3,20 +3,20 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-function getRootElement() {
+let rootElement = null;
+try {
   try {
-    if (typeof globalThis !== 'undefined' && 'document' in globalThis && globalThis.document) {
+    if ('document' in globalThis && globalThis.document) {
       if ('getElementById' in globalThis.document) {
-        return globalThis.document.getElementById('root');
+        rootElement = globalThis.document.getElementById('root');
       }
     }
   } catch {
-    // Return null if document access throws in restrictive proxied environments like Cloudflare Workers
+    // ignored
   }
-  return null;
+} catch {
+  // Silent fallback for restrictive proxied environment like Cloudflare Workers
 }
-
-const rootElement = getRootElement();
 
 if (rootElement) {
   createRoot(rootElement).render(
