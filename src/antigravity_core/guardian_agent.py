@@ -166,18 +166,34 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            props = page.get("properties")
+            if isinstance(props, dict):
+                # ⚡ Bolt: Fast-path direct lookup for common keys ("Name", "Title", "title", "Entry")
+                for key in ("Name", "Title", "title", "Entry"):
+                    text = self._extract_text_content(props.get(key))
+                    if text is not None:
+                        return text
+
+                # Fallback: scan remaining properties for id == "title"
+                for prop in props.values():
+                    if isinstance(prop, dict) and prop.get("id") == "title":
+                        text = self._extract_text_content(prop)
+                        if text is not None:
+                            return text
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
+
+    @staticmethod
+    def _extract_text_content(prop: Any) -> Any:
+        """Extract content string from a Notion property dict (title or rich_text)."""
+        if not isinstance(prop, dict):
+            return None
+        for key in ("title", "rich_text"):
+            items = prop.get(key)
+            if isinstance(items, list) and items:
+                text_obj = items[0].get("text")
+                if isinstance(text_obj, dict) and "content" in text_obj:
+                    return text_obj["content"]
+        return None
