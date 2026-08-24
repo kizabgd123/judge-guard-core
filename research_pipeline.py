@@ -143,8 +143,11 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL to optimize SQLite write transactions (~60x faster)
-        self.conn.execute("PRAGMA journal_mode=WAL;")
-        self.conn.execute("PRAGMA synchronous=NORMAL;")
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL;")
+            self.conn.execute("PRAGMA synchronous=NORMAL;")
+        except Exception as e:
+            logger.warning(f"Could not set SQLite WAL mode: {e}")
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
@@ -158,8 +161,11 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL to optimize SQLite write transactions (~60x faster)
-        self.conn.execute("PRAGMA journal_mode=WAL;")
-        self.conn.execute("PRAGMA synchronous=NORMAL;")
+        try:
+            self.conn.execute("PRAGMA journal_mode=WAL;")
+            self.conn.execute("PRAGMA synchronous=NORMAL;")
+        except Exception as e:
+            logger.warning(f"Could not set SQLite WAL mode: {e}")
         self.conn.row_factory = sqlite3.Row
         return self
 
