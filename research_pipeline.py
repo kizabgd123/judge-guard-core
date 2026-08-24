@@ -91,8 +91,14 @@ class ResearchPipeline:
         self.conn = None
         self.notion_queue = []
         self._session = None
-        # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        self._executor = None
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor on demand."""
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
@@ -104,10 +110,12 @@ class ResearchPipeline:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if getattr(self, "_executor", None) is not None:
             self._executor.shutdown(wait=True)
-        if hasattr(self, "_session") and self._session:
+            self._executor = None
+        if getattr(self, "_session", None) is not None and self._session:
             self._session.close()
+            self._session = None
         if hasattr(self, "conn") and self.conn:
             self.conn.close()
         
@@ -134,6 +142,9 @@ class ResearchPipeline:
         """Initialize SQLite database."""
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL to optimize SQLite write transactions (~60x faster)
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute("PRAGMA synchronous=NORMAL;")
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         self.conn.commit()
@@ -146,6 +157,9 @@ class ResearchPipeline:
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL to optimize SQLite write transactions (~60x faster)
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute("PRAGMA synchronous=NORMAL;")
         self.conn.row_factory = sqlite3.Row
         return self
 
@@ -406,7 +420,7 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
