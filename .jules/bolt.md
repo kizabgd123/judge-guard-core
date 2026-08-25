@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-25 - [SQLite Query Overhead in Cache Retrieval Path]
+**Learning:** Even with indexed SQLite tables (`idx_verdicts_hash`), executing SQL queries (`SELECT verdict FROM verdicts WHERE action_hash = ?`) on every cached verdict check incurs query compilation and database driver overhead (~16 µs per call). Maintaining an in-memory dictionary cache (`self._verdict_cache`) in `ResearchPipeline` reduces repeat lookup latency to ~1.2 µs per call (~13.2x speedup / 92.4% reduction in query latency).
+**Action:** Use an in-memory dictionary cache in front of SQLite query lookups for high-frequency verdict retrieval paths.
