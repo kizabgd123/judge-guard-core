@@ -613,28 +613,40 @@
 
 <script>
   // ── Initialize Vanta.js Background
-  window.addEventListener('DOMContentLoaded', () => {
+  try {
     try {
-      VANTA.NET({
-        el: "body",
-        mouseControls: true,
-        touchControls: true,
-        gyroControls: false,
-        minHeight: 200.0,
-        minWidth: 200.0,
-        scale: 1.0,
-        scaleMobile: 1.0,
-        color: 0x22d3ee, // matching portfolio cyan
-        backgroundColor: 0x050505, // deep dark background
-        points: 12.0,
-        maxDistance: 22.0,
-        spacing: 18.0,
-        showDots: true,
-      });
-    } catch (e) {
-      console.error("Vanta initialization failed:", e);
+      if ('window' in globalThis && globalThis.window && 'addEventListener' in globalThis.window) {
+        globalThis.window.addEventListener('DOMContentLoaded', () => {
+          try {
+            if (typeof VANTA !== 'undefined' && VANTA && VANTA.NET) {
+              VANTA.NET({
+                el: "body",
+                mouseControls: true,
+                touchControls: true,
+                gyroControls: false,
+                minHeight: 200.0,
+                minWidth: 200.0,
+                scale: 1.0,
+                scaleMobile: 1.0,
+                color: 0x22d3ee, // matching portfolio cyan
+                backgroundColor: 0x050505, // deep dark background
+                points: 12.0,
+                maxDistance: 22.0,
+                spacing: 18.0,
+                showDots: true,
+              });
+            }
+          } catch (e) {
+            console.error("Vanta initialization failed:", e);
+          }
+        });
+      }
+    } catch {
+      // ignored
     }
-  });
+  } catch {
+    // Silent fallback for restrictive proxied environment like Cloudflare Workers
+  }
 
   // ── State
   let stats = { total: 0, approved: 0, blocked: 0, tokens: 0 };
