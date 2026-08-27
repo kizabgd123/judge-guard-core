@@ -11,8 +11,8 @@ sys.path.append(os.getcwd())
 from src.antigravity_core.guardian_agent import GuardianAgent
 
 class BenchmarkGuardianHoist(unittest.TestCase):
-    @patch('src.antigravity_core.notion_client.NotionClient')
-    @patch('src.antigravity_core.gemini_client.GeminiClient')
+    @patch('src.antigravity_core.guardian_agent.NotionClient')
+    @patch('src.antigravity_core.guardian_agent.GeminiClient')
     def test_process_logs_efficiency(self, mock_gemini_class, mock_notion_class):
         # Setup mocks
         mock_notion = mock_notion_class.return_value

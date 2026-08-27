@@ -18,7 +18,7 @@ class TestMultimediaCaching(unittest.TestCase):
             if os.path.exists(p):
                 os.remove(p)
 
-    @patch('requests.Session.post')
+    @patch('requests.post')
     def test_audio_caching(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -38,7 +38,7 @@ class TestMultimediaCaching(unittest.TestCase):
         with open(self.test_audio_path_2, "rb") as f:
             self.assertEqual(f.read(), b"fake audio content")
 
-    @patch('requests.Session.post')
+    @patch('requests.post')
     def test_image_caching(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200

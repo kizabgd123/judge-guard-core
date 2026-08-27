@@ -1,12 +1,9 @@
 import os
+import requests
 import logging
-import threading
 from typing import Optional
 
 logger = logging.getLogger(__name__)
-
-# ⚡ Bolt: Lazy import holder to reduce module import overhead (~170ms -> ~0.5ms)
-requests = None
 
 class MultimediaManager:
     """
@@ -19,9 +16,9 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Lock and holder for thread-safe lazy session initialization
-        self._session = None
-        self._lock = threading.RLock()
+        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -30,43 +27,14 @@ class MultimediaManager:
         # This ensures we can reuse content even if output_path changes.
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
-        # ⚡ Bolt: Track content already written to destination paths to avoid redundant disk I/O
-        self._audio_file_cache = {}  # {output_path: text}
-        self._image_file_cache = {}  # {output_path: mood}
-
-    @property
-    def session(self):
-        """⚡ Bolt: Lazy-load requests and initialize session on demand (thread-safe)."""
-        if self._session is None:
-            with self._lock:
-                if self._session is None:
-                    global requests
-                    if requests is None:
-                        import requests
-                    sess = requests.Session()
-                    sess.headers.update(self.headers)
-                    self._session = sess
-        return self._session
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        """⚡ Bolt: Ensure session is closed on cleanup."""
-        if hasattr(self, "_session") and self._session:
-            self._session.close()
 
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
-        # ⚡ Bolt: Cache check - if text was already generated, check if disk I/O can be bypassed entirely
+        # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
         if text in self._audio_cache:
             logger.info(f"⚡ Bolt: Reusing cached audio for: {text[:30]}...")
-            if self._audio_file_cache.get(output_path) == text and os.path.exists(output_path):
-                # Target file already exists with identical content; skip disk write
-                return output_path
             try:
                 with open(output_path, "wb") as f:
                     f.write(self._audio_cache[text])
-                self._audio_file_cache[output_path] = text
                 return output_path
             except Exception as e:
                 logger.error(f"Failed to write cached audio: {e}")
@@ -84,23 +52,18 @@ class MultimediaManager:
 
                 with open(output_path, "wb") as f:
                     f.write(response.content)
-                self._audio_file_cache[output_path] = text
                 return output_path
         except Exception:
             pass
         return None
 
     def generate_mood_image(self, mood: str, output_path: str = "mood.png"):
-        # ⚡ Bolt: Cache check - if mood icon was already generated, check if disk I/O can be bypassed entirely
+        # ⚡ Bolt: Cache check - if mood icon was already generated, write cached bytes to new path
         if mood in self._image_cache:
             logger.info(f"⚡ Bolt: Reusing cached image for mood: {mood}")
-            if self._image_file_cache.get(output_path) == mood and os.path.exists(output_path):
-                # Target file already exists with identical content; skip disk write
-                return output_path
             try:
                 with open(output_path, "wb") as f:
                     f.write(self._image_cache[mood])
-                self._image_file_cache[output_path] = mood
                 return output_path
             except Exception as e:
                 logger.error(f"Failed to write cached image: {e}")
@@ -121,7 +84,6 @@ class MultimediaManager:
 
                 with open(output_path, "wb") as f:
                     f.write(response.content)
-                self._image_file_cache[output_path] = mood
                 return output_path
         except Exception:
             pass
