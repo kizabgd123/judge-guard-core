@@ -11,7 +11,7 @@ function App() {
 
   const fetchData = useCallback(async () => {
     // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    let isVisible = true;
+    let isVisible = false;
     try {
       try {
         if ('document' in globalThis && globalThis.document) {
@@ -20,10 +20,10 @@ function App() {
           }
         }
       } catch {
-        // ignored
+        isVisible = false;
       }
     } catch {
-      // Ignore errors in restrictively proxied environment
+      isVisible = false;
     }
     if (!isVisible) return;
 
