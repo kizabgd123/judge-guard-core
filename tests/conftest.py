@@ -25,7 +25,7 @@ def restore_app_config():
         # Expected when bridge is not available
         pass
 
-    # Restore original content
-    if original_content is not None:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            f.write(original_content)
+    # Restore clean baseline content (4 top-level keys without execution-time state like last_verdict)
+    clean_baseline = '{\n  "title": "Antigravity Mobile",\n  "theme": "light",\n  "content": "Welcome to the Agent-Controlled PWA!",\n  "components": []\n}\n'
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        f.write(clean_baseline)
