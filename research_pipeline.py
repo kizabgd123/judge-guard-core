@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
 from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -85,25 +86,9 @@ CREATE INDEX IF NOT EXISTS idx_verdicts_hash ON verdicts(action_hash);
 
 
 class ResearchPipeline:
-    _env_loaded = False
-    _env_lock = threading.RLock()
-
-    @classmethod
-    def _ensure_env(cls):
-        """⚡ Bolt: Thread-safe lazy environment variable loading."""
-        if not cls._env_loaded:
-            with cls._env_lock:
-                if not cls._env_loaded:
-                    try:
-                        from dotenv import load_dotenv
-                        load_dotenv()
-                    except ImportError:
-                        pass
-                    cls._env_loaded = True
-
     def __init__(self):
-        # ⚡ Bolt: Thread-safe lazy environment loading
-        self._ensure_env()
+        # ⚡ Bolt: Load environment variables once during initialization
+        load_dotenv()
         self.conn = None
         self.notion_queue = []
         self._session = None
@@ -134,10 +119,13 @@ class ResearchPipeline:
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
         if hasattr(self, "_executor") and self._executor is not None:
             self._executor.shutdown(wait=True)
-        if hasattr(self, "_session") and self._session:
+            self._executor = None
+        if hasattr(self, "_session") and self._session is not None:
             self._session.close()
-        if hasattr(self, "conn") and self.conn:
+            self._session = None
+        if hasattr(self, "conn") and self.conn is not None:
             self.conn.close()
+            self.conn = None
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
@@ -163,9 +151,6 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL to reduce commit latency from ~2.3ms to ~0.04ms
-        self.conn.execute("PRAGMA journal_mode=WAL;")
-        self.conn.execute("PRAGMA synchronous=NORMAL;")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -178,9 +163,6 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL to reduce commit latency from ~2.3ms to ~0.04ms
-        self.conn.execute("PRAGMA journal_mode=WAL;")
-        self.conn.execute("PRAGMA synchronous=NORMAL;")
         return self
 
     def parse_markdown_files(self) -> List[int]:
