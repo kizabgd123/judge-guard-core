@@ -10,20 +10,18 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    let isVisible = true;
+    // ⚡ Bolt: Skip fetching when tab is hidden or in non-browser Worker environments
+    let isVisible = false;
     try {
-      try {
-        if ('document' in globalThis && globalThis.document) {
-          if ('visibilityState' in globalThis.document) {
-            isVisible = globalThis.document.visibilityState === 'visible';
-          }
+      if (typeof window !== 'undefined' && 'document' in globalThis && globalThis.document) {
+        if ('visibilityState' in globalThis.document) {
+          isVisible = globalThis.document.visibilityState === 'visible';
+        } else {
+          isVisible = true;
         }
-      } catch {
-        // ignored
       }
     } catch {
-      // Ignore errors in restrictively proxied environment
+      isVisible = false;
     }
     if (!isVisible) return;
 
@@ -62,17 +60,13 @@ function App() {
     const handleVisibilityChange = () => {
       let isVisible = false;
       try {
-        try {
-          if ('document' in globalThis && globalThis.document) {
-            if ('visibilityState' in globalThis.document) {
-              isVisible = globalThis.document.visibilityState === 'visible';
-            }
+        if (typeof window !== 'undefined' && 'document' in globalThis && globalThis.document) {
+          if ('visibilityState' in globalThis.document) {
+            isVisible = globalThis.document.visibilityState === 'visible';
           }
-        } catch {
-          // ignored
         }
       } catch {
-        // ignored
+        isVisible = false;
       }
       if (isVisible) {
         fetchData();
@@ -81,18 +75,14 @@ function App() {
 
     let hasEvent = false;
     try {
-      try {
-        if ('document' in globalThis && globalThis.document) {
-          if ('addEventListener' in globalThis.document) {
-            globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
-            hasEvent = true;
-          }
+      if (typeof window !== 'undefined' && 'document' in globalThis && globalThis.document) {
+        if ('addEventListener' in globalThis.document) {
+          globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
+          hasEvent = true;
         }
-      } catch {
-        // ignored
       }
     } catch {
-      // ignored
+      hasEvent = false;
     }
 
     // Initial fetch - ⚡ Bolt: wrap in async to avoid lint error
@@ -105,14 +95,10 @@ function App() {
       clearInterval(interval);
       if (hasEvent) {
         try {
-          try {
-            if ('document' in globalThis && globalThis.document) {
-              if ('removeEventListener' in globalThis.document) {
-                globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
-              }
+          if (typeof window !== 'undefined' && 'document' in globalThis && globalThis.document) {
+            if ('removeEventListener' in globalThis.document) {
+              globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
             }
-          } catch {
-            // ignored
           }
         } catch {
           // ignored
