@@ -18,7 +18,7 @@ class TestMultimediaCaching(unittest.TestCase):
             if os.path.exists(p):
                 os.remove(p)
 
-    @patch('requests.post')
+    @patch('requests.Session.post')
     def test_audio_caching(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -31,14 +31,19 @@ class TestMultimediaCaching(unittest.TestCase):
         self.manager.generate_audio(text, self.test_audio_path_1)
         self.assertEqual(mock_post.call_count, 1)
 
-        # Second call - should NOT trigger API call
+        # Second call with new output path - should NOT trigger API call (uses memory cache)
         self.manager.generate_audio(text, self.test_audio_path_2)
         self.assertEqual(mock_post.call_count, 1)
 
         with open(self.test_audio_path_2, "rb") as f:
             self.assertEqual(f.read(), b"fake audio content")
 
-    @patch('requests.post')
+        # Third call with same output path - should NOT trigger API call AND bypasses disk writes (on-disk write avoidance)
+        path = self.manager.generate_audio(text, self.test_audio_path_2)
+        self.assertEqual(path, self.test_audio_path_2)
+        self.assertEqual(mock_post.call_count, 1)
+
+    @patch('requests.Session.post')
     def test_image_caching(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -51,12 +56,17 @@ class TestMultimediaCaching(unittest.TestCase):
         self.manager.generate_mood_image(mood, self.test_image_path_1)
         self.assertEqual(mock_post.call_count, 1)
 
-        # Second call - should NOT trigger API call
+        # Second call with new output path - should NOT trigger API call (uses memory cache)
         self.manager.generate_mood_image(mood, self.test_image_path_2)
         self.assertEqual(mock_post.call_count, 1)
 
         with open(self.test_image_path_2, "rb") as f:
             self.assertEqual(f.read(), b"fake image content")
+
+        # Third call with same output path - should NOT trigger API call AND bypasses disk writes (on-disk write avoidance)
+        path = self.manager.generate_mood_image(mood, self.test_image_path_2)
+        self.assertEqual(path, self.test_image_path_2)
+        self.assertEqual(mock_post.call_count, 1)
 
 if __name__ == "__main__":
     unittest.main()
