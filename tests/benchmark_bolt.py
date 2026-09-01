@@ -7,13 +7,16 @@ import sys
 # Ensure src is in path
 sys.path.append(os.getcwd())
 
+# Mock gradio to avoid heavy import and GUI execution during testing
+sys.modules['gradio'] = MagicMock()
+
 from src.kaggle_stream.kaggle_agent import KaggleAgent
 from src.kaggle_stream.app import run_agent_turn
 
 class TestPerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
-    @patch('src.kaggle_stream.app.multimedia')
-    def test_run_agent_turn_latency(self, mock_multimedia, mock_notion_class):
+    @patch('src.antigravity_core.notion_client.NotionClient')
+    @patch('src.kaggle_stream.multimedia.MultimediaManager')
+    def test_run_agent_turn_latency(self, mock_multimedia_class, mock_notion_class):
         # Setup Notion mock
         mock_notion_instance = MagicMock()
         mock_notion_class.return_value = mock_notion_instance
@@ -24,6 +27,8 @@ class TestPerformance(unittest.TestCase):
         mock_notion_instance.append_to_database.side_effect = slow_notion
 
         # Setup Multimedia mock
+        mock_multimedia_instance = mock_multimedia_class.return_value
+
         def slow_audio(*args, **kwargs):
             time.sleep(0.5)
             return "audio.mp3"
@@ -31,13 +36,13 @@ class TestPerformance(unittest.TestCase):
             time.sleep(0.5)
             return "image.png"
 
-        mock_multimedia.generate_audio.side_effect = slow_audio
-        mock_multimedia.generate_mood_image.side_effect = slow_image
+        mock_multimedia_instance.generate_audio.side_effect = slow_audio
+        mock_multimedia_instance.generate_mood_image.side_effect = slow_image
 
         agent = KaggleAgent(name="TestAgent")
         # In KaggleAgent.__init__, it might fail to init Notion if no key.
         # We manually set it for the test.
-        agent.notion = mock_notion_instance
+        agent._notion = mock_notion_instance
         agent.demo_mode = True # Use demo data to avoid Gemini API calls
 
         print("\n--- Starting Benchmark (Baseline) ---")
