@@ -1,6 +1,6 @@
 import os
-import requests
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,9 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Thread-safe lazy initialization for requests.Session
+        self._session = None
+        self._lock = threading.RLock()
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -28,13 +28,42 @@ class MultimediaManager:
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
 
+        # ⚡ Bolt: On-disk write avoidance cache
+        self._audio_file_cache = {}  # {output_path: bytes}
+        self._image_file_cache = {}  # {output_path: bytes}
+
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy-load requests and initialize session on demand with thread safety."""
+        if self._session is None:
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    session = requests.Session()
+                    session.headers.update(self.headers)
+                    self._session = session
+        return self._session
+
+    def close(self):
+        """⚡ Bolt: Close requests session if initialized."""
+        if self._session is not None:
+            self._session.close()
+
+    def __del__(self):
+        self.close()
+
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
         # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
         if text in self._audio_cache:
             logger.info(f"⚡ Bolt: Reusing cached audio for: {text[:30]}...")
             try:
+                content = self._audio_cache[text]
+                if os.path.exists(output_path) and self._audio_file_cache.get(output_path) == content:
+                    logger.info(f"⚡ Bolt: Bypassing disk write for {output_path} (identical content).")
+                    return output_path
                 with open(output_path, "wb") as f:
-                    f.write(self._audio_cache[text])
+                    f.write(content)
+                self._audio_file_cache[output_path] = content
                 return output_path
             except Exception as e:
                 logger.error(f"Failed to write cached audio: {e}")
@@ -50,8 +79,14 @@ class MultimediaManager:
                 # ⚡ Bolt: Store in cache BEFORE writing to file to ensure we have the bytes
                 self._audio_cache[text] = response.content
 
+                # ⚡ Bolt: Check if on-disk content matches
+                if os.path.exists(output_path) and self._audio_file_cache.get(output_path) == response.content:
+                    logger.info(f"⚡ Bolt: Bypassing disk write for {output_path} (identical content).")
+                    return output_path
+
                 with open(output_path, "wb") as f:
                     f.write(response.content)
+                self._audio_file_cache[output_path] = response.content
                 return output_path
         except Exception:
             pass
@@ -62,8 +97,13 @@ class MultimediaManager:
         if mood in self._image_cache:
             logger.info(f"⚡ Bolt: Reusing cached image for mood: {mood}")
             try:
+                content = self._image_cache[mood]
+                if os.path.exists(output_path) and self._image_file_cache.get(output_path) == content:
+                    logger.info(f"⚡ Bolt: Bypassing disk write for {output_path} (identical content).")
+                    return output_path
                 with open(output_path, "wb") as f:
-                    f.write(self._image_cache[mood])
+                    f.write(content)
+                self._image_file_cache[output_path] = content
                 return output_path
             except Exception as e:
                 logger.error(f"Failed to write cached image: {e}")
@@ -82,8 +122,14 @@ class MultimediaManager:
                 # ⚡ Bolt: Store in cache BEFORE writing to file to ensure we have the bytes
                 self._image_cache[mood] = response.content
 
+                # ⚡ Bolt: Check if on-disk content matches
+                if os.path.exists(output_path) and self._image_file_cache.get(output_path) == response.content:
+                    logger.info(f"⚡ Bolt: Bypassing disk write for {output_path} (identical content).")
+                    return output_path
+
                 with open(output_path, "wb") as f:
                     f.write(response.content)
+                self._image_file_cache[output_path] = response.content
                 return output_path
         except Exception:
             pass
