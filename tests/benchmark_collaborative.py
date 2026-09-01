@@ -7,10 +7,13 @@ import sys
 # Ensure src is in path
 sys.path.append(os.getcwd())
 
+if 'gradio' not in sys.modules:
+    sys.modules['gradio'] = MagicMock()
+
 from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
 
 class TestCollaborativePerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
+    @patch('src.antigravity_core.notion_client.NotionClient')
     @patch('src.kaggle_stream.app.multimedia')
     def test_collaborative_step_latency(self, mock_multimedia, mock_notion_class):
         # Setup Notion mock to avoid real API calls and simulate latency
@@ -36,8 +39,8 @@ class TestCollaborativePerformance(unittest.TestCase):
         # Configure agents for demo mode to avoid Gemini API calls
         agent_alpha.demo_mode = True
         agent_beta.demo_mode = True
-        agent_alpha.notion = mock_notion_instance
-        agent_beta.notion = mock_notion_instance
+        agent_alpha._notion = mock_notion_instance
+        agent_beta._notion = mock_notion_instance
 
         print("\n--- Starting Collaborative Step Benchmark ---")
         start_time = time.time()
