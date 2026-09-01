@@ -169,8 +169,16 @@ class GuardianAgent:
             # Adjust based on likely schema. 'Name' or 'Entry' for logs?
             # Creating resilient getter
             props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
+
+            # ⚡ Bolt: Fast O(1) check for common title properties to avoid linear generator scan
+            for key in ("Name", "Title"):
+                if key in props:
+                    prop = props[key]
+                    if isinstance(prop, dict) and prop.get("id") == "title" and prop.get("title"):
+                        return prop["title"][0]["text"]["content"]
+
+            title_prop = next((v for k, v in props.items() if isinstance(v, dict) and v.get("id") == "title"), None)
+            if title_prop and title_prop.get("title"):
                 return title_prop["title"][0]["text"]["content"]
             
             # Fallback for 'Entry' property if it's a Rich Text, not Title
