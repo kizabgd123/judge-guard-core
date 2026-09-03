@@ -2,6 +2,12 @@ import os
 import pytest
 from src.kaggle_stream.log_streamer import LogStreamer
 
+@pytest.fixture(autouse=True)
+def reset_log_streamer_cache():
+    LogStreamer.clear_cache()
+    yield
+    LogStreamer.clear_cache()
+
 def test_get_context_no_file(tmp_path, monkeypatch):
     # Ensure WORK_LOG.md doesn't exist
     monkeypatch.chdir(tmp_path)
