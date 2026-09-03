@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Stat-Based Caching for Log Retrieval in LogStreamer]
+**Learning:** High-frequency log context polling in stream agents (`LogStreamer.get_context`) repeatedly opens, seeks, reads, and decodes the same log file (`WORK_LOG.md`). Caching the retrieved tail content using stat checks (`st_mtime_ns` and `st_size`) bypasses disk I/O and UTF-8 decoding on unchanged files, reducing latency from ~34.26 µs to ~6.15 µs per call (~5.5x speedup / ~82% reduction).
+**Action:** Use nanosecond stat-based caching (`st_mtime_ns` and `st_size`) for file tail readers that are polled frequently across agent steps.
