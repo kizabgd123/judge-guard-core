@@ -6,9 +6,10 @@ import App from './App.jsx'
 let rootElement = null;
 try {
   try {
-    if ('document' in globalThis && globalThis.document) {
-      if ('getElementById' in globalThis.document) {
-        rootElement = globalThis.document.getElementById('root');
+    if (typeof globalThis !== 'undefined' && 'document' in globalThis) {
+      const doc = globalThis.document;
+      if (doc && 'getElementById' in doc) {
+        rootElement = doc.getElementById('root');
       }
     }
   } catch {
@@ -23,5 +24,5 @@ if (rootElement) {
     <StrictMode>
       <App />
     </StrictMode>,
-  )
+  );
 }
