@@ -10,8 +10,8 @@ sys.path.append(os.getcwd())
 from src.antigravity_core.guardian_agent import GuardianAgent
 
 class BenchmarkGuardian(unittest.TestCase):
-    @patch('src.antigravity_core.guardian_agent.NotionClient')
-    @patch('src.antigravity_core.guardian_agent.GeminiClient')
+    @patch('src.antigravity_core.notion_client.NotionClient')
+    @patch('src.antigravity_core.gemini_client.GeminiClient')
     def test_process_logs_latency(self, mock_gemini_class, mock_notion_class):
         # Setup mocks
         mock_notion = mock_notion_class.return_value
@@ -53,7 +53,6 @@ class BenchmarkGuardian(unittest.TestCase):
 
             duration = end_time - start_time
             print(f"Total duration for 5 logs: {duration:.4f}s")
-            # Expected: 5 * (0.5 + 0.2) = 3.5s
 
 if __name__ == "__main__":
     unittest.main()
