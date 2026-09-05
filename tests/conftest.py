@@ -6,14 +6,10 @@ CONFIG_PATH = os.path.join(
     "src", "mobile_app_pwa", "public", "app_config.json"
 )
 
+CLEAN_CONFIG = '{\n  "title": "Antigravity Mobile",\n  "theme": "light",\n  "content": "Welcome to the Agent-Controlled PWA!",\n  "components": []\n}\n'
+
 @pytest.fixture(scope="session", autouse=True)
 def restore_app_config():
-    # Capture original content
-    original_content = None
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            original_content = f.read()
-
     yield
 
     # Ensure all background thread writes are complete
@@ -21,11 +17,17 @@ def restore_app_config():
         from src.antigravity_core.mobile_bridge import bridge
         if hasattr(bridge, "_executor") and bridge._executor is not None:
             bridge._executor.shutdown(wait=True)
+            bridge._executor = None
+        bridge.app_state = {
+            "title": "Antigravity Mobile",
+            "theme": "light",
+            "content": "Welcome to the Agent-Controlled PWA!",
+            "components": []
+        }
     except ImportError:
         # Expected when bridge is not available
         pass
 
-    # Restore original content
-    if original_content is not None:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            f.write(original_content)
+    # Always restore clean 4-key baseline content
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+        f.write(CLEAN_CONFIG)
