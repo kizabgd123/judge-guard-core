@@ -49,3 +49,34 @@ def test_get_context_unicode_split(tmp_path, monkeypatch):
     # We read from index 3 to 1502. That's 1500 bytes.
     # It contains 'A's and the full emoji.
     assert unicode_char in context
+
+def test_get_context_stat_caching(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    LogStreamer._cache = None
+
+    # Write initial log
+    with open("WORK_LOG.md", "w") as f:
+        f.write("Initial Log Content")
+
+    # First call (cache miss)
+    first = LogStreamer.get_context()
+    assert first == "Initial Log Content"
+    assert LogStreamer._cache is not None
+
+    # Second call (cache hit)
+    second = LogStreamer.get_context()
+    assert second == "Initial Log Content"
+
+    # Modify file with different content and size
+    with open("WORK_LOG.md", "w") as f:
+        f.write("Updated Log Content with additional details")
+
+    # Third call (cache invalidated by file update)
+    third = LogStreamer.get_context()
+    assert third == "Updated Log Content with additional details"
+
+    # Delete file
+    os.remove("WORK_LOG.md")
+    fourth = LogStreamer.get_context()
+    assert fourth == "No project logs found."
+    assert LogStreamer._cache is None
