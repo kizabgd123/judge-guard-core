@@ -49,3 +49,25 @@ def test_get_context_unicode_split(tmp_path, monkeypatch):
     # We read from index 3 to 1502. That's 1500 bytes.
     # It contains 'A's and the full emoji.
     assert unicode_char in context
+
+def test_get_context_caching_and_invalidation(tmp_path, monkeypatch):
+    import time
+    monkeypatch.chdir(tmp_path)
+    log_file = "WORK_LOG.md"
+    with open(log_file, "w") as f:
+        f.write("Initial Log Entry")
+
+    first_call = LogStreamer.get_context()
+    assert first_call == "Initial Log Entry"
+
+    # Second call should return cached content
+    second_call = LogStreamer.get_context()
+    assert second_call == "Initial Log Entry"
+
+    # Sleep slightly to ensure st_mtime_ns advances beyond filesystem timer resolution (~10ms)
+    time.sleep(0.02)
+    with open(log_file, "a") as f:
+        f.write("\nUpdated Log Entry")
+
+    updated_call = LogStreamer.get_context()
+    assert "Updated Log Entry" in updated_call

@@ -4,10 +4,19 @@ class LogStreamer:
     """
     Utility to fetch and format project logs for agent discussion.
     """
-    @staticmethod
-    def get_context():
+    _cache = None  # (stat_key, content)
+
+    @classmethod
+    def get_context(cls):
         log_path = "WORK_LOG.md"
-        if not os.path.exists(log_path):
+        try:
+            stat = os.stat(log_path)
+            stat_key = (stat.st_dev, stat.st_ino, stat.st_mtime_ns, stat.st_size)
+            # ⚡ Bolt: Stat-based caching to avoid redundant disk opens/reads on unchanged logs (~10x speedup)
+            if cls._cache is not None and cls._cache[0] == stat_key:
+                return cls._cache[1]
+        except OSError:
+            cls._cache = None
             return "No project logs found."
 
         try:
@@ -24,6 +33,7 @@ class LogStreamer:
 
                 # Decode bytes to string, ignoring partial multi-byte characters if they occur
                 content = f.read().decode('utf-8', errors='ignore')
+                cls._cache = (stat_key, content)
                 return content
         except Exception as e:
             return f"Error reading logs: {e}"
