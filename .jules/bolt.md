@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Stat-Based Caching for LogStreamer]
+**Learning:** Frequent polling of log files (such as `LogStreamer.get_context()` in `src/kaggle_stream/log_streamer.py`) performs repeated file opens, seeks, reads, and UTF-8 decodes even when the log file has not been modified. Implementing stat-based caching (`st_dev`, `st_ino`, `st_mtime_ns`, `st_size`) allows cache hits to bypass all file I/O, reducing lookup latency from ~29.6 µs to ~3.5 µs (~8.3x speedup / ~88% reduction in latency).
+**Action:** Cache the retrieved tail content alongside `(path, dev, ino, mtime_ns, size)`. On `get_context()` calls, validate the cache against `os.stat()` before attempting file open/seek/read operations.
