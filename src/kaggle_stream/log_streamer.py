@@ -10,6 +10,13 @@ class LogStreamer:
 
     @classmethod
     def get_context(cls):
+        """Return the last 1,500 bytes of ``WORK_LOG.md`` decoded as text.
+
+        Invalid UTF-8 sequences are ignored. Cached content is reused while the
+        file's device, inode, modification time, and size remain unchanged.
+        Missing files return ``"No project logs found."``; file access failures
+        are returned as error messages instead of being raised.
+        """
         log_path = "WORK_LOG.md"
         if not os.path.exists(log_path):
             cls._cache = None
