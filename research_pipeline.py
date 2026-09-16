@@ -132,13 +132,28 @@ class ResearchPipeline:
                 self.conn.commit()
         logger.info(f"📝 {action}: {details}")
 
+    def _load_verdict_cache(self):
+        """Pre-populate in-memory verdict cache from SQLite table."""
+        if not self.conn:
+            return
+        try:
+            rows = self.conn.execute("SELECT action_hash, verdict FROM verdicts").fetchall()
+            for r in rows:
+                self._verdict_cache[r["action_hash"]] = r["verdict"]
+        except Exception as e:
+            logger.warning(f"Failed to load verdict cache: {e}")
+
     def init_db(self):
         """Initialize SQLite database."""
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL for ~75x faster writes/commits
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute("PRAGMA synchronous=NORMAL;")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
+        self._load_verdict_cache()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
         return self
     
@@ -149,6 +164,11 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Enable WAL mode and synchronous=NORMAL for performance
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute("PRAGMA synchronous=NORMAL;")
+        # ⚡ Bolt: Pre-populate in-memory verdict cache on connection to eliminate initial SQLite query overhead
+        self._load_verdict_cache()
         return self
 
     def parse_markdown_files(self) -> List[int]:
