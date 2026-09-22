@@ -1,10 +1,6 @@
 import os
 import logging
 from typing import Dict, List, Any, Optional
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +11,10 @@ class NotionClient:
     """
     
     def __init__(self, api_key: Optional[str] = None):
+        # ⚡ Bolt: Defer load_dotenv() to __init__ to improve module import latency
+        if not api_key and "NOTION_API_KEY" not in os.environ:
+            from dotenv import load_dotenv
+            load_dotenv()
         self.api_key = api_key or os.getenv("NOTION_API_KEY")
         if not self.api_key:
             raise ValueError("NOTION_API_KEY not found. Set it in .env or pass as argument.")

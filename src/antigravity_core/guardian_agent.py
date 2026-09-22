@@ -4,9 +4,7 @@ import json
 import threading
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
-# Setup
-load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 class GuardianAgent:
@@ -14,6 +12,10 @@ class GuardianAgent:
     The Guardian: Connects Daily Logs to Goals using AI validation.
     """
     def __init__(self):
+        # ⚡ Bolt: Defer load_dotenv() to __init__ to improve module import latency
+        if "GOALS_DB_ID" not in os.environ or "LOGS_DB_ID" not in os.environ:
+            from dotenv import load_dotenv
+            load_dotenv()
         self._notion = None
         self._gemini = None
         # ⚡ Bolt: Lock for thread-safe lazy initialization
