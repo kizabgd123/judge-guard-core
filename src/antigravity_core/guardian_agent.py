@@ -166,18 +166,35 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            props = page.get("properties")
+            if not props:
+                return "Untitled"
+
+            # ⚡ Bolt: Fast O(1) dictionary lookups for standard keys to bypass linear scans & generator overhead.
+            # Check 'Name' property (commonly a title property)
+            name_prop = props.get("Name")
+            if name_prop:
+                title = name_prop.get("title")
+                if title:
+                    return title[0]["text"]["content"]
+
+            # Check 'Entry' property (commonly a title or rich text property)
+            entry_prop = props.get("Entry")
+            if entry_prop:
+                title = entry_prop.get("title")
+                if title:
+                    return title[0]["text"]["content"]
+                rich_text = entry_prop.get("rich_text")
+                if rich_text:
+                    return rich_text[0]["text"]["content"]
+
+            # Slow path: only scan keys if fast paths fail
+            title_prop = next((v for v in props.values() if isinstance(v, dict) and v.get("id") == "title"), None)
+            if title_prop:
+                title = title_prop.get("title")
+                if title:
+                    return title[0]["text"]["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
