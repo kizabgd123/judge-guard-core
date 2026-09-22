@@ -33,21 +33,29 @@ class GuardianAgent:
     @property
     def gemini(self):
         """⚡ Bolt: Lazy property to defer GeminiClient initialization (thread-safe)."""
-        if self._gemini is None:
+        if self._gemini is None and not getattr(self, "_gemini_failed", False):
             with self._init_lock:
-                if self._gemini is None:
-                    from src.antigravity_core.gemini_client import GeminiClient
-                    self._gemini = GeminiClient()
+                if self._gemini is None and not getattr(self, "_gemini_failed", False):
+                    try:
+                        from src.antigravity_core.gemini_client import GeminiClient
+                        self._gemini = GeminiClient()
+                    except Exception as e:
+                        self._gemini_failed = True
+                        logger.warning(f"⚠️ GeminiClient not available: {e}")
         return self._gemini
 
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization (thread-safe)."""
-        if self._notion is None:
+        if self._notion is None and not getattr(self, "_notion_failed", False):
             with self._init_lock:
-                if self._notion is None:
-                    from src.antigravity_core.notion_client import NotionClient
-                    self._notion = NotionClient()
+                if self._notion is None and not getattr(self, "_notion_failed", False):
+                    try:
+                        from src.antigravity_core.notion_client import NotionClient
+                        self._notion = NotionClient()
+                    except Exception as e:
+                        self._notion_failed = True
+                        logger.warning(f"⚠️ NotionClient not available: {e}")
         return self._notion
 
     def close(self):
