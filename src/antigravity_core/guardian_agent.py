@@ -166,18 +166,32 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
             props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
+
+            # ⚡ Bolt: Fast path check for common title property keys ('Name', 'Title') with id == 'title'.
+            # Avoids generator creation and linear scan while preserving exact precedence (id == 'title' before 'Entry' rich text fallback).
+            for key in ("Name", "Title"):
+                if key in props:
+                    prop = props[key]
+                    if isinstance(prop, dict) and prop.get("id") == "title":
+                        title_list = prop.get("title")
+                        if title_list:
+                            return title_list[0]["text"]["content"]
+
+            # Fallback scan for title property if named differently
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title":
+                    title_list = v.get("title")
+                    if title_list:
+                        return title_list[0]["text"]["content"]
+
             # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            entry = props.get("Entry")
+            if isinstance(entry, dict):
+                rt_list = entry.get("rich_text", [])
+                if rt_list:
+                    return rt_list[0]["text"]["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
