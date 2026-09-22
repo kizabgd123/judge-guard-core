@@ -7,46 +7,40 @@ import sys
 # Ensure src is in path
 sys.path.append(os.getcwd())
 
-from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta
+try:
+    import gradio
+except ImportError:
+    sys.modules['gradio'] = MagicMock()
 
-class TestCollaborativePerformance(unittest.TestCase):
-    @patch('src.kaggle_stream.kaggle_agent.NotionClient')
-    @patch('src.kaggle_stream.app.multimedia')
-    def test_collaborative_step_latency(self, mock_multimedia, mock_notion_class):
-        # Setup Notion mock to avoid real API calls and simulate latency
-        mock_notion_instance = MagicMock()
-        mock_notion_class.return_value = mock_notion_instance
+from src.kaggle_stream.app import collaborative_step, agent_alpha, agent_beta, multimedia
 
-        def slow_notion(*args, **kwargs):
-            time.sleep(0.1) # Reduced from 0.5 to keep test reasonably fast
-            return {"id": "page_id"}
-        mock_notion_instance.append_to_database.side_effect = slow_notion
-
-        # Setup Multimedia mock to simulate latency
-        def slow_audio(*args, **kwargs):
-            time.sleep(0.2)
-            return "audio.mp3"
-        def slow_image(*args, **kwargs):
-            time.sleep(0.2)
-            return "image.png"
-
-        mock_multimedia.generate_audio.side_effect = slow_audio
-        mock_multimedia.generate_mood_image.side_effect = slow_image
-
-        # Configure agents for demo mode to avoid Gemini API calls
+class BenchmarkCollaborative(unittest.TestCase):
+    @patch('src.antigravity_core.notion_client.NotionClient')
+    def test_collaborative_step_parallelism(self, mock_notion_class):
         agent_alpha.demo_mode = True
         agent_beta.demo_mode = True
-        agent_alpha.notion = mock_notion_instance
-        agent_beta.notion = mock_notion_instance
+        agent_alpha._notion = MagicMock()
+        agent_beta._notion = MagicMock()
+
+        def slow_audio(*args, **kwargs):
+            time.sleep(0.3)
+            return "audio.mp3"
+
+        def slow_image(*args, **kwargs):
+            time.sleep(0.3)
+            return "image.png"
+
+        multimedia.generate_audio = slow_audio
+        multimedia.generate_mood_image = slow_image
 
         print("\n--- Starting Collaborative Step Benchmark ---")
         start_time = time.time()
-        with patch.dict('os.environ', {'NOTION_KAGGLE_DB_ID': 'test_db'}):
-            collaborative_step("Kaggle Challenge", "test task")
-        end_time = time.time()
+        res = collaborative_step("Kaggle Challenge", "House Prices")
+        duration = time.time() - start_time
 
-        duration = end_time - start_time
-        print(f"Total duration for collaborative_step: {duration:.4f}s")
+        print(f"Total duration for collaborative step: {duration:.4f}s")
+        self.assertEqual(len(res), 6)
+        # Expected duration is ~0.3s (all 4 audio/image futures run concurrently in parallel)
 
 if __name__ == "__main__":
     unittest.main()
