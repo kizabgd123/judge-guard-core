@@ -5,17 +5,15 @@ import App from './App.jsx'
 
 let rootElement = null;
 try {
+  rootElement = document.getElementById('root');
+} catch {
   try {
-    if ('document' in globalThis && globalThis.document) {
-      if ('getElementById' in globalThis.document) {
-        rootElement = globalThis.document.getElementById('root');
-      }
+    if (typeof globalThis !== 'undefined' && globalThis && globalThis.document && globalThis.document.getElementById) {
+      rootElement = globalThis.document.getElementById('root');
     }
   } catch {
-    // ignored
+    // Silent fallback for restrictive proxied environment like Cloudflare Workers
   }
-} catch {
-  // Silent fallback for restrictive proxied environment like Cloudflare Workers
 }
 
 if (rootElement) {
