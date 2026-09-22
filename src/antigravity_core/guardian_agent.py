@@ -166,18 +166,37 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
+            # ⚡ Bolt: Use direct O(1) checks to avoid looping and throwing/catching slow exceptions on mock properties
+            props = page.get("properties", {})
             
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            name_prop = props.get("Name")
+            if isinstance(name_prop, dict):
+                title_list = name_prop.get("title")
+                if title_list:
+                    return title_list[0]["text"]["content"]
+
+            entry_prop = props.get("Entry")
+            if isinstance(entry_prop, dict):
+                title_list = entry_prop.get("title")
+                if title_list:
+                    return title_list[0]["text"]["content"]
+                rich_text_list = entry_prop.get("rich_text")
+                if rich_text_list:
+                    return rich_text_list[0]["text"]["content"]
+
+            title_prop = props.get("title")
+            if isinstance(title_prop, dict):
+                title_list = title_prop.get("title")
+                if title_list:
+                    return title_list[0]["text"]["content"]
+
+            # Fallback to scanning safely for property with id == "title"
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title":
+                    title_list = v.get("title")
+                    if title_list:
+                        return title_list[0]["text"]["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
