@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -93,15 +94,19 @@ class ResearchPipeline:
         self._session = None
         # ⚡ Bolt: Fast-path in-memory verdict cache to avoid redundant SQLite lookups
         self._verdict_cache = {}
+        # ⚡ Bolt: Lock for thread-safe lazy session initialization
+        self._lock = threading.RLock()
         # ⚡ Bolt: Executor for parallelizing Notion API calls
         self._executor = ThreadPoolExecutor(max_workers=5)
 
     @property
     def session(self):
-        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        """⚡ Bolt: Lazy-load requests and initialize session on demand (thread-safe)."""
         if self._session is None:
-            import requests
-            self._session = requests.Session()
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
         return self._session
 
     def close(self):
