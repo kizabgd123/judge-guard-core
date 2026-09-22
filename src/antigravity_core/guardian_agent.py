@@ -164,19 +164,47 @@ class GuardianAgent:
             logger.error(f"Failed to update Notion page {page_id}: {e}")
 
     def _get_title(self, page: Dict) -> str:
-        """Helper to extract title from Notion page object."""
+        """
+        Helper to extract title from Notion page object.
+        ⚡ Bolt: Optimized by replacing linear scan next(...) and potential slow KeyError
+        exceptions with O(1) direct dictionary get() checks for standard keys,
+        reducing latency and avoiding exception-handling overhead, while preserving
+        original priority where id == 'title' is checked before rich text Entry.
+        """
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
+            props = page.get("properties", {})
+            if not props:
+                return "Untitled"
+
+            # 1. First priority: look for the property with id == "title"
+            title_prop = None
+
+            # Fast-path O(1) check for common keys with id == "title"
+            for key in ("Name", "Title"):
+                prop = props.get(key)
+                if isinstance(prop, dict) and prop.get("id") == "title":
+                    title_prop = prop
+                    break
+
+            # Fallback to linear search for id == "title" if fast-path keys didn't match
+            if title_prop is None:
+                for prop in props.values():
+                    if isinstance(prop, dict) and prop.get("id") == "title":
+                        title_prop = prop
+                        break
+
+            # Extract content if title property exists and has entries
+            if title_prop is not None:
+                title_list = title_prop.get("title")
+                if title_list:
+                    return title_list[0]["text"]["content"]
             
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
+            # 2. Second priority: fallback for 'Entry' property if it's a Rich Text, not Title
+            entry_prop = props.get("Entry")
+            if isinstance(entry_prop, dict):
+                entry = entry_prop.get("rich_text", [])
+                if entry:
+                    return entry[0]["text"]["content"]
                 
             return "Untitled"
         except Exception:
