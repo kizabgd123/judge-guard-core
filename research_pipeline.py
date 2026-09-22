@@ -94,7 +94,14 @@ class ResearchPipeline:
         # ⚡ Bolt: Fast-path in-memory verdict cache to avoid redundant SQLite lookups
         self._verdict_cache = {}
         # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        self._executor = None
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor for Notion syncing."""
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
@@ -106,11 +113,11 @@ class ResearchPipeline:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if self._executor:
             self._executor.shutdown(wait=True)
-        if hasattr(self, "_session") and self._session:
+        if self._session:
             self._session.close()
-        if hasattr(self, "conn") and self.conn:
+        if self.conn:
             self.conn.close()
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
@@ -137,6 +144,9 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Enable WAL mode and tune synchronous for high-performance writes
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
@@ -149,6 +159,9 @@ class ResearchPipeline:
         # ⚡ Bolt: Enable check_same_thread=False for background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # ⚡ Bolt: Enable WAL mode and tune synchronous for high-performance writes
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA synchronous=NORMAL")
         return self
 
     def parse_markdown_files(self) -> List[int]:
@@ -415,7 +428,7 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
