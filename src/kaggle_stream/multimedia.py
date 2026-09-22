@@ -1,9 +1,12 @@
 import os
-import requests
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# ⚡ Bolt: Lazy import holder for requests to minimize module import overhead
+requests = None
 
 class MultimediaManager:
     """
@@ -16,9 +19,9 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Lock for thread-safe lazy session initialization
+        self._lock = threading.RLock()
+        self._session = None
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -28,8 +31,22 @@ class MultimediaManager:
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
 
+    @property
+    def session(self):
+        """⚡ Bolt: Thread-safe lazy loading for requests.Session to minimize module import latency."""
+        if self._session is None:
+            with self._lock:
+                if self._session is None:
+                    global requests
+                    if requests is None:
+                        import requests
+                    sess = requests.Session()
+                    sess.headers.update(self.headers)
+                    self._session = sess
+        return self._session
+
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
-        # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
+        # ⚡ Bolt: Cache check - if text was already generated, write cached bytes
         if text in self._audio_cache:
             logger.info(f"⚡ Bolt: Reusing cached audio for: {text[:30]}...")
             try:
@@ -58,7 +75,7 @@ class MultimediaManager:
         return None
 
     def generate_mood_image(self, mood: str, output_path: str = "mood.png"):
-        # ⚡ Bolt: Cache check - if mood icon was already generated, write cached bytes to new path
+        # ⚡ Bolt: Cache check - if mood icon was already generated, write cached bytes
         if mood in self._image_cache:
             logger.info(f"⚡ Bolt: Reusing cached image for mood: {mood}")
             try:
