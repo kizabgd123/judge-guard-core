@@ -166,18 +166,38 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
             props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+
+            # ⚡ Bolt: Fast-path O(1) checks for common title/entry keys to avoid linear scan and generator allocation.
+            for key in ("Name", "Title", "Entry"):
+                prop = props.get(key)
+                if isinstance(prop, dict):
+                    # Check 'title' list (standard Notion title property)
+                    title = prop.get("title")
+                    if title and isinstance(title, list):
+                        return title[0]["text"]["content"]
+                    # Check 'rich_text' list (common fallback text property)
+                    rich_text = prop.get("rich_text")
+                    if rich_text and isinstance(rich_text, list):
+                        return rich_text[0]["text"]["content"]
+
+            # Fallback linear scan for any property with id == "title"
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title":
+                    title = v.get("title")
+                    if title and isinstance(title, list):
+                        return title[0]["text"]["content"]
+
+            # Resilient fallback for 'Entry' property or any rich_text/title
+            entry = props.get("Entry")
+            if isinstance(entry, dict):
+                rich_text = entry.get("rich_text")
+                if rich_text and isinstance(rich_text, list):
+                    return rich_text[0]["text"]["content"]
+                title = entry.get("title")
+                if title and isinstance(title, list):
+                    return title[0]["text"]["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
