@@ -1,6 +1,6 @@
 import os
-import requests
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,9 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Use threading.RLock for thread-safe lazy loading of session
+        self._lock = threading.RLock()
+        self._session = None
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -28,13 +28,37 @@ class MultimediaManager:
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
 
+        # ⚡ Bolt: Track mapped file-to-content structures to avoid redundant disk writes
+        self._audio_file_cache = {}  # {output_path: text}
+        self._image_file_cache = {}  # {output_path: mood}
+
+    @property
+    def session(self):
+        """⚡ Bolt: Lazy-load requests and initialize session on demand with thread safety."""
+        if self._session is None:
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    session = requests.Session()
+                    session.headers.update(self.headers)
+                    self._session = session
+        return self._session
+
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
+        # ⚡ Bolt: On-disk write avoidance caching
+        # If the destination file already exists and its tracked content matches,
+        # all disk I/O operations (file opens, writes, closes) are completely bypassed.
+        if os.path.exists(output_path) and self._audio_file_cache.get(output_path) == text:
+            logger.info(f"⚡ Bolt: Bypassing disk I/O, file already exists and matches content: {output_path}")
+            return output_path
+
         # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
         if text in self._audio_cache:
             logger.info(f"⚡ Bolt: Reusing cached audio for: {text[:30]}...")
             try:
                 with open(output_path, "wb") as f:
                     f.write(self._audio_cache[text])
+                self._audio_file_cache[output_path] = text
                 return output_path
             except Exception as e:
                 logger.error(f"Failed to write cached audio: {e}")
@@ -52,18 +76,27 @@ class MultimediaManager:
 
                 with open(output_path, "wb") as f:
                     f.write(response.content)
+                self._audio_file_cache[output_path] = text
                 return output_path
         except Exception:
             pass
         return None
 
     def generate_mood_image(self, mood: str, output_path: str = "mood.png"):
+        # ⚡ Bolt: On-disk write avoidance caching
+        # If the destination file already exists and its tracked content matches,
+        # all disk I/O operations (file opens, writes, closes) are completely bypassed.
+        if os.path.exists(output_path) and self._image_file_cache.get(output_path) == mood:
+            logger.info(f"⚡ Bolt: Bypassing disk I/O, file already exists and matches content: {output_path}")
+            return output_path
+
         # ⚡ Bolt: Cache check - if mood icon was already generated, write cached bytes to new path
         if mood in self._image_cache:
             logger.info(f"⚡ Bolt: Reusing cached image for mood: {mood}")
             try:
                 with open(output_path, "wb") as f:
                     f.write(self._image_cache[mood])
+                self._image_file_cache[output_path] = mood
                 return output_path
             except Exception as e:
                 logger.error(f"Failed to write cached image: {e}")
@@ -84,6 +117,7 @@ class MultimediaManager:
 
                 with open(output_path, "wb") as f:
                     f.write(response.content)
+                self._image_file_cache[output_path] = mood
                 return output_path
         except Exception:
             pass
