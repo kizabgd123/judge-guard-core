@@ -66,3 +66,32 @@ def test_verdict_caching(temp_db):
     pipeline.cache_verdict("Action 1", "PASSED")
     verdict = pipeline.get_cached_verdict("Action 1")
     assert verdict == "PASSED"
+
+def test_negative_verdict_caching(temp_db):
+    pipeline = ResearchPipeline()
+    pipeline.init_db()
+
+    # Query non-existent action
+    verdict1 = pipeline.get_cached_verdict("NonExistentAction")
+    assert verdict1 is None
+
+    # Verify action_hash is cached as None in _verdict_cache
+    import hashlib
+    action_hash = hashlib.md5("NonExistentAction".encode()).hexdigest()
+    assert action_hash in pipeline._verdict_cache
+    assert pipeline._verdict_cache[action_hash] is None
+
+    # Subsequent lookup should hit in-memory cache directly
+    verdict2 = pipeline.get_cached_verdict("NonExistentAction")
+    assert verdict2 is None
+
+def test_lazy_executor_instantiation(temp_db):
+    pipeline = ResearchPipeline()
+    # On init, _executor should be None
+    assert pipeline._executor is None
+
+    # Accessing executor property should lazily initialize it
+    executor = pipeline.executor
+    assert executor is not None
+    assert pipeline._executor is not None
+    pipeline.close()
