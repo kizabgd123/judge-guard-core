@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Mocking Session Objects in Ad-Hoc Caching Tests]
+**Learning:** Refactoring networking classes to use `requests.Session` for performance can break existing mock tests that patch module-level `requests.post`. Such tests must be updated to patch `requests.Session.post` or `requests.Session.request` to align with the new connection-pooling execution path.
+**Action:** When updating networking code to use `Session`, scan for and update any mock paths in tests and verification scripts from `requests.post` to `requests.Session.post`.
