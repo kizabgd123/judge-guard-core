@@ -66,3 +66,28 @@ def test_verdict_caching(temp_db):
     pipeline.cache_verdict("Action 1", "PASSED")
     verdict = pipeline.get_cached_verdict("Action 1")
     assert verdict == "PASSED"
+
+def test_negative_verdict_caching(temp_db):
+    import hashlib
+    pipeline = ResearchPipeline()
+    pipeline.init_db()
+
+    action_name = "Uncached Action Example"
+    action_hash = hashlib.md5(action_name.encode()).hexdigest()
+
+    # Initial lookup on uncached action should return None
+    verdict = pipeline.get_cached_verdict(action_name)
+    assert verdict is None
+
+    # Verify that negative result was cached in memory
+    assert action_hash in pipeline._verdict_cache
+    assert pipeline._verdict_cache[action_hash] is None
+
+    # Subsequent lookup should hit memory cache and return None
+    verdict_cached = pipeline.get_cached_verdict(action_name)
+    assert verdict_cached is None
+
+    # Caching a verdict later updates memory cache and SQLite
+    pipeline.cache_verdict(action_name, "PASSED")
+    assert pipeline.get_cached_verdict(action_name) == "PASSED"
+    assert pipeline._verdict_cache[action_hash] == "PASSED"
