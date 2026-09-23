@@ -6,10 +6,10 @@ import App from './App.jsx'
 let rootElement = null;
 try {
   try {
-    if ('document' in globalThis && globalThis.document) {
-      if ('getElementById' in globalThis.document) {
-        rootElement = globalThis.document.getElementById('root');
-      }
+    if (typeof document !== 'undefined' && document && 'getElementById' in document) {
+      rootElement = document.getElementById('root');
+    } else if ('document' in globalThis && globalThis.document && 'getElementById' in globalThis.document) {
+      rootElement = globalThis.document.getElementById('root');
     }
   } catch {
     // ignored
