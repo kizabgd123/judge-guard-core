@@ -14,10 +14,10 @@ function App() {
     let isVisible = true;
     try {
       try {
-        if (typeof document !== 'undefined' && document && 'visibilityState' in document) {
-          isVisible = document.visibilityState === 'visible';
-        } else if ('document' in globalThis && globalThis.document && 'visibilityState' in globalThis.document) {
-          isVisible = globalThis.document.visibilityState === 'visible';
+        if ('document' in globalThis && globalThis.document) {
+          if ('visibilityState' in globalThis.document) {
+            isVisible = globalThis.document.visibilityState === 'visible';
+          }
         }
       } catch {
         // ignored
@@ -63,10 +63,10 @@ function App() {
       let isVisible = false;
       try {
         try {
-          if (typeof document !== 'undefined' && document && 'visibilityState' in document) {
-            isVisible = document.visibilityState === 'visible';
-          } else if ('document' in globalThis && globalThis.document && 'visibilityState' in globalThis.document) {
-            isVisible = globalThis.document.visibilityState === 'visible';
+          if ('document' in globalThis && globalThis.document) {
+            if ('visibilityState' in globalThis.document) {
+              isVisible = globalThis.document.visibilityState === 'visible';
+            }
           }
         } catch {
           // ignored
@@ -82,12 +82,11 @@ function App() {
     let hasEvent = false;
     try {
       try {
-        if (typeof document !== 'undefined' && document && 'addEventListener' in document) {
-          document.addEventListener("visibilitychange", handleVisibilityChange);
-          hasEvent = true;
-        } else if ('document' in globalThis && globalThis.document && 'addEventListener' in globalThis.document) {
-          globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
-          hasEvent = true;
+        if ('document' in globalThis && globalThis.document) {
+          if ('addEventListener' in globalThis.document) {
+            globalThis.document.addEventListener("visibilitychange", handleVisibilityChange);
+            hasEvent = true;
+          }
         }
       } catch {
         // ignored
@@ -107,10 +106,10 @@ function App() {
       if (hasEvent) {
         try {
           try {
-              if (typeof document !== 'undefined' && document && 'removeEventListener' in document) {
-                document.removeEventListener("visibilitychange", handleVisibilityChange);
-              } else if ('document' in globalThis && globalThis.document && 'removeEventListener' in globalThis.document) {
+            if ('document' in globalThis && globalThis.document) {
+              if ('removeEventListener' in globalThis.document) {
                 globalThis.document.removeEventListener("visibilitychange", handleVisibilityChange);
+              }
             }
           } catch {
             // ignored
