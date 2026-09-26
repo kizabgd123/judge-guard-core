@@ -4,9 +4,7 @@ import json
 import threading
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
-# Setup
-load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 class GuardianAgent:
@@ -16,19 +14,32 @@ class GuardianAgent:
     def __init__(self):
         self._notion = None
         self._gemini = None
+        self._executor = None
         # ⚡ Bolt: Lock for thread-safe lazy initialization
         self._init_lock = threading.Lock()
+
+        # ⚡ Bolt: Defer load_dotenv() into __init__ only if environment variables are missing
+        if "GOALS_DB_ID" not in os.environ or "LOGS_DB_ID" not in os.environ:
+            from dotenv import load_dotenv
+            load_dotenv()
+
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
         
         if not self.goals_db or not self.logs_db:
             raise ValueError("Database IDs missing in .env")
 
-        # ⚡ Bolt: Executor for parallelizing I/O-bound Gemini and Notion calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
-
     def __del__(self):
         self.close()
+
+    @property
+    def executor(self) -> ThreadPoolExecutor:
+        """⚡ Bolt: Thread-safe lazy property for ThreadPoolExecutor to defer worker thread creation until needed."""
+        if self._executor is None:
+            with self._init_lock:
+                if self._executor is None:
+                    self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def gemini(self):
@@ -52,8 +63,9 @@ class GuardianAgent:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if getattr(self, "_executor", None) is not None:
             self._executor.shutdown(wait=True)
+            self._executor = None
 
     def fetch_active_goals(self) -> List[Dict]:
         """Fetch goals currently 'In Progress' or 'Not Started'."""
@@ -137,8 +149,8 @@ class GuardianAgent:
 
         # ⚡ Bolt: We have logs to process.
         # Now trigger Gemini warmup (import-heavy) and Goals fetching (I/O-heavy) in parallel.
-        gemini_warmup = self._executor.submit(lambda: self.gemini)
-        goals_future = self._executor.submit(self.fetch_active_goals)
+        gemini_warmup = self.executor.submit(lambda: self.gemini)
+        goals_future = self.executor.submit(self.fetch_active_goals)
 
         logger.info(f"Found {len(logs)} new logs. Fetching goals and finalizing warmup in parallel...")
 
@@ -151,7 +163,7 @@ class GuardianAgent:
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
         # ⚡ Bolt: Parallelize processing to overlap Gemini and Notion API calls.
-        list(self._executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
+        list(self.executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
 
     def _mark_processed(self, page_id: str, processed: bool):
         """Updates the 'Processed' checkbox in Notion."""
