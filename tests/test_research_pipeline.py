@@ -66,3 +66,23 @@ def test_verdict_caching(temp_db):
     pipeline.cache_verdict("Action 1", "PASSED")
     verdict = pipeline.get_cached_verdict("Action 1")
     assert verdict == "PASSED"
+
+def test_negative_verdict_caching(temp_db):
+    pipeline = ResearchPipeline()
+    pipeline.init_db()
+
+    import hashlib
+    action = "Uncached Action"
+    action_hash = hashlib.md5(action.encode()).hexdigest()
+
+    # First lookup should query DB, return None, and store None in cache
+    assert pipeline.get_cached_verdict(action) is None
+    assert action_hash in pipeline._verdict_cache
+    assert pipeline._verdict_cache[action_hash] is None
+
+    # Close connection to prove subsequent lookup hits in-memory cache
+    pipeline.conn.close()
+    pipeline.conn = None
+
+    # Second lookup should return None directly from _verdict_cache without DB connection
+    assert pipeline.get_cached_verdict(action) is None

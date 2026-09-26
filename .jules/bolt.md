@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Negative Query Caching in Verdict Lookup Path]
+**Learning:** In caching mechanisms like `ResearchPipeline.get_cached_verdict`, omitting negative results (`None`) from the in-memory cache causes repeat lookups for un-cached or non-existent items to repeatedly query the database (e.g. SQLite). Storing `None` in the in-memory cache allows repeat queries for un-cached actions to short-circuit in O(1) time.
+**Action:** Always store negative query results (`_verdict_cache[action_hash] = None`) when database queries return `None` to eliminate repeated SQLite query overhead on missing keys.
