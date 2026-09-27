@@ -10,17 +10,13 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
+    // ⚡ Bolt: Skip fetching when tab is explicitly hidden to save battery and network
     let isVisible = true;
     try {
-      try {
-        if ('document' in globalThis && globalThis.document) {
-          if ('visibilityState' in globalThis.document) {
-            isVisible = globalThis.document.visibilityState === 'visible';
-          }
+      if ('document' in globalThis && globalThis.document && 'visibilityState' in globalThis.document) {
+        if (globalThis.document.visibilityState === 'hidden') {
+          isVisible = false;
         }
-      } catch {
-        // ignored
       }
     } catch {
       // Ignore errors in restrictively proxied environment
@@ -29,7 +25,15 @@ function App() {
 
     try {
       const timestamp = new Date().getTime();
-      const response = await axios.get(`/app_config.json?t=${timestamp}`);
+      let configUrl = `/app_config.json?t=${timestamp}`;
+      try {
+        if ('location' in globalThis && globalThis.location && 'origin' in globalThis.location) {
+          configUrl = `${globalThis.location.origin}/app_config.json?t=${timestamp}`;
+        }
+      } catch {
+        // ignored
+      }
+      const response = await axios.get(configUrl);
       const newData = response.data;
       const newDataStr = JSON.stringify(newData);
 
@@ -60,21 +64,17 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      let isVisible = false;
+      let isHidden = false;
       try {
-        try {
-          if ('document' in globalThis && globalThis.document) {
-            if ('visibilityState' in globalThis.document) {
-              isVisible = globalThis.document.visibilityState === 'visible';
-            }
+        if ('document' in globalThis && globalThis.document && 'visibilityState' in globalThis.document) {
+          if (globalThis.document.visibilityState === 'hidden') {
+            isHidden = true;
           }
-        } catch {
-          // ignored
         }
       } catch {
         // ignored
       }
-      if (isVisible) {
+      if (!isHidden) {
         fetchData();
       }
     };
