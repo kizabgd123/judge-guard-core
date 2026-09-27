@@ -10,15 +10,13 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is explicitly hidden to save battery and network
+    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
     let isVisible = true;
     try {
       try {
         if ('document' in globalThis && globalThis.document) {
           if ('visibilityState' in globalThis.document) {
-            if (globalThis.document.visibilityState === 'hidden') {
-              isVisible = false;
-            }
+            isVisible = globalThis.document.visibilityState === 'visible';
           }
         }
       } catch {
@@ -31,15 +29,7 @@ function App() {
 
     try {
       const timestamp = new Date().getTime();
-      let configUrl = `/app_config.json?t=${timestamp}`;
-      try {
-        if ('location' in globalThis && globalThis.location && 'origin' in globalThis.location) {
-          configUrl = `${globalThis.location.origin}/app_config.json?t=${timestamp}`;
-        }
-      } catch {
-        // ignored
-      }
-      const response = await axios.get(configUrl);
+      const response = await axios.get(`/app_config.json?t=${timestamp}`);
       const newData = response.data;
       const newDataStr = JSON.stringify(newData);
 
@@ -70,14 +60,12 @@ function App() {
 
     // ⚡ Bolt: Fetch immediately on visibility change (coming back to tab)
     const handleVisibilityChange = () => {
-      let isHidden = false;
+      let isVisible = false;
       try {
         try {
           if ('document' in globalThis && globalThis.document) {
             if ('visibilityState' in globalThis.document) {
-              if (globalThis.document.visibilityState === 'hidden') {
-                isHidden = true;
-              }
+              isVisible = globalThis.document.visibilityState === 'visible';
             }
           }
         } catch {
@@ -86,7 +74,7 @@ function App() {
       } catch {
         // ignored
       }
-      if (!isHidden) {
+      if (isVisible) {
         fetchData();
       }
     };
