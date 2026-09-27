@@ -13,10 +13,16 @@ function App() {
     // ⚡ Bolt: Skip fetching when tab is explicitly hidden to save battery and network
     let isVisible = true;
     try {
-      if ('document' in globalThis && globalThis.document && 'visibilityState' in globalThis.document) {
-        if (globalThis.document.visibilityState === 'hidden') {
-          isVisible = false;
+      try {
+        if ('document' in globalThis && globalThis.document) {
+          if ('visibilityState' in globalThis.document) {
+            if (globalThis.document.visibilityState === 'hidden') {
+              isVisible = false;
+            }
+          }
         }
+      } catch {
+        // ignored
       }
     } catch {
       // Ignore errors in restrictively proxied environment
@@ -66,10 +72,16 @@ function App() {
     const handleVisibilityChange = () => {
       let isHidden = false;
       try {
-        if ('document' in globalThis && globalThis.document && 'visibilityState' in globalThis.document) {
-          if (globalThis.document.visibilityState === 'hidden') {
-            isHidden = true;
+        try {
+          if ('document' in globalThis && globalThis.document) {
+            if ('visibilityState' in globalThis.document) {
+              if (globalThis.document.visibilityState === 'hidden') {
+                isHidden = true;
+              }
+            }
           }
+        } catch {
+          // ignored
         }
       } catch {
         // ignored
