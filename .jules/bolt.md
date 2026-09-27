@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Repeated Re-initialization Attempts on Missing Credentials/Dependencies]
+**Learning:** When optional dependencies or credentials (such as `NOTION_API_KEY` or `GEMINI_API_KEY`) are absent, accessing lazy properties that attempt instantiation without failure tracking incurs repeated exception handling and import overhead on every access (e.g. ~0.2ms per access, or ~190ms for 1,000 accesses).
+**Action:** Record failure-tracking flags (`_notion_failed`, `_gemini_failed`, `_pipeline_failed`) upon catching instantiation exceptions so subsequent property accesses short-circuit in O(1) time (~0.0001ms), eliminating repeated overhead.

@@ -4,9 +4,7 @@ import json
 import threading
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
-# Setup
-load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 class GuardianAgent:
@@ -16,11 +14,20 @@ class GuardianAgent:
     def __init__(self):
         self._notion = None
         self._gemini = None
+        self._gemini_failed = False
+        self._notion_failed = False
         # ⚡ Bolt: Lock for thread-safe lazy initialization
         self._init_lock = threading.Lock()
+
+        # ⚡ Bolt: Defer load_dotenv call to avoid top-level file system I/O on module import
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
-        
+        if not self.goals_db or not self.logs_db:
+            from dotenv import load_dotenv
+            load_dotenv()
+            self.goals_db = os.getenv("GOALS_DB_ID")
+            self.logs_db = os.getenv("LOGS_DB_ID")
+
         if not self.goals_db or not self.logs_db:
             raise ValueError("Database IDs missing in .env")
 
@@ -33,21 +40,29 @@ class GuardianAgent:
     @property
     def gemini(self):
         """⚡ Bolt: Lazy property to defer GeminiClient initialization (thread-safe)."""
-        if self._gemini is None:
+        if self._gemini is None and not self._gemini_failed:
             with self._init_lock:
-                if self._gemini is None:
-                    from src.antigravity_core.gemini_client import GeminiClient
-                    self._gemini = GeminiClient()
+                if self._gemini is None and not self._gemini_failed:
+                    try:
+                        from src.antigravity_core.gemini_client import GeminiClient
+                        self._gemini = GeminiClient()
+                    except Exception:
+                        self._gemini_failed = True
+                        self._gemini = None
         return self._gemini
 
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization (thread-safe)."""
-        if self._notion is None:
+        if self._notion is None and not self._notion_failed:
             with self._init_lock:
-                if self._notion is None:
-                    from src.antigravity_core.notion_client import NotionClient
-                    self._notion = NotionClient()
+                if self._notion is None and not self._notion_failed:
+                    try:
+                        from src.antigravity_core.notion_client import NotionClient
+                        self._notion = NotionClient()
+                    except Exception:
+                        self._notion_failed = True
+                        self._notion = None
         return self._notion
 
     def close(self):
