@@ -10,20 +10,22 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
-    let isVisible = true;
+    // ⚡ Bolt: Skip fetching when tab is hidden or when running in worker environments without document
+    let isVisible = false;
     try {
       try {
         if ('document' in globalThis && globalThis.document) {
           if ('visibilityState' in globalThis.document) {
             isVisible = globalThis.document.visibilityState === 'visible';
+          } else {
+            isVisible = true;
           }
         }
       } catch {
-        // ignored
+        isVisible = false;
       }
     } catch {
-      // Ignore errors in restrictively proxied environment
+      isVisible = false;
     }
     if (!isVisible) return;
 
