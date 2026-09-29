@@ -4,9 +4,7 @@ import json
 import threading
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
-# Setup
-load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 class GuardianAgent:
@@ -18,8 +16,15 @@ class GuardianAgent:
         self._gemini = None
         # ⚡ Bolt: Lock for thread-safe lazy initialization
         self._init_lock = threading.Lock()
+
+        # ⚡ Bolt: Defer load_dotenv call to __init__ to avoid top-level module import disk I/O.
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
+        if not self.goals_db or not self.logs_db:
+            from dotenv import load_dotenv
+            load_dotenv()
+            self.goals_db = os.getenv("GOALS_DB_ID")
+            self.logs_db = os.getenv("LOGS_DB_ID")
         
         if not self.goals_db or not self.logs_db:
             raise ValueError("Database IDs missing in .env")
