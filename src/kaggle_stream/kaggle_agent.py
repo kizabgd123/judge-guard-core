@@ -40,12 +40,13 @@ class KaggleAgent:
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization."""
-        if self._notion is None:
+        if self._notion is None and not getattr(self, "_notion_failed", False):
             try:
                 from src.antigravity_core.notion_client import NotionClient
                 self._notion = NotionClient()
             except Exception:
                 self._notion = None
+                self._notion_failed = True
         return self._notion
 
     def __enter__(self):
