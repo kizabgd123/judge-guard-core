@@ -349,12 +349,11 @@ class ResearchPipeline:
             (action_hash,)
         ).fetchone()
 
-        if result:
-            verdict = result["verdict"]
-            # ⚡ Bolt: Populate in-memory cache on miss for subsequent lookups
-            self._verdict_cache[action_hash] = verdict
-            return verdict
-        return None
+        verdict = result["verdict"] if result else None
+        # ⚡ Bolt: Populate in-memory cache for both positive and negative (None) lookups
+        # to avoid repeated SQLite queries for uncached actions.
+        self._verdict_cache[action_hash] = verdict
+        return verdict
 
     def sync_to_notion(self):
         """
