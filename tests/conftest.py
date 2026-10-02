@@ -29,3 +29,9 @@ def restore_app_config():
     if original_content is not None:
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             f.write(original_content)
+
+    try:
+        from src.antigravity_core.mobile_bridge import bridge
+        bridge._executor = None
+    except ImportError:
+        pass
