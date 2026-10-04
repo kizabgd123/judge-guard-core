@@ -126,22 +126,23 @@ class JudgeGuard:
     @property
     def gemini(self):
         """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
-        if self._gemini is None:
+        if self._gemini is None and not getattr(self, "_gemini_failed", False):
             with self._lock:
-                if self._gemini is None:
+                if self._gemini is None and not getattr(self, "_gemini_failed", False):
                     try:
                         from src.antigravity_core.gemini_client import GeminiClient
                         self._gemini = GeminiClient()
-                    except ImportError as e:
+                    except Exception as e:
                         self.logger.warning(f"⚠️ GeminiClient not available: {e}")
+                        self._gemini_failed = True
         return self._gemini
 
     @property
     def pipeline(self):
         """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
-        if self._pipeline is None:
+        if self._pipeline is None and not getattr(self, "_pipeline_failed", False):
             with self._lock:
-                if self._pipeline is None:
+                if self._pipeline is None and not getattr(self, "_pipeline_failed", False):
                     try:
                         from research_pipeline import ResearchPipeline
                         try:
@@ -153,8 +154,10 @@ class JudgeGuard:
                             except Exception as e:
                                 self.logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
                                 self._pipeline = None
-                    except ImportError as e:
+                                self._pipeline_failed = True
+                    except Exception as e:
                         self.logger.warning(f"⚠️ ResearchPipeline not available: {e}")
+                        self._pipeline_failed = True
         return self._pipeline
 
     def __del__(self):
