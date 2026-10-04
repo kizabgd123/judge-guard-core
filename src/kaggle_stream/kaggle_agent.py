@@ -27,7 +27,7 @@ class KaggleAgent:
     @property
     def gemini(self):
         """⚡ Bolt: Lazy property to defer GeminiClient initialization."""
-        if self._gemini is None and not self.demo_mode:
+        if self._gemini is None and not self.demo_mode and not getattr(self, "_gemini_failed", False):
             try:
                 from src.antigravity_core.gemini_client import GeminiClient
                 self._gemini = GeminiClient()
@@ -35,17 +35,19 @@ class KaggleAgent:
                 logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
                 self.demo_mode = True
                 self._gemini = None
+                self._gemini_failed = True
         return self._gemini
 
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization."""
-        if self._notion is None:
+        if self._notion is None and not getattr(self, "_notion_failed", False):
             try:
                 from src.antigravity_core.notion_client import NotionClient
                 self._notion = NotionClient()
             except Exception:
                 self._notion = None
+                self._notion_failed = True
         return self._notion
 
     def __enter__(self):
