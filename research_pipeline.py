@@ -354,6 +354,9 @@ class ResearchPipeline:
             # ⚡ Bolt: Populate in-memory cache on miss for subsequent lookups
             self._verdict_cache[action_hash] = verdict
             return verdict
+
+        # ⚡ Bolt: Store negative result (None) in cache to prevent repeated SQLite queries on miss
+        self._verdict_cache[action_hash] = None
         return None
 
     def sync_to_notion(self):
