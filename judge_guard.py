@@ -70,9 +70,12 @@ class JudgeGuard:
         if not self._setup_done:
             with self._lock:
                 if not self._setup_done:
-                    from dotenv import load_dotenv
+                    try:
+                        from dotenv import load_dotenv
+                        load_dotenv()
+                    except ImportError:
+                        pass
                     import logging
-                    load_dotenv()
                     logging.basicConfig(level=logging.INFO)
                     self._logger = logging.getLogger(__name__)
                     self._setup_done = True
