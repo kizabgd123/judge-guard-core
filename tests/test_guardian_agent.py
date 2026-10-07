@@ -14,6 +14,13 @@ def test_guardian_init(mock_clients, monkeypatch):
     agent = GuardianAgent()
     assert agent.goals_db == "goals_id"
     assert agent.logs_db == "logs_id"
+    # Verify executor is None until accessed
+    assert agent._executor is None
+    executor = agent.executor
+    assert executor is not None
+    assert agent._executor is executor
+    agent.close()
+    assert agent._executor is None
 
 def test_fetch_active_goals(mock_clients, monkeypatch):
     monkeypatch.setenv("GOALS_DB_ID", "goals_id")
