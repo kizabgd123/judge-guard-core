@@ -21,8 +21,15 @@ class KaggleAgent:
         self._notion = None
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
-        # ⚡ Bolt: Executor for offloading synchronous Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=2)
+        # ⚡ Bolt: Defer ThreadPoolExecutor instantiation to lazy property
+        self._executor = None
+
+    @property
+    def executor(self) -> ThreadPoolExecutor:
+        """⚡ Bolt: Lazy property to defer ThreadPoolExecutor initialization."""
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=2)
+        return self._executor
 
     @property
     def gemini(self):
@@ -58,9 +65,10 @@ class KaggleAgent:
         self.close()
 
     def close(self):
-        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
+        """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down if initialized."""
+        if hasattr(self, "_executor") and self._executor is not None:
             self._executor.shutdown(wait=True)
+            self._executor = None
 
     def step(self, task: str, context: Optional[str] = None) -> Dict[str, Any]:
         # If Gemini is present but API key is dummy/invalid, it might still fail at runtime
@@ -116,7 +124,7 @@ class KaggleAgent:
     def _log_to_notion(self, data: Dict[str, Any]):
         if self.notion and self.notion_db_id and self.notion_db_id != "demo":
             # ⚡ Bolt: Offload blocking Notion API call to background thread
-            self._executor.submit(self._execute_notion_append, data)
+            self.executor.submit(self._execute_notion_append, data)
 
     def _execute_notion_append(self, data: Dict[str, Any]):
         try:
