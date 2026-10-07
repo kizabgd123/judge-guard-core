@@ -93,8 +93,15 @@ class ResearchPipeline:
         self._session = None
         # ⚡ Bolt: Fast-path in-memory verdict cache to avoid redundant SQLite lookups
         self._verdict_cache = {}
-        # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        # ⚡ Bolt: Lazy-loaded executor for parallelizing Notion API calls
+        self._executor = None
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor for Notion API calls on demand."""
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
@@ -106,7 +113,7 @@ class ResearchPipeline:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor is not None:
             self._executor.shutdown(wait=True)
         if hasattr(self, "_session") and self._session:
             self._session.close()
@@ -349,12 +356,10 @@ class ResearchPipeline:
             (action_hash,)
         ).fetchone()
 
-        if result:
-            verdict = result["verdict"]
-            # ⚡ Bolt: Populate in-memory cache on miss for subsequent lookups
-            self._verdict_cache[action_hash] = verdict
-            return verdict
-        return None
+        verdict = result["verdict"] if result else None
+        # ⚡ Bolt: Populate in-memory cache on miss for subsequent lookups (including negative/uncached results)
+        self._verdict_cache[action_hash] = verdict
+        return verdict
 
     def sync_to_notion(self):
         """
@@ -415,7 +420,7 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
