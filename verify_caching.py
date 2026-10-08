@@ -14,11 +14,12 @@ class TestMultimediaCaching(unittest.TestCase):
         self.test_image_path_2 = "test_mood_2.png"
 
     def tearDown(self):
+        self.manager.close()
         for p in [self.test_audio_path_1, self.test_audio_path_2, self.test_image_path_1, self.test_image_path_2]:
             if os.path.exists(p):
                 os.remove(p)
 
-    @patch('requests.post')
+    @patch('requests.Session.post')
     def test_audio_caching(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -38,7 +39,7 @@ class TestMultimediaCaching(unittest.TestCase):
         with open(self.test_audio_path_2, "rb") as f:
             self.assertEqual(f.read(), b"fake audio content")
 
-    @patch('requests.post')
+    @patch('requests.Session.post')
     def test_image_caching(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
