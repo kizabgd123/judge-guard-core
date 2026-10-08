@@ -21,6 +21,8 @@ def restore_app_config():
         from src.antigravity_core.mobile_bridge import bridge
         if hasattr(bridge, "_executor") and bridge._executor is not None:
             bridge._executor.shutdown(wait=True)
+            bridge._executor = None
+        bridge.app_state.pop("last_verdict", None)
     except ImportError:
         # Expected when bridge is not available
         pass
