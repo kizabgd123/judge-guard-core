@@ -66,3 +66,30 @@ def test_verdict_caching(temp_db):
     pipeline.cache_verdict("Action 1", "PASSED")
     verdict = pipeline.get_cached_verdict("Action 1")
     assert verdict == "PASSED"
+
+def test_negative_verdict_caching(temp_db):
+    pipeline = ResearchPipeline()
+    pipeline.init_db()
+
+    # Uncached action should return None and cache the negative result in-memory
+    verdict = pipeline.get_cached_verdict("Uncached Action")
+    assert verdict is None
+
+    # Verify that the action hash is present in _verdict_cache with value None
+    import hashlib
+    action_hash = hashlib.md5("Uncached Action".encode()).hexdigest()
+    assert action_hash in pipeline._verdict_cache
+    assert pipeline._verdict_cache[action_hash] is None
+
+    # Replace conn with a mock object to verify repeat lookup bypasses database
+    from unittest.mock import MagicMock
+    mock_conn = MagicMock()
+    pipeline.conn = mock_conn
+    repeat_verdict = pipeline.get_cached_verdict("Uncached Action")
+    assert repeat_verdict is None
+    mock_conn.execute.assert_not_called()
+
+    # Caching a verdict should update the in-memory cache and database
+    pipeline.connect()
+    pipeline.cache_verdict("Uncached Action", "PASSED")
+    assert pipeline.get_cached_verdict("Uncached Action") == "PASSED"
