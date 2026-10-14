@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import sqlite3
 import os
 from pathlib import Path
@@ -66,3 +66,29 @@ def test_verdict_caching(temp_db):
     pipeline.cache_verdict("Action 1", "PASSED")
     verdict = pipeline.get_cached_verdict("Action 1")
     assert verdict == "PASSED"
+
+def test_negative_verdict_caching(temp_db):
+    pipeline = ResearchPipeline()
+    pipeline.init_db()
+
+    action = "Uncached Action 123"
+    # First lookup returns None and populates negative cache
+    verdict1 = pipeline.get_cached_verdict(action)
+    assert verdict1 is None
+
+    # Verify action hash was cached with value None
+    import hashlib
+    action_hash = hashlib.md5(action.encode()).hexdigest()
+    assert action_hash in pipeline._verdict_cache
+    assert pipeline._verdict_cache[action_hash] is None
+
+    # Second lookup hits in-memory cache directly
+    mock_conn = MagicMock()
+    pipeline.conn = mock_conn
+    verdict2 = pipeline.get_cached_verdict(action)
+    assert verdict2 is None
+    mock_conn.execute.assert_not_called()
+
+    # Caching a verdict updates the negative cache entry
+    pipeline.cache_verdict(action, "PASSED")
+    assert pipeline.get_cached_verdict(action) == "PASSED"
