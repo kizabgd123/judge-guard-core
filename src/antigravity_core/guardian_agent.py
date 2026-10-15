@@ -164,20 +164,39 @@ class GuardianAgent:
             logger.error(f"Failed to update Notion page {page_id}: {e}")
 
     def _get_title(self, page: Dict) -> str:
-        """Helper to extract title from Notion page object."""
+        """
+        Helper to extract title from Notion page object.
+        ⚡ Bolt: Optimized fast-path lookups for common keys ('Name', 'Title', 'title')
+        and type safety before fallback linear scanning to avoid generator creation and Exception catches.
+        """
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            props = page.get("properties")
+            if not isinstance(props, dict):
+                return "Untitled"
+
+            # ⚡ Fast path: Check common title property names first (O(1) lookups)
+            for name in ("Name", "Title", "title"):
+                prop = props.get(name)
+                if isinstance(prop, dict) and prop.get("id") == "title":
+                    title_list = prop.get("title")
+                    if title_list:
+                        return title_list[0]["text"]["content"]
+
+            # Fallback scan: Find any property with id == 'title'
+            for prop in props.values():
+                if isinstance(prop, dict) and prop.get("id") == "title":
+                    title_list = prop.get("title")
+                    if title_list:
+                        return title_list[0]["text"]["content"]
+                    break
+
+            # Fallback for 'Entry' property if it's Rich Text
+            entry = props.get("Entry")
+            if isinstance(entry, dict):
+                rich_text = entry.get("rich_text")
+                if rich_text:
+                    return rich_text[0]["text"]["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
