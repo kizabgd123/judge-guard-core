@@ -164,20 +164,29 @@ class GuardianAgent:
             logger.error(f"Failed to update Notion page {page_id}: {e}")
 
     def _get_title(self, page: Dict) -> str:
-        """Helper to extract title from Notion page object."""
+        """⚡ Bolt: Optimized helper to extract title from Notion page object with O(1) fast-path checks."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
             props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+
+            # Fast-path check for common keys ('Name', 'Title', 'Entry') with title or rich_text
+            for key in ("Name", "Title", "Entry"):
+                if key in props:
+                    prop = props[key]
+                    if isinstance(prop, dict):
+                        title_arr = prop.get("title")
+                        if title_arr and isinstance(title_arr, list) and title_arr[0].get("text"):
+                            return title_arr[0]["text"]["content"]
+                        rich_arr = prop.get("rich_text")
+                        if rich_arr and isinstance(rich_arr, list) and rich_arr[0].get("text"):
+                            return rich_arr[0]["text"]["content"]
+
+            # Fallback scan for property with id == 'title'
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title" and v.get("title"):
+                    title_arr = v["title"]
+                    if title_arr and isinstance(title_arr, list) and title_arr[0].get("text"):
+                        return title_arr[0]["text"]["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
