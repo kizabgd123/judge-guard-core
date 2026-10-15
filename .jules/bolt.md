@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Mock Patching with Lazy-Loaded Properties]
+**Learning:** Mock-patching classes that are lazily-loaded within method or property getters (e.g., `NotionClient` in `KaggleAgent` or `GuardianAgent`) directly on the importing module raises an `AttributeError`. Similarly, trying to set mock instances directly on properties without setters raises `AttributeError`.
+**Action:** Always patch the class at its original source definition path (e.g., `src.antigravity_core.notion_client.NotionClient`) and assign mock instances directly to the private variable (`agent._notion`) to ensure robust benchmark and unit tests.
