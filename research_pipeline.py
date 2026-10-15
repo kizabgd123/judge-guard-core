@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -91,6 +92,7 @@ class ResearchPipeline:
         self.conn = None
         self.notion_queue = []
         self._session = None
+        self._lock = threading.RLock()
         # ⚡ Bolt: Fast-path in-memory verdict cache to avoid redundant SQLite lookups
         self._verdict_cache = {}
         # ⚡ Bolt: Executor for parallelizing Notion API calls
@@ -98,10 +100,12 @@ class ResearchPipeline:
 
     @property
     def session(self):
-        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        """⚡ Bolt: Lazy-load requests and initialize session on demand (thread-safe)."""
         if self._session is None:
-            import requests
-            self._session = requests.Session()
+            with self._lock:
+                if self._session is None:
+                    import requests
+                    self._session = requests.Session()
         return self._session
 
     def close(self):
@@ -133,22 +137,26 @@ class ResearchPipeline:
         logger.info(f"📝 {action}: {details}")
 
     def init_db(self):
-        """Initialize SQLite database."""
-        # ⚡ Bolt: Enable check_same_thread=False for background sync safety
+        """Initialize SQLite database with WAL mode for fast writes."""
+        # ⚡ Bolt: Enable check_same_thread=False and WAL mode for high performance & background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute("PRAGMA synchronous=NORMAL;")
         self.conn.executescript(SCHEMA)
         self.conn.commit()
         self.log_audit("DB_INIT", f"Created {DB_PATH}")
         return self
     
     def connect(self):
-        """Connect to existing database."""
+        """Connect to existing database with WAL mode."""
         if not DB_PATH.exists():
             raise FileNotFoundError(f"Database not found: {DB_PATH}. Run --init first.")
-        # ⚡ Bolt: Enable check_same_thread=False for background sync safety
+        # ⚡ Bolt: Enable check_same_thread=False and WAL mode for high performance & background sync safety
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL;")
+        self.conn.execute("PRAGMA synchronous=NORMAL;")
         return self
 
     def parse_markdown_files(self) -> List[int]:
