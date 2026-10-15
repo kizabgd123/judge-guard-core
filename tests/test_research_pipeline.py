@@ -63,6 +63,25 @@ def test_verdict_caching(temp_db):
     pipeline = ResearchPipeline()
     pipeline.init_db()
 
+    # Verify initial executor state is None (lazy loading)
+    assert pipeline._executor is None
+
+    # Test negative caching for un-cached action
+    assert pipeline.get_cached_verdict("Uncached Action") is None
+    import hashlib
+    action_hash = hashlib.md5("Uncached Action".encode()).hexdigest()
+    assert action_hash in pipeline._verdict_cache
+    assert pipeline._verdict_cache[action_hash] is None
+
+    # Repeat call should hit in-memory cache
+    assert pipeline.get_cached_verdict("Uncached Action") is None
+
+    # Caching verdict overwrites negative entry
+    pipeline.cache_verdict("Uncached Action", "PASSED")
+    assert pipeline.get_cached_verdict("Uncached Action") == "PASSED"
+
     pipeline.cache_verdict("Action 1", "PASSED")
     verdict = pipeline.get_cached_verdict("Action 1")
     assert verdict == "PASSED"
+
+    pipeline.close()

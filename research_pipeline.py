@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -93,8 +94,18 @@ class ResearchPipeline:
         self._session = None
         # ⚡ Bolt: Fast-path in-memory verdict cache to avoid redundant SQLite lookups
         self._verdict_cache = {}
-        # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        # ⚡ Bolt: Lock for thread-safe lazy executor initialization
+        self._init_lock = threading.Lock()
+        self._executor = None
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy property to defer ThreadPoolExecutor initialization (thread-safe)."""
+        if self._executor is None:
+            with self._init_lock:
+                if self._executor is None:
+                    self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
@@ -106,11 +117,11 @@ class ResearchPipeline:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor is not None:
             self._executor.shutdown(wait=True)
-        if hasattr(self, "_session") and self._session:
+        if hasattr(self, "_session") and self._session is not None:
             self._session.close()
-        if hasattr(self, "conn") and self.conn:
+        if hasattr(self, "conn") and self.conn is not None:
             self.conn.close()
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
@@ -354,6 +365,8 @@ class ResearchPipeline:
             # ⚡ Bolt: Populate in-memory cache on miss for subsequent lookups
             self._verdict_cache[action_hash] = verdict
             return verdict
+        # ⚡ Bolt: Store negative query result (None) in-memory to prevent repeated SQLite queries on cache misses
+        self._verdict_cache[action_hash] = None
         return None
 
     def sync_to_notion(self):
@@ -415,7 +428,7 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
