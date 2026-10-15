@@ -65,3 +65,22 @@ def test_push_verdict(temp_pwa_dir):
         with open(config_file, "r") as f:
             data = json.load(f)
             assert data["last_verdict"]["status"] == "PASSED"
+
+def test_sync_state_skips_write_when_unchanged(temp_pwa_dir):
+    config_file = str(temp_pwa_dir / "public" / "app_config.json")
+    with patch('src.antigravity_core.mobile_bridge.PWA_PUBLIC_DIR', str(temp_pwa_dir / "public")), \
+         patch('src.antigravity_core.mobile_bridge.CONFIG_FILE', config_file):
+
+        bridge = MobileBridge()
+        bridge.sync_state()
+
+        mtime1 = os.path.getmtime(config_file)
+
+        # Small sleep to ensure mtime timestamp resolution difference if rewritten
+        time.sleep(0.02)
+        bridge.sync_state()
+
+        mtime2 = os.path.getmtime(config_file)
+
+        # File should not have been overwritten since state content is identical
+        assert mtime1 == mtime2
