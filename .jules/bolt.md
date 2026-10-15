@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Overhead of Generator Expressions and Linear Scans on Dict Properties]
+**Learning:** Using generator expressions (`next((v for k,v in props.items() if v["id"] == "title"), None)`) inside high-frequency utility functions (e.g., `_get_title` in `GuardianAgent`) to query dictionary structures like Notion page properties introduces substantial instantiation and linear-scan overhead. Directly performing O(1) dictionary checks (`props.get(key)`) for common keys yields massive speedups.
+**Action:** Always check the most common dictionary keys explicitly using O(1) lookups before resorting to linear scanning or generator expressions for dynamic properties.

@@ -166,17 +166,26 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
+            # ⚡ Bolt: Fast-path O(1) checks for common properties to avoid linear scans and generator object overhead.
+            props = page.get("properties", {})
+
+            # 1. Fast-path check for standard Title properties (e.g., 'Name' or 'Title')
+            for key in ("Name", "Title"):
+                prop = props.get(key)
+                if isinstance(prop, dict) and prop.get("id") == "title" and prop.get("title"):
+                    return prop["title"][0]["text"]["content"]
             
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
+            # 2. Fast-path check for rich-text 'Entry' property
+            entry_prop = props.get("Entry")
+            if isinstance(entry_prop, dict):
+                rich_text = entry_prop.get("rich_text", [])
+                if rich_text:
+                    return rich_text[0]["text"]["content"]
+
+            # 3. Fallback: linear scan over properties if standard keys did not match
+            title_prop = next((v for v in props.values() if isinstance(v, dict) and v.get("id") == "title"), None)
+            if title_prop and title_prop.get("title"):
+                return title_prop["title"][0]["text"]["content"]
                 
             return "Untitled"
         except Exception:
