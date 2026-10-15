@@ -1,6 +1,7 @@
 import time
 import os
 import unittest
+import requests
 from unittest.mock import patch, MagicMock
 from src.kaggle_stream.multimedia import MultimediaManager
 
@@ -18,7 +19,7 @@ class TestMultimediaCaching(unittest.TestCase):
             if os.path.exists(p):
                 os.remove(p)
 
-    @patch('requests.post')
+    @patch('requests.Session.post')
     def test_audio_caching(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -38,7 +39,7 @@ class TestMultimediaCaching(unittest.TestCase):
         with open(self.test_audio_path_2, "rb") as f:
             self.assertEqual(f.read(), b"fake audio content")
 
-    @patch('requests.post')
+    @patch('requests.Session.post')
     def test_image_caching(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -57,6 +58,27 @@ class TestMultimediaCaching(unittest.TestCase):
 
         with open(self.test_image_path_2, "rb") as f:
             self.assertEqual(f.read(), b"fake image content")
+
+    @patch('requests.Session.post')
+    def test_disk_write_avoidance(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = b"fake audio content"
+        mock_post.return_value = mock_response
+
+        text = "Test disk write avoidance"
+        output_path = self.test_audio_path_1
+
+        # First call: not cached. Should write to disk.
+        self.manager.generate_audio(text, output_path)
+        self.assertTrue(os.path.exists(output_path))
+
+        # We will mock 'builtins.open' to verify that the next call does NOT open/write to the file.
+        with patch('builtins.open', MagicMock()) as mock_open:
+            # Second call: cached in memory AND file exists on disk with identical tracked content.
+            # It should skip opening the file completely.
+            self.manager.generate_audio(text, output_path)
+            mock_open.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
