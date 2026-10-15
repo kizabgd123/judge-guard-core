@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import logging
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -93,8 +94,18 @@ class ResearchPipeline:
         self._session = None
         # ⚡ Bolt: Fast-path in-memory verdict cache to avoid redundant SQLite lookups
         self._verdict_cache = {}
-        # ⚡ Bolt: Executor for parallelizing Notion API calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+        # ⚡ Bolt: Defer ThreadPoolExecutor instantiation until first use (thread-safe)
+        self._executor = None
+        self._init_lock = threading.RLock()
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor for Notion API sync on demand (thread-safe)."""
+        if self._executor is None:
+            with self._init_lock:
+                if self._executor is None:
+                    self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     @property
     def session(self):
@@ -106,12 +117,15 @@ class ResearchPipeline:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor and Session are cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if hasattr(self, "_executor") and self._executor is not None:
             self._executor.shutdown(wait=True)
-        if hasattr(self, "_session") and self._session:
+            self._executor = None
+        if hasattr(self, "_session") and self._session is not None:
             self._session.close()
-        if hasattr(self, "conn") and self.conn:
+            self._session = None
+        if hasattr(self, "conn") and self.conn is not None:
             self.conn.close()
+            self.conn = None
         
     def log_audit(self, action: str, details: str = "", commit: bool = True, sync_notion: bool = True):
         """Log action for Notion sync and local audit."""
@@ -415,7 +429,7 @@ class ResearchPipeline:
                 return resp
 
             # ⚡ Bolt: Parallelize Notion API calls using the thread executor
-            list(self._executor.map(push_entry, current_queue))
+            list(self.executor.map(push_entry, current_queue))
             
             self.log_audit("NOTION_SYNCED", f"{len(current_queue)} entries pushed", sync_notion=False)
         except Exception as e:
