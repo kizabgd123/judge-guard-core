@@ -1,13 +1,6 @@
 import os
-import logging
-import json
 import threading
 from typing import List, Dict, Any
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
-# Setup
-load_dotenv()
-logger = logging.getLogger(__name__)
 
 class GuardianAgent:
     """
@@ -18,14 +11,47 @@ class GuardianAgent:
         self._gemini = None
         # ⚡ Bolt: Lock for thread-safe lazy initialization
         self._init_lock = threading.Lock()
+
+        # ⚡ Bolt: Initialize properties to None for lazy loading
+        self._logger = None
+        self._executor = None
+        self._setup_done = False
+
+        self._ensure_setup()
         self.goals_db = os.getenv("GOALS_DB_ID")
         self.logs_db = os.getenv("LOGS_DB_ID")
         
         if not self.goals_db or not self.logs_db:
             raise ValueError("Database IDs missing in .env")
 
-        # ⚡ Bolt: Executor for parallelizing I/O-bound Gemini and Notion calls
-        self._executor = ThreadPoolExecutor(max_workers=5)
+    def _ensure_setup(self):
+        """⚡ Bolt: Thread-safe lazy setup for environment and logging."""
+        if not self._setup_done:
+            with self._init_lock:
+                if not self._setup_done:
+                    from dotenv import load_dotenv
+                    load_dotenv()
+                    self._setup_done = True
+
+    @property
+    def logger(self):
+        """⚡ Bolt: Lazy-load logger to minimize import overhead."""
+        if self._logger is None:
+            with self._init_lock:
+                if self._logger is None:
+                    import logging
+                    self._logger = logging.getLogger(__name__)
+        return self._logger
+
+    @property
+    def executor(self):
+        """⚡ Bolt: Lazy-load ThreadPoolExecutor."""
+        if self._executor is None:
+            with self._init_lock:
+                if self._executor is None:
+                    from concurrent.futures import ThreadPoolExecutor
+                    self._executor = ThreadPoolExecutor(max_workers=5)
+        return self._executor
 
     def __del__(self):
         self.close()
@@ -52,7 +78,7 @@ class GuardianAgent:
 
     def close(self):
         """⚡ Bolt: Ensure ThreadPoolExecutor is cleanly shut down."""
-        if hasattr(self, "_executor"):
+        if self._executor:
             self._executor.shutdown(wait=True)
 
     def fetch_active_goals(self) -> List[Dict]:
@@ -77,6 +103,7 @@ class GuardianAgent:
         """
         Ask Gemini if this log entry advances any of the goals.
         """
+        import json
         prompt = f"""
         You are The Guardian, an accountability AI.
         
@@ -105,7 +132,7 @@ class GuardianAgent:
             response = response.replace("```json", "").replace("```", "").strip()
             return json.loads(response)
         except Exception as e:
-            logger.error(f"Judge Error: {e}")
+            self.logger.error(f"Judge Error: {e}")
             return {"match_found": False}
 
     def _process_single_log(self, log: Dict, goals_text: str):
@@ -113,45 +140,45 @@ class GuardianAgent:
         log_text = self._get_title(log)
         log_id = log["id"]
 
-        logger.info(f"Analyzing log: '{log_text}'")
+        self.logger.info(f"Analyzing log: '{log_text}'")
         analysis = self.analyze_log_against_goals(log_text, goals_text)
 
         if analysis.get("match_found"):
             goal_id = analysis["goal_id"]
-            logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
+            self.logger.info(f"✅ Progress Detected! Linked to Goal ID: {goal_id}")
             self._mark_processed(log_id, True)
         else:
-            logger.info("No specific goal progress detected.")
+            self.logger.info("No specific goal progress detected.")
             self._mark_processed(log_id, True) # Mark processed anyway so we don't loop
 
     def process_logs(self):
         """Main execution loop."""
-        logger.info("🛡️ Guardian Active: Fetching logs...")
+        self.logger.info("🛡️ Guardian Active: Fetching logs...")
 
         # ⚡ Bolt: Fetch logs first to allow for an early exit.
         logs = self.fetch_unprocessed_logs()
 
         if not logs:
-            logger.info("No unprocessed logs found. Short-circuiting.")
+            self.logger.info("No unprocessed logs found. Short-circuiting.")
             return
 
         # ⚡ Bolt: We have logs to process.
         # Now trigger Gemini warmup (import-heavy) and Goals fetching (I/O-heavy) in parallel.
-        gemini_warmup = self._executor.submit(lambda: self.gemini)
-        goals_future = self._executor.submit(self.fetch_active_goals)
+        gemini_warmup = self.executor.submit(lambda: self.gemini)
+        goals_future = self.executor.submit(self.fetch_active_goals)
 
-        logger.info(f"Found {len(logs)} new logs. Fetching goals and finalizing warmup in parallel...")
+        self.logger.info(f"Found {len(logs)} new logs. Fetching goals and finalizing warmup in parallel...")
 
         goals = goals_future.result()
         gemini_warmup.result()
 
-        logger.info(f"Processing logs against {len(goals)} active goals.")
+        self.logger.info(f"Processing logs against {len(goals)} active goals.")
 
         # ⚡ Bolt: Pre-calculate goals context once.
         goals_text = "\n".join([f"- ID: {g['id']} | Goal: {self._get_title(g)}" for g in goals])
 
         # ⚡ Bolt: Parallelize processing to overlap Gemini and Notion API calls.
-        list(self._executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
+        list(self.executor.map(lambda log_item: self._process_single_log(log_item, goals_text), logs))
 
     def _mark_processed(self, page_id: str, processed: bool):
         """Updates the 'Processed' checkbox in Notion."""
@@ -159,9 +186,9 @@ class GuardianAgent:
             self.notion.update_page_properties(page_id, {
                 "Processed": {"checkbox": processed}
             })
-            logger.info(f"Marked Log {page_id} as processed.")
+            self.logger.info(f"Marked Log {page_id} as processed.")
         except Exception as e:
-            logger.error(f"Failed to update Notion page {page_id}: {e}")
+            self.logger.error(f"Failed to update Notion page {page_id}: {e}")
 
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
