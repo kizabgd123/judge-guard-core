@@ -164,20 +164,37 @@ class GuardianAgent:
             logger.error(f"Failed to update Notion page {page_id}: {e}")
 
     def _get_title(self, page: Dict) -> str:
-        """Helper to extract title from Notion page object."""
+        """Helper to extract title from Notion page object (⚡ Bolt: O(1) fast-path extraction)."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
-            
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            props = page.get("properties")
+            if not props or not isinstance(props, dict):
+                return "Untitled"
+
+            # Fast-path: check common property keys ('Name', 'Title', 'Entry') directly first
+            # to avoid linear dictionary iterations or slow generator scans.
+            for key in ("Name", "Title", "Entry"):
+                prop = props.get(key)
+                if isinstance(prop, dict):
+                    title_list = prop.get("title")
+                    if isinstance(title_list, list) and title_list:
+                        text_obj = title_list[0].get("text")
+                        if text_obj and "content" in text_obj:
+                            return text_obj["content"]
+                    rich_text = prop.get("rich_text")
+                    if isinstance(rich_text, list) and rich_text:
+                        text_obj = rich_text[0].get("text")
+                        if text_obj and "content" in text_obj:
+                            return text_obj["content"]
+
+            # Fallback: O(N) scan for any property with id == "title"
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title":
+                    title_list = v.get("title")
+                    if isinstance(title_list, list) and title_list:
+                        text_obj = title_list[0].get("text")
+                        if text_obj and "content" in text_obj:
+                            return text_obj["content"]
+
             return "Untitled"
         except Exception:
             return "Error extracting title"
