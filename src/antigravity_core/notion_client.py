@@ -1,10 +1,7 @@
 import os
 import logging
+import threading
 from typing import Dict, List, Any, Optional
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +12,11 @@ class NotionClient:
     """
     
     def __init__(self, api_key: Optional[str] = None):
+        # ⚡ Bolt: Defer load_dotenv to __init__ only if NOTION_API_KEY is missing from environment
+        if not api_key and "NOTION_API_KEY" not in os.environ:
+            from dotenv import load_dotenv
+            load_dotenv()
+
         self.api_key = api_key or os.getenv("NOTION_API_KEY")
         if not self.api_key:
             raise ValueError("NOTION_API_KEY not found. Set it in .env or pass as argument.")
@@ -26,15 +28,30 @@ class NotionClient:
             "Content-Type": "application/json"
         }
         self._session = None
+        self._session_lock = threading.RLock()
 
     @property
     def session(self):
-        """⚡ Bolt: Lazy-load requests and initialize session on demand."""
+        """⚡ Bolt: Lazy-load requests and initialize session on demand (thread-safe)."""
         if self._session is None:
-            import requests
-            self._session = requests.Session()
-            self._session.headers.update(self.headers)
+            with self._session_lock:
+                if self._session is None:
+                    import requests
+                    session = requests.Session()
+                    session.headers.update(self.headers)
+                    self._session = session
         return self._session
+
+    def close(self):
+        """⚡ Bolt: Ensure session resource teardown."""
+        if hasattr(self, "_session") and self._session is not None:
+            with self._session_lock:
+                if self._session is not None:
+                    self._session.close()
+                    self._session = None
+
+    def __del__(self):
+        self.close()
     
     def test_connection(self) -> Dict[str, Any]:
         """Test the connection by listing accessible pages."""
