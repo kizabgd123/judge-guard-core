@@ -19,10 +19,6 @@
 **Action:** Use lazy loading for heavy dependencies. Move imports into method scopes or use @property-based lazy initialization. This reduced `JudgeGuard` CLI startup for cached verdicts by ~89% (from ~1.0s to ~0.11s).
 
 ## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
-**Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes ( then  in a loop) creates O(N_matches * N_doc) complexity.
-**Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
-
-## 2026-04-18 - [Redundant String Decoding in Hashing and Regex Passes]
 **Learning:** For bulk file processing (e.g., 1000+ files), the overhead of decoding bytes to UTF-8 strings for hashing is significant (~30-40% of total time). Similarly, performing multiple regex passes (`re.findall` then `re.search` in a loop) creates O(N_matches * N_doc) complexity.
 **Action:** Use `read_bytes()` for hashing and defer `.decode()` until changes are confirmed. Use `re.finditer()` with pre-compiled regexes for single-pass extraction to achieve ~70% speedup in semantic processing.
 
@@ -33,3 +29,11 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Mock Patching with Dynamic/Lazy-Loaded Dependencies]
+**Learning:** Lazy loading module dependencies using property initialization (to minimize startup latency) breaks standard module-level patch targets (e.g., `@patch('src.kaggle_stream.kaggle_agent.NotionClient')`) because the target class is never imported into the module's global namespace, throwing an `AttributeError`.
+**Action:** Always patch the original source path of the dependency (e.g., `@patch('src.antigravity_core.notion_client.NotionClient')`). Since the property lacks a setter, inject the mock instance directly to the underlying private instance attribute (e.g., `agent._notion = mock`).
+
+## 2026-04-24 - [O(1) Dictionary Lookups for Notion Schema Parsers]
+**Learning:** Notion page payload parsing in high-frequency loops (e.g. `_get_title` in GuardianAgent) can suffer from O(N) linear scan overhead and generator allocation cost when scanning `properties.items()`. Direct O(1) checks using `.get()` for standard schema keys ("Name", "Entry") before falling back to linear iteration avoids costly lookups.
+**Action:** Use fast-path direct dictionary `.get()` lookups for expected property names, deferring linear scanning of page properties as a slow-path fallback.
