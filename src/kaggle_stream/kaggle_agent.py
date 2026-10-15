@@ -19,6 +19,7 @@ class KaggleAgent:
         self.demo_mode = False
         self._gemini = None
         self._notion = None
+        self._notion_failed = False
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
         # ⚡ Bolt: Executor for offloading synchronous Notion API calls
@@ -39,14 +40,20 @@ class KaggleAgent:
 
     @property
     def notion(self):
-        """⚡ Bolt: Lazy property to defer NotionClient initialization."""
-        if self._notion is None:
+        """⚡ Bolt: Lazy property to defer NotionClient initialization (tracks failed init to avoid retries)."""
+        if self._notion is None and not self._notion_failed:
             try:
                 from src.antigravity_core.notion_client import NotionClient
                 self._notion = NotionClient()
             except Exception:
+                self._notion_failed = True
                 self._notion = None
         return self._notion
+
+    @notion.setter
+    def notion(self, value):
+        self._notion = value
+        self._notion_failed = False
 
     def __enter__(self):
         return self
