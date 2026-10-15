@@ -166,18 +166,33 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
+            props = page.get("properties", {})
+
+            # ⚡ Bolt: Direct O(1) checks for common properties Name and Entry
+            # This avoids expensive linear loops/generator creation on almost all lookups.
+            name_prop = props.get("Name")
+            if name_prop:
+                title = name_prop.get("title")
+                if title:
+                    return title[0]["text"]["content"]
+
+            entry_prop = props.get("Entry")
+            if entry_prop:
+                title = entry_prop.get("title")
+                if title:
+                    return title[0]["text"]["content"]
+                # Fallback for 'Entry' property if it's a Rich Text, not Title
+                rich_text = entry_prop.get("rich_text")
+                if rich_text:
+                    return rich_text[0]["text"]["content"]
+
+            # Resilient fallback: Linear scan for a property with id == "title"
+            for v in props.values():
+                if isinstance(v, dict) and v.get("id") == "title":
+                    title = v.get("title")
+                    if title:
+                        return title[0]["text"]["content"]
             
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
             return "Untitled"
         except Exception:
             return "Error extracting title"
