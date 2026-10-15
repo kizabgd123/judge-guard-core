@@ -1,9 +1,12 @@
 import os
-import requests
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# ⚡ Bolt: Lazy import holder to defer heavy requests import overhead (~170-220ms)
+requests = None
 
 class MultimediaManager:
     """
@@ -16,9 +19,9 @@ class MultimediaManager:
         self.tts_model = "facebook/mms-tts-eng"
         self.img_model = "stabilityai/stable-diffusion-xl-base-1.0"
 
-        # ⚡ Bolt: Use requests.Session for connection pooling and better performance
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        # ⚡ Bolt: Defer requests import and Session creation using lazy property + RLock
+        self._session = None
+        self._lock = threading.RLock()
 
         # ⚡ Bolt: Updated to the new recommended router endpoint
         self.api_base = "https://router.huggingface.co/hf-inference/models"
@@ -27,6 +30,34 @@ class MultimediaManager:
         # This ensures we can reuse content even if output_path changes.
         self._audio_cache = {}  # {text: bytes}
         self._image_cache = {}  # {mood: bytes}
+
+    @property
+    def session(self):
+        """⚡ Bolt: Thread-safe lazy-load requests and initialize session on demand."""
+        if self._session is None:
+            with self._lock:
+                if self._session is None:
+                    global requests
+                    if requests is None:
+                        import requests
+                    session = requests.Session()
+                    session.headers.update(self.headers)
+                    self._session = session
+        return self._session
+
+    def close(self):
+        """⚡ Bolt: Ensure session is cleanly closed on teardown."""
+        try:
+            if hasattr(self, "_session") and self._session:
+                self._session.close()
+        except Exception:
+            pass
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def generate_audio(self, text: str, output_path: str = "speech.mp3"):
         # ⚡ Bolt: Cache check - if text was already generated, write cached bytes to new path
