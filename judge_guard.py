@@ -58,7 +58,9 @@ class JudgeGuard:
         self._rules_path = None
         self._immutable_laws = None
         self._gemini = None
+        self._gemini_failed = False
         self._pipeline = None
+        self._pipeline_failed = False
 
         # ⚡ Bolt: No longer logging in __init__ to avoid early logging setup/disk I/O.
         # logger.info(f"JudgeGuard v2.0 initialized. Brain: {self.brain_path}")
@@ -126,22 +128,23 @@ class JudgeGuard:
     @property
     def gemini(self):
         """⚡ Bolt: Lazy-load GeminiClient to avoid heavy import overhead on startup."""
-        if self._gemini is None:
+        if self._gemini is None and not self._gemini_failed:
             with self._lock:
-                if self._gemini is None:
+                if self._gemini is None and not self._gemini_failed:
                     try:
                         from src.antigravity_core.gemini_client import GeminiClient
                         self._gemini = GeminiClient()
                     except ImportError as e:
+                        self._gemini_failed = True
                         self.logger.warning(f"⚠️ GeminiClient not available: {e}")
         return self._gemini
 
     @property
     def pipeline(self):
         """⚡ Bolt: Lazy-load ResearchPipeline for verdict caching and audit logging."""
-        if self._pipeline is None:
+        if self._pipeline is None and not self._pipeline_failed:
             with self._lock:
-                if self._pipeline is None:
+                if self._pipeline is None and not self._pipeline_failed:
                     try:
                         from research_pipeline import ResearchPipeline
                         try:
@@ -151,9 +154,11 @@ class JudgeGuard:
                             try:
                                 self._pipeline = ResearchPipeline().init_db()
                             except Exception as e:
+                                self._pipeline_failed = True
                                 self.logger.warning(f"⚠️ Failed to initialize ResearchPipeline: {e}")
                                 self._pipeline = None
                     except ImportError as e:
+                        self._pipeline_failed = True
                         self.logger.warning(f"⚠️ ResearchPipeline not available: {e}")
         return self._pipeline
 

@@ -19,6 +19,9 @@ class KaggleAgent:
         self.demo_mode = False
         self._gemini = None
         self._notion = None
+        # ⚡ Bolt: Failure-tracking flags to avoid repeated failed initialization attempts
+        self._gemini_failed = False
+        self._notion_failed = False
         # ⚡ Bolt: Cache DB ID to avoid repeated os.getenv calls in background thread
         self.notion_db_id = os.getenv("NOTION_KAGGLE_DB_ID")
         # ⚡ Bolt: Executor for offloading synchronous Notion API calls
@@ -27,24 +30,26 @@ class KaggleAgent:
     @property
     def gemini(self):
         """⚡ Bolt: Lazy property to defer GeminiClient initialization."""
-        if self._gemini is None and not self.demo_mode:
+        if self._gemini is None and not self.demo_mode and not self._gemini_failed:
             try:
                 from src.antigravity_core.gemini_client import GeminiClient
                 self._gemini = GeminiClient()
             except Exception as e:
                 logger.info(f"Gemini initialization failed ({e}). Entering Demo Mode for {self.name}.")
                 self.demo_mode = True
+                self._gemini_failed = True
                 self._gemini = None
         return self._gemini
 
     @property
     def notion(self):
         """⚡ Bolt: Lazy property to defer NotionClient initialization."""
-        if self._notion is None:
+        if self._notion is None and not self._notion_failed:
             try:
                 from src.antigravity_core.notion_client import NotionClient
                 self._notion = NotionClient()
             except Exception:
+                self._notion_failed = True
                 self._notion = None
         return self._notion
 
