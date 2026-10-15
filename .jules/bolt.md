@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Mock Patching of Lazy Imports and Read-Only Properties in Python Benchmarks]
+**Learning:** When modules use lazy imports within method/property scopes to reduce startup latency, standard mock patching of those attributes on the utilizing module fails with an `AttributeError`. Furthermore, properties without setters (like `.notion` or `.gemini`) cannot be assigned to directly.
+**Action:** Always patch lazily-loaded classes at their original source definition path (e.g., `@patch('src.antigravity_core.notion_client.NotionClient')`). For read-only properties, assign the mock instance directly to the underlying private backing field (e.g., `agent._notion = mock`).
