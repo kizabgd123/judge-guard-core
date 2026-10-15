@@ -166,18 +166,31 @@ class GuardianAgent:
     def _get_title(self, page: Dict) -> str:
         """Helper to extract title from Notion page object."""
         try:
-            # Adjust based on likely schema. 'Name' or 'Entry' for logs?
-            # Creating resilient getter
-            props = page["properties"]
-            title_prop = next((v for k,v in props.items() if v["id"] == "title"), None)
-            if title_prop and title_prop["title"]:
-                return title_prop["title"][0]["text"]["content"]
+            props = page.get("properties", {})
             
-            # Fallback for 'Entry' property if it's a Rich Text, not Title
-            entry = props.get("Entry", {}).get("rich_text", [])
-            if entry:
-                return entry[0]["text"]["content"]
-                
+            # 1. Direct O(1) checks for common property names: 'Name', 'Entry'
+            for key in ("Name", "Entry"):
+                prop = props.get(key)
+                if isinstance(prop, dict):
+                    # Check if it has 'title' and it has elements
+                    t_list = prop.get("title")
+                    if isinstance(t_list, list) and t_list:
+                        return t_list[0].get("text", {}).get("content", "Untitled")
+                    # Check if it has 'rich_text' and it has elements
+                    r_list = prop.get("rich_text")
+                    if isinstance(r_list, list) and r_list:
+                        return r_list[0].get("text", {}).get("content", "Untitled")
+
+            # 2. Resilient fallback check for any property of type 'title' or with key 'title'
+            for v in props.values():
+                if isinstance(v, dict):
+                    t_list = v.get("title")
+                    if isinstance(t_list, list) and t_list:
+                        return t_list[0].get("text", {}).get("content", "Untitled")
+                    r_list = v.get("rich_text")
+                    if isinstance(r_list, list) and r_list:
+                        return r_list[0].get("text", {}).get("content", "Untitled")
+
             return "Untitled"
         except Exception:
             return "Error extracting title"

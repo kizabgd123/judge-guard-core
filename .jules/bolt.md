@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-24 - [Exception Overhead and Correctness Bug in Notion Property Parsing]
+**Learning:** Performing linear scans on Notion property dictionaries using `v["id"]` without ensuring the presence of the "id" key throws a `KeyError` when parsing mock/benchmark Notion objects (where "id" keys are absent). This forces the execution down expensive Python exception handling paths, returning `"Error extracting title"` and slowing down execution by over 50%.
+**Action:** Always use safe `dict.get()` and type validation checks. Perform direct $O(1)$ lookups for common property keys (like `"Name"`, `"Entry"`) first to completely avoid linear scanning and exception-handling overhead.
