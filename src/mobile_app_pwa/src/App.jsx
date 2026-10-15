@@ -10,11 +10,13 @@ function App() {
   const prevDataRef = useRef(null);
 
   const fetchData = useCallback(async () => {
-    // ⚡ Bolt: Skip fetching when tab is hidden to save battery and network
+    // ⚡ Bolt: Skip fetching when not in browser environment or when tab is hidden
+    let isBrowser = false;
     let isVisible = true;
     try {
       try {
         if ('document' in globalThis && globalThis.document) {
+          isBrowser = true;
           if ('visibilityState' in globalThis.document) {
             isVisible = globalThis.document.visibilityState === 'visible';
           }
@@ -25,7 +27,7 @@ function App() {
     } catch {
       // Ignore errors in restrictively proxied environment
     }
-    if (!isVisible) return;
+    if (!isBrowser || !isVisible) return;
 
     try {
       const timestamp = new Date().getTime();
