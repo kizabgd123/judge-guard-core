@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-23 - [Mock Patching Target Paths for Lazy-Loaded Classes]
+**Learning:** When standard python classes are lazy-loaded via local imports (inside methods/properties) rather than module-level imports, trying to mock-patch them in tests using the importing module's namespace (e.g., `@patch('src.kaggle_stream.kaggle_agent.NotionClient')`) raises `AttributeError` because the class name is not a module-level attribute.
+**Action:** Always patch the original source module path (e.g., `@patch('src.antigravity_core.notion_client.NotionClient')`) so that any lazy import dynamically loads the mocked instance.
