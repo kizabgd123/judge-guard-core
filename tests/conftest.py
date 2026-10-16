@@ -29,3 +29,14 @@ def restore_app_config():
     if original_content is not None:
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             f.write(original_content)
+        try:
+            from src.antigravity_core.mobile_bridge import bridge
+            bridge.app_state = {
+                "title": "Antigravity Mobile",
+                "theme": "light",
+                "content": "Welcome to the Agent-Controlled PWA!",
+                "components": []
+            }
+            bridge._last_synced_content = original_content
+        except ImportError:
+            pass
