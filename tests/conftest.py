@@ -25,6 +25,14 @@ def restore_app_config():
         # Expected when bridge is not available
         pass
 
+    # Reset MobileBridge cache & executor references to keep tests isolated
+    try:
+        from src.antigravity_core.mobile_bridge import bridge
+        bridge._last_synced_content = None
+        bridge._executor = None
+    except ImportError:
+        pass
+
     # Restore original content
     if original_content is not None:
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
