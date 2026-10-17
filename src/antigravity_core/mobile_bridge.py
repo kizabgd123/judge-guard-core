@@ -21,6 +21,7 @@ class MobileBridge:
         }
         self._lock = threading.RLock()
         self._executor = None
+        self._last_synced_content = None
 
     @property
     def executor(self):
@@ -51,17 +52,27 @@ class MobileBridge:
         return self.app_state
 
     def sync_state(self):
-        """Write current state to app_config.json."""
+        """Write current state to app_config.json if state content has changed."""
         try:
             import json
             self._ensure_public_dir()
             # Create a snapshot to avoid race conditions during serialization
             with self._lock:
                 state_snapshot = self.app_state.copy()
+
+            serialized = json.dumps(state_snapshot, indent=2)
+
+            # ⚡ Bolt: Content comparison under lock to skip redundant disk writes
+            with self._lock:
+                if serialized == self._last_synced_content:
+                    return
+
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(state_snapshot, f, indent=2)
-            # Use logger or print with caution in threads
-            # print(f"✅ Bridge: Synced state to {CONFIG_FILE}")
+                f.write(serialized)
+
+            # ⚡ Bolt: Update cache only after write succeeds for resiliency
+            with self._lock:
+                self._last_synced_content = serialized
         except Exception as e:
             print(f"❌ Bridge Error: Failed to sync state: {e}")
 
