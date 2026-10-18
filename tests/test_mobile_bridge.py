@@ -65,3 +65,24 @@ def test_push_verdict(temp_pwa_dir):
         with open(config_file, "r") as f:
             data = json.load(f)
             assert data["last_verdict"]["status"] == "PASSED"
+
+def test_sync_state_caching_skips_redundant_write(temp_pwa_dir):
+    config_file = str(temp_pwa_dir / "public" / "app_config.json")
+    with patch('src.antigravity_core.mobile_bridge.PWA_PUBLIC_DIR', str(temp_pwa_dir / "public")), \
+         patch('src.antigravity_core.mobile_bridge.CONFIG_FILE', config_file):
+
+        bridge = MobileBridge()
+        bridge.sync_state()
+        mtime1 = os.path.getmtime(config_file)
+
+        # Calling sync_state again without state change should skip file write
+        time.sleep(0.01)
+        bridge.sync_state()
+        mtime2 = os.path.getmtime(config_file)
+        assert mtime1 == mtime2
+
+        # Updating state and syncing should trigger a file write
+        bridge.app_state["content"] = "New Content"
+        bridge.sync_state()
+        mtime3 = os.path.getmtime(config_file)
+        assert mtime3 > mtime1
