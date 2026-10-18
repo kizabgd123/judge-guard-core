@@ -16,11 +16,13 @@ def restore_app_config():
 
     yield
 
-    # Ensure all background thread writes are complete
+    # Ensure all background thread writes are complete and reset cache state
     try:
         from src.antigravity_core.mobile_bridge import bridge
         if hasattr(bridge, "_executor") and bridge._executor is not None:
             bridge._executor.shutdown(wait=True)
+            bridge._executor = None
+        bridge._last_synced_content = None
     except ImportError:
         # Expected when bridge is not available
         pass
