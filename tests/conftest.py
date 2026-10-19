@@ -21,6 +21,9 @@ def restore_app_config():
         from src.antigravity_core.mobile_bridge import bridge
         if hasattr(bridge, "_executor") and bridge._executor is not None:
             bridge._executor.shutdown(wait=True)
+        # ⚡ Bolt: Reset bridge cache so future runs reflect pristine file state
+        bridge._last_synced_content = None
+        bridge._executor = None
     except ImportError:
         # Expected when bridge is not available
         pass
