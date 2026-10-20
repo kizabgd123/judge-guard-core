@@ -161,9 +161,8 @@ class GeminiClient:
             self.safety_settings = None
 
         self.model = genai.GenerativeModel(self.model_name, safety_settings=self.safety_settings)
-        masked_key = current_key[:4] + "..." + current_key[-4:] if len(current_key) > 8 else "****"
         logger.info(
-            f"Configured Gemini with key: {masked_key} (Key {self.current_key_index + 1}/{len(self.api_keys)}) "
+            f"Configured Gemini client (Key {self.current_key_index + 1}/{len(self.api_keys)}) "
             f"on model: {self.model_name} (Model {self.current_model_index + 1}/{len(self.models)})"
         )
 
