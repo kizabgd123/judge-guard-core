@@ -21,6 +21,14 @@ def restore_app_config():
         from src.antigravity_core.mobile_bridge import bridge
         if hasattr(bridge, "_executor") and bridge._executor is not None:
             bridge._executor.shutdown(wait=True)
+        bridge.app_state = {
+            "title": "Antigravity Mobile",
+            "theme": "light",
+            "content": "Welcome to the Agent-Controlled PWA!",
+            "components": []
+        }
+        bridge._last_synced_content = None
+        bridge._last_synced_path = None
     except ImportError:
         # Expected when bridge is not available
         pass
