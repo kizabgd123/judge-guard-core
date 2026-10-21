@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -99,15 +100,26 @@ CREATE INDEX IF NOT EXISTS idx_votes_proposal    ON roundtable_votes(proposal_id
 """
 
 
+_db_lock = threading.Lock()
+_db_initialized = False
+
+
 def _get_conn() -> sqlite3.Connection:
+    global _db_initialized
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
-    for stmt in _DDL.strip().split(";"):
-        stmt = stmt.strip()
-        if stmt:
-            conn.execute(stmt)
-    conn.commit()
+
+    # ⚡ Bolt: Execute DDL once per process lifecycle to prevent redundant SQL splits & execution
+    if not _db_initialized:
+        with _db_lock:
+            if not _db_initialized:
+                for stmt in _DDL.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        conn.execute(stmt)
+                conn.commit()
+                _db_initialized = True
     return conn
 
 
