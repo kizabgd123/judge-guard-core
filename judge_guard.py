@@ -19,7 +19,7 @@ from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 
 # --- MODULE CONSTANTS (⚡ Bolt: Optimized tuple definitions) ---
-_DANGEROUS_KEYWORDS = ("sudo", "rm -rf /", "rm -rf /*", "chmod -r 777")
+_DANGEROUS_KEYWORDS = ("sudo", "rm -rf /", "rm -rf /*", "chmod -R 777")
 _WRITE_KEYWORDS = ("write", "edit", "modify", "create file", "update", "refactor", "delete")
 _RESEARCH_KEYWORDS = ("phase", "research", "discovery", "analysis", "validation", "documentation", "complete")
 
