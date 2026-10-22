@@ -33,3 +33,7 @@
 ## 2026-04-22 - [Redundant Tail Reads in JudgeGuard Verification Path]
 **Learning:** Performing multiple independent file opens, seeks, reads, and UTF-8 decodes on the same file (`WORK_LOG.md`) during a single verification run adds significant overhead (e.g., in `_load_context` and `_check_work_log`). Caching the log tail based on file path, size, and modification time (`mtime`) reduces duplicate disk I/O and decodes for consecutive checks. Cache hits still perform `os.path.exists` and `os.stat` calls to validate the cached content, but avoid repeated file opens, seeks, reads, and UTF-8 decodes.
 **Action:** Implement `_get_work_log_tail` with stat-based validation (checking path, size, mtime) and length-aware validation to ensure cached segments are only reused if they satisfy the requested character limit.
+
+## 2026-04-25 - [Redundant Disk Writes in Mobile Bridge State Sync]
+**Learning:** Repeated calls to `MobileBridge.sync_state` during high-frequency status or verdict updates execute redundant JSON formatting and disk write operations even when the underlying `app_state` dictionary content is unchanged. Serializing state and checking against the last successfully written string under lock skips unnecessary disk I/O entirely.
+**Action:** Compare serialized state against `_last_synced_content` under `_lock` in `MobileBridge.sync_state()`. Only perform disk writes when content changes, and update `_last_synced_content` after successful disk write completion.
