@@ -18,6 +18,11 @@ import threading
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 
+# --- MODULE KEYWORD CONSTANTS (⚡ Bolt) ---
+_DANGEROUS_KEYWORDS = ("sudo", "rm -rf /", "rm -rf /*", "chmod -R 777")
+_WRITE_KEYWORDS = ("write", "edit", "modify", "create file", "update", "refactor", "delete")
+_RESEARCH_KEYWORDS = ("phase", "research", "discovery", "analysis", "validation", "documentation", "complete")
+
 # --- LAYER 3 CONSTANT ---
 PROJECT_ESSENCE = """
 PROJECT ESSENCE (Golden Snapshot):
@@ -282,20 +287,24 @@ class JudgeGuard:
     def _is_dangerous_command(self, action: str) -> bool:
         """
         Determine whether an action string contains high-risk shell commands.
+        ⚡ Bolt: Uses module-level tuple and explicit loop to avoid list creation and generator overhead.
         
         Parameters:
-            action (str): Text of the action to inspect; matching is performed case-insensitively and looks for known dangerous patterns (e.g. "sudo", "rm -rf /", "rm -rf /*", "chmod -R 777").
+            action (str): Text of the action to inspect.
         
         Returns:
             bool: `True` if any dangerous pattern is present in `action`, `False` otherwise.
         """
-        dangerous_keywords = ["sudo", "rm -rf /", "rm -rf /*", "chmod -R 777"]
         action_lower = action.lower()
-        return any(k in action_lower for k in dangerous_keywords)
+        for k in _DANGEROUS_KEYWORDS:
+            if k in action_lower:
+                return True
+        return False
 
     def _is_write_operation(self, action: str) -> bool:
         """
         Determine whether an action description represents a write or modification operation.
+        ⚡ Bolt: Uses module-level tuple and explicit loop to avoid list creation and generator overhead.
         
         Parameters:
         	action (str): Freeform action description to inspect for write/edit-related keywords.
@@ -303,14 +312,22 @@ class JudgeGuard:
         Returns:
         	True if the description contains keywords indicating creation, modification, or deletion, False otherwise.
         """
-        keywords = ["write", "edit", "modify", "create file", "update", "refactor", "delete"]
-        return any(k in action.lower() for k in keywords)
+        action_lower = action.lower()
+        for k in _WRITE_KEYWORDS:
+            if k in action_lower:
+                return True
+        return False
 
     def _is_research_action(self, action: str) -> bool:
-        """Detect if action is research-related and should sync to Notion."""
-        keywords = ["phase", "research", "discovery", "analysis", "validation", "documentation", "complete"]
+        """
+        Detect if action is research-related and should sync to Notion.
+        ⚡ Bolt: Uses module-level tuple and explicit loop to avoid list creation and generator overhead.
+        """
         action_lower = action.lower()
-        return any(k in action_lower for k in keywords)
+        for k in _RESEARCH_KEYWORDS:
+            if k in action_lower:
+                return True
+        return False
     
     def _sync_to_notion(self, action: str):
         """⚡ Bolt: Trigger Notion sync in the background to avoid blocking."""
