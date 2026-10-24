@@ -337,7 +337,7 @@ class ResearchPipeline:
         """Check if verdict is cached."""
         action_hash = hashlib.md5(action.encode()).hexdigest()
 
-        # ⚡ Bolt: Fast path - check in-memory dictionary cache to bypass SQLite queries
+        # ⚡ Bolt: Fast path - check in-memory dictionary cache (including negative hits) to bypass SQLite queries
         if action_hash in self._verdict_cache:
             return self._verdict_cache[action_hash]
 
@@ -351,9 +351,12 @@ class ResearchPipeline:
 
         if result:
             verdict = result["verdict"]
-            # ⚡ Bolt: Populate in-memory cache on miss for subsequent lookups
+            # ⚡ Bolt: Populate in-memory cache on hit for subsequent lookups
             self._verdict_cache[action_hash] = verdict
             return verdict
+
+        # ⚡ Bolt: Cache negative result (None) so subsequent un-cached lookups hit memory directly
+        self._verdict_cache[action_hash] = None
         return None
 
     def sync_to_notion(self):
