@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import patch
 import sqlite3
+import hashlib
 import os
 from pathlib import Path
 from research_pipeline import ResearchPipeline
@@ -66,3 +67,21 @@ def test_verdict_caching(temp_db):
     pipeline.cache_verdict("Action 1", "PASSED")
     verdict = pipeline.get_cached_verdict("Action 1")
     assert verdict == "PASSED"
+
+def test_negative_verdict_caching(temp_db):
+    pipeline = ResearchPipeline()
+    pipeline.init_db()
+
+    # Uncached action should return None and populate in-memory cache with None
+    action = "Uncached Action XYZ"
+    verdict1 = pipeline.get_cached_verdict(action)
+    assert verdict1 is None
+
+    # Check that negative cache entry exists
+    action_hash = hashlib.md5(action.encode()).hexdigest()
+    assert action_hash in pipeline._verdict_cache
+    assert pipeline._verdict_cache[action_hash] is None
+
+    # Second call hits in-memory cache directly
+    verdict2 = pipeline.get_cached_verdict(action)
+    assert verdict2 is None
