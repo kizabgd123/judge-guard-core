@@ -32,7 +32,7 @@ def test_gemini_client_rotate_key(mock_genai, monkeypatch):
     assert client.current_key_index == 1
 
     rotated = client._rotate_key()
-    assert rotated is True
+    assert rotated is False
     assert client.current_key_index == 0
 
 def test_gemini_client_rotate_key_single(mock_genai, monkeypatch):

@@ -33,3 +33,7 @@
 ## 2026-04-24 - [Repeated Schema DDL Execution in SQLite Connections]
 **Learning:** Re-executing schema creation DDL (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`) and committing transactions on every SQLite connection open in multi-agent modules adds significant overhead (~0.47ms per connection). Guarding DDL execution with thread-safe double-checked locking (`_db_initialized` + `threading.Lock()`) ensures schema initialization runs only once per process lifecycle.
 **Action:** Use thread-safe double-checked locking around `_DDL` statements in SQLite connection helper functions (`_get_conn`) to reduce connection setup latency by ~67% (~0.70ms to ~0.23ms per call).
+
+## 2026-04-26 - [Path-Aware Schema Initialization in Multi-Agent Framework]
+**Learning:** Global boolean flags for database initialization (`_db_initialized = True`) break schema setup when unit tests or callers reassign database paths or instantiate temporary SQLite files in the same process. Using path-aware tracking (`_initialized_dbs = set()`) with thread-safe double-checked locking preserves schema setup across varying database targets while bypassing redundant `CREATE TABLE` and transaction commits.
+**Action:** Use `_initialized_dbs = set()` with `threading.Lock()` when implementing double-checked schema initialization in multi-agent database connection helpers.

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -22,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DB_PATH = PROJECT_ROOT / "research.db"
+
+_initialized_dbs = set()
+_db_lock = threading.Lock()
 
 
 class AgentRole(str, Enum):
@@ -51,19 +55,28 @@ def _get_connection() -> sqlite3.Connection:
 
 
 def _init_agent_registry(conn: sqlite3.Connection) -> None:
-    """Ensures agent_registry table exists."""
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS agent_registry (
-            agent_id        TEXT PRIMARY KEY,
-            name            TEXT NOT NULL,
-            role            TEXT NOT NULL,
-            capabilities    TEXT DEFAULT '[]',
-            created_at      TEXT NOT NULL,
-            last_active     TEXT NOT NULL,
-            metadata        TEXT DEFAULT '{}'
-        )
-    """)
-    conn.commit()
+    """
+    Ensures agent_registry table exists.
+    ⚡ Bolt: Uses thread-safe double-checked locking per database path to execute schema DDL
+    and transaction commit only once per database file, eliminating redundant SQLite disk commits on connection access.
+    """
+    db_key = str(DB_PATH.resolve())
+    if db_key not in _initialized_dbs:
+        with _db_lock:
+            if db_key not in _initialized_dbs:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS agent_registry (
+                        agent_id        TEXT PRIMARY KEY,
+                        name            TEXT NOT NULL,
+                        role            TEXT NOT NULL,
+                        capabilities    TEXT DEFAULT '[]',
+                        created_at      TEXT NOT NULL,
+                        last_active     TEXT NOT NULL,
+                        metadata        TEXT DEFAULT '{}'
+                    )
+                """)
+                conn.commit()
+                _initialized_dbs.add(db_key)
 
 
 class AgentBase:
