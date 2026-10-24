@@ -177,35 +177,47 @@ class AgentForum:
     ) -> List[ForumThread]:
         """Lists threads in this forum, newest first."""
         conn = self._conn()
-        rows = conn.execute("""
+
+        # ⚡ Bolt: Push tag filtering down to SQLite using json_each when tags parameter is provided.
+        # This prevents scanning/deserializing non-matching thread rows in Python and guarantees
+        # that SQL LIMIT returns up to `limit` matching threads rather than truncating before filtering.
+        params: List[Any] = [self.forum_name]
+        tag_clause = ""
+        if tags:
+            placeholders = ",".join(["?"] * len(tags))
+            tag_clause = f" AND EXISTS (SELECT 1 FROM json_each(t.tags) WHERE value IN ({placeholders}))"
+            params.extend(tags)
+
+        params.append(limit)
+
+        query = f"""
             SELECT t.*, COUNT(p.post_id) AS post_count
             FROM forum_threads t
             LEFT JOIN forum_posts p ON p.thread_id = t.thread_id
-            WHERE t.forum_name = ?
+            WHERE t.forum_name = ?{tag_clause}
             GROUP BY t.thread_id
             ORDER BY t.pinned DESC, t.created_at DESC
             LIMIT ?
-        """, (self.forum_name, limit)).fetchall()
+        """
+
+        rows = conn.execute(query, params).fetchall()
         conn.close()
         threads = []
         for r in rows:
-            t = ForumThread(
-                thread_id=r["thread_id"],
-                forum_name=r["forum_name"],
-                title=r["title"],
-                author_id=r["author_id"],
-                author_name=r["author_name"],
-                created_at=r["created_at"],
-                pinned=bool(r["pinned"]),
-                tags=json.loads(r["tags"] or "[]"),
-                metadata=json.loads(r["metadata"] or "{}"),
-                post_count=r["post_count"],
+            threads.append(
+                ForumThread(
+                    thread_id=r["thread_id"],
+                    forum_name=r["forum_name"],
+                    title=r["title"],
+                    author_id=r["author_id"],
+                    author_name=r["author_name"],
+                    created_at=r["created_at"],
+                    pinned=bool(r["pinned"]),
+                    tags=json.loads(r["tags"] or "[]"),
+                    metadata=json.loads(r["metadata"] or "{}"),
+                    post_count=r["post_count"],
+                )
             )
-            if tags:
-                if any(tag in t.tags for tag in tags):
-                    threads.append(t)
-            else:
-                threads.append(t)
         return threads
 
     # ------------------------------------------------------------------
