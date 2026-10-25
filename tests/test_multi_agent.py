@@ -119,6 +119,21 @@ class TestAgentForum(unittest.TestCase):
         posts_after = forum.read_thread(thread_id)
         self.assertNotIn("author_01", posts_after[0].reactions.get("🔥", []))
 
+        # 5. Tag filtering push-down test with isolated forum instance
+        isolated_forum = AgentForum("test_isolated_forum")
+        it1 = isolated_forum.create_thread(author1, "Exploring Invariant Filters", tags=["stylometry", "sota"], pinned=True)
+        it2 = isolated_forum.create_thread(author1, "Unrelated thread", tags=["other"])
+        it3 = isolated_forum.create_thread(author2, "Another stylometry thread", tags=["stylometry", "baseline"])
+
+        # Fetch with tag filter and limit=1 (must return 1 matching thread, not truncated before filtering)
+        tagged_threads = isolated_forum.list_threads(limit=1, tags=["stylometry"])
+        self.assertEqual(len(tagged_threads), 1)
+        self.assertIn("stylometry", tagged_threads[0].tags)
+
+        # Fetch with multiple tags
+        multi_tag_threads = isolated_forum.list_threads(limit=10, tags=["other", "sota"])
+        self.assertEqual(len(multi_tag_threads), 2)
+
         author1.close()
         author2.close()
 
