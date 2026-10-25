@@ -177,19 +177,31 @@ class AgentForum:
     ) -> List[ForumThread]:
         """Lists threads in this forum, newest first."""
         conn = self._conn()
-        rows = conn.execute("""
+        # ⚡ Bolt: Push tag filtering down into SQLite using EXISTS (SELECT 1 FROM json_each(t.tags) ...)
+        # This avoids fetching, joining, and deserializing non-matching thread rows in Python,
+        # and guarantees that LIMIT applies to the filtered matching threads.
+        params: list = [self.forum_name]
+        tag_clause = ""
+        if tags:
+            placeholders = ", ".join("?" for _ in tags)
+            tag_clause = f" AND EXISTS (SELECT 1 FROM json_each(t.tags) WHERE value IN ({placeholders}))"
+            params.extend(tags)
+        params.append(limit)
+
+        query = f"""
             SELECT t.*, COUNT(p.post_id) AS post_count
             FROM forum_threads t
             LEFT JOIN forum_posts p ON p.thread_id = t.thread_id
-            WHERE t.forum_name = ?
+            WHERE t.forum_name = ?{tag_clause}
             GROUP BY t.thread_id
             ORDER BY t.pinned DESC, t.created_at DESC
             LIMIT ?
-        """, (self.forum_name, limit)).fetchall()
+        """
+        rows = conn.execute(query, params).fetchall()
         conn.close()
-        threads = []
-        for r in rows:
-            t = ForumThread(
+
+        return [
+            ForumThread(
                 thread_id=r["thread_id"],
                 forum_name=r["forum_name"],
                 title=r["title"],
@@ -201,12 +213,8 @@ class AgentForum:
                 metadata=json.loads(r["metadata"] or "{}"),
                 post_count=r["post_count"],
             )
-            if tags:
-                if any(tag in t.tags for tag in tags):
-                    threads.append(t)
-            else:
-                threads.append(t)
-        return threads
+            for r in rows
+        ]
 
     # ------------------------------------------------------------------
     # Posting
