@@ -122,6 +122,39 @@ class TestAgentForum(unittest.TestCase):
         author1.close()
         author2.close()
 
+    def test_forum_list_threads_tag_filtering(self):
+        import uuid
+        forum_name = f"test_tag_filter_forum_{uuid.uuid4().hex[:8]}"
+        forum = AgentForum(forum_name)
+        author = AgentBase(f"tag_author_{uuid.uuid4().hex[:8]}", "Tag Author", AgentRole.RESEARCHER)
+
+        # Create threads with different tag combinations
+        t1 = forum.create_thread(author, "Thread 1", tags=["ml", "nlp"])
+        t2 = forum.create_thread(author, "Thread 2", tags=["cv"])
+        t3 = forum.create_thread(author, "Thread 3", tags=["ml"])
+
+        # Filter single tag
+        ml_threads = forum.list_threads(tags=["ml"])
+        ml_ids = [t.thread_id for t in ml_threads]
+        self.assertEqual(len(ml_threads), 2)
+        self.assertIn(t1, ml_ids)
+        self.assertIn(t3, ml_ids)
+        self.assertNotIn(t2, ml_ids)
+
+        # Filter multiple tags (OR logic)
+        multi_threads = forum.list_threads(tags=["nlp", "cv"])
+        multi_ids = [t.thread_id for t in multi_threads]
+        self.assertEqual(len(multi_threads), 2)
+        self.assertIn(t1, multi_ids)
+        self.assertIn(t2, multi_ids)
+        self.assertNotIn(t3, multi_ids)
+
+        # Respect limit parameter when filtered
+        limited_threads = forum.list_threads(limit=1, tags=["ml"])
+        self.assertEqual(len(limited_threads), 1)
+
+        author.close()
+
 
 class TestAgentMailbox(unittest.TestCase):
     def test_mailbox_message_passing(self):
