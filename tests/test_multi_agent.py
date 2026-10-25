@@ -99,6 +99,13 @@ class TestAgentForum(unittest.TestCase):
         threads = forum.list_threads()
         self.assertTrue(any(t.thread_id == thread_id for t in threads))
 
+        # Test tag filtering in list_threads
+        tagged_threads = forum.list_threads(tags=["stylometry"])
+        self.assertTrue(any(t.thread_id == thread_id for t in tagged_threads))
+
+        non_matching_threads = forum.list_threads(tags=["non_existent_tag"])
+        self.assertFalse(any(t.thread_id == thread_id for t in non_matching_threads))
+
         # 2. Post top-level message
         post_id = forum.post(author1, thread_id, "Curly quotes never appear in Claude or GLM rows.")
         self.assertTrue(post_id.startswith("post_"))
