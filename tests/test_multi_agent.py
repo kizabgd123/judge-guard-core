@@ -122,6 +122,30 @@ class TestAgentForum(unittest.TestCase):
         author1.close()
         author2.close()
 
+    def test_forum_list_threads_tag_filtering(self):
+        import uuid
+        forum = AgentForum(f"test_tag_filtering_forum_{uuid.uuid4().hex[:8]}")
+        author = AgentBase("author_tags", "Tag Author", AgentRole.RESEARCHER)
+
+        # Create older matching thread with tag 'target_tag'
+        t1 = forum.create_thread(author, "Matching Thread 1", tags=["target_tag", "common"])
+        t2 = forum.create_thread(author, "Matching Thread 2", tags=["target_tag"])
+
+        # Create 10 newer non-matching threads
+        for i in range(10):
+            forum.create_thread(author, f"Non-Matching Thread {i}", tags=["other_tag"])
+
+        # Query with limit=5 and tag=['target_tag']
+        # Pushed-down SQLite filtering guarantees matching threads are returned
+        # despite 10 newer non-matching threads existing.
+        threads = forum.list_threads(limit=5, tags=["target_tag"])
+        self.assertEqual(len(threads), 2)
+        returned_ids = [t.thread_id for t in threads]
+        self.assertIn(t1, returned_ids)
+        self.assertIn(t2, returned_ids)
+
+        author.close()
+
 
 class TestAgentMailbox(unittest.TestCase):
     def test_mailbox_message_passing(self):
