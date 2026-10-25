@@ -1,0 +1,23 @@
+{
+  "discovery_id": "disc_26eab46e1ad9",
+  "competition": "test_comp_handoff",
+  "session_id": "session_test_01",
+  "author": {
+    "id": "eng_handoff",
+    "name": "Engineer Handoff",
+    "role": "engineer"
+  },
+  "headline": "Discovered Spaced Em-Dash Invariant in Claude Opus",
+  "metric_delta": 0.053,
+  "what_worked": "Spaced em-dash guard achieves 100% precision on Opus and GLM.",
+  "what_failed": "Linear blending without Sinkhorn balancing causes probability skew.",
+  "invariants": [
+    "spaced_em_dash",
+    "curly_quote_zero"
+  ],
+  "artifacts": [
+    "kernel_sub16.py"
+  ],
+  "recommendations": "Enforce bipartite Hungarian matching on top of em-dash filtering.",
+  "created_at": "2026-10-25T00:39:40.473139+00:00"
+}
