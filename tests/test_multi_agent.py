@@ -122,6 +122,22 @@ class TestAgentForum(unittest.TestCase):
         author1.close()
         author2.close()
 
+    def test_forum_list_threads_tag_filtering(self):
+        forum = AgentForum("test_tag_filtering_forum")
+        author = AgentBase("author_tag", "Tag Author", AgentRole.RESEARCHER)
+
+        # Create 30 threads: first 10 have "rare_tag", rest 20 have "common_tag"
+        for i in range(30):
+            tags = ["rare_tag"] if i < 10 else ["common_tag"]
+            forum.create_thread(author, f"Thread {i}", tags=tags)
+
+        # Tag filtering pushed into SQLite should return up to limit (10) rare_tag threads
+        rare_threads = forum.list_threads(limit=10, tags=["rare_tag"])
+        self.assertEqual(len(rare_threads), 10)
+        self.assertTrue(all("rare_tag" in t.tags for t in rare_threads))
+
+        author.close()
+
 
 class TestAgentMailbox(unittest.TestCase):
     def test_mailbox_message_passing(self):
