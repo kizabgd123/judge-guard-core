@@ -161,62 +161,66 @@ class AgentMailbox:
         cc: Optional[List[str]] = None,
         in_reply_to: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        _conn: Optional[sqlite3.Connection] = None,
     ) -> str:
-        """Sends a message from sender to target agent. Returns message_id."""
+        """Sends a message from sender to target agent. Returns message_id. ⚡ Bolt: Supports optional connection reuse."""
         message_id = f"msg_{uuid.uuid4().hex[:12]}"
         now = datetime.now(timezone.utc).isoformat()
         # Derive thread_id: new thread or inherit from parent
         thread_id = message_id
-        if in_reply_to:
-            conn = self._conn()
-            row = conn.execute(
-                "SELECT thread_id FROM agent_mailbox WHERE message_id=?",
-                (in_reply_to,)
-            ).fetchone()
-            conn.close()
-            if row and row["thread_id"]:
-                thread_id = row["thread_id"]
 
-        conn = self._conn()
-        conn.execute("""
-            INSERT INTO agent_mailbox
-                (message_id, from_id, from_name, to_id, to_name, cc,
-                 subject, body, payload, priority, read, sent_at, thread_id, in_reply_to, tags)
-            VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)
-        """, (
-            message_id,
-            sender.agent_id, sender.name,
-            to_agent_id, to_agent_name,
-            json.dumps(cc or []),
-            subject, body,
-            json.dumps(payload),
-            priority.value,
-            now,
-            thread_id, in_reply_to,
-            json.dumps(tags or []),
-        ))
-        # Also deliver to CC recipients
-        for cc_id in (cc or []):
-            cc_msg_id = f"msg_{uuid.uuid4().hex[:12]}"
+        conn = _conn or self._conn()
+        try:
+            if in_reply_to:
+                row = conn.execute(
+                    "SELECT thread_id FROM agent_mailbox WHERE message_id=?",
+                    (in_reply_to,)
+                ).fetchone()
+                if row and row["thread_id"]:
+                    thread_id = row["thread_id"]
+
             conn.execute("""
                 INSERT INTO agent_mailbox
                     (message_id, from_id, from_name, to_id, to_name, cc,
                      subject, body, payload, priority, read, sent_at, thread_id, in_reply_to, tags)
                 VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)
             """, (
-                cc_msg_id,
+                message_id,
                 sender.agent_id, sender.name,
-                cc_id, f"[CC] {cc_id}",
-                json.dumps([]),
-                f"[CC] {subject}", body,
+                to_agent_id, to_agent_name,
+                json.dumps(cc or []),
+                subject, body,
                 json.dumps(payload),
-                MessagePriority.LOW.value,
+                priority.value,
                 now,
-                thread_id, message_id,
+                thread_id, in_reply_to,
                 json.dumps(tags or []),
             ))
-        conn.commit()
-        conn.close()
+            # Also deliver to CC recipients
+            for cc_id in (cc or []):
+                cc_msg_id = f"msg_{uuid.uuid4().hex[:12]}"
+                conn.execute("""
+                    INSERT INTO agent_mailbox
+                        (message_id, from_id, from_name, to_id, to_name, cc,
+                         subject, body, payload, priority, read, sent_at, thread_id, in_reply_to, tags)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,0,?,?,?,?)
+                """, (
+                    cc_msg_id,
+                    sender.agent_id, sender.name,
+                    cc_id, f"[CC] {cc_id}",
+                    json.dumps([]),
+                    f"[CC] {subject}", body,
+                    json.dumps(payload),
+                    MessagePriority.LOW.value,
+                    now,
+                    thread_id, message_id,
+                    json.dumps(tags or []),
+                ))
+            if _conn is None:
+                conn.commit()
+        finally:
+            if _conn is None:
+                conn.close()
         return message_id
 
     def broadcast(
@@ -229,11 +233,17 @@ class AgentMailbox:
         priority: MessagePriority = MessagePriority.NORMAL,
         tags: Optional[List[str]] = None,
     ) -> List[str]:
-        """Sends the same message to multiple agents. Returns list of message_ids."""
-        return [
-            self.send(sender, aid, aname, subject, body, payload, priority, tags=tags)
-            for aid, aname in agent_ids
-        ]
+        """Sends the same message to multiple agents within a single transaction. Returns list of message_ids."""
+        conn = self._conn()
+        try:
+            msg_ids = [
+                self.send(sender, aid, aname, subject, body, payload, priority, tags=tags, _conn=conn)
+                for aid, aname in agent_ids
+            ]
+            conn.commit()
+            return msg_ids
+        finally:
+            conn.close()
 
     # ------------------------------------------------------------------
     # Reading

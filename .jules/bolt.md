@@ -33,3 +33,7 @@
 ## 2026-04-24 - [Repeated Schema DDL Execution in SQLite Connections]
 **Learning:** Re-executing schema creation DDL (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`) and committing transactions on every SQLite connection open in multi-agent modules adds significant overhead (~0.47ms per connection). Guarding DDL execution with thread-safe double-checked locking (`_db_initialized` + `threading.Lock()`) ensures schema initialization runs only once per process lifecycle.
 **Action:** Use thread-safe double-checked locking around `_DDL` statements in SQLite connection helper functions (`_get_conn`) to reduce connection setup latency by ~67% (~0.70ms to ~0.23ms per call).
+
+## 2026-04-26 - [Transaction Overhead in Multi-Agent Broadcasts]
+**Learning:** Calling SQLite insertion logic iteratively across N recipients where each call opens a new database connection and commits a distinct transaction incurs severe fsync and disk I/O penalties. In `AgentMailbox`, broadcasting to 10 recipients 10 times (100 total messages) took ~340ms due to 100 separate transactions and redundant connection setups for reply lookups.
+**Action:** Pass an optional active connection (`_conn`) down to internal insertion methods like `send()` and wrap multi-recipient operations like `broadcast()` in a single transaction that commits once. This reduced message broadcasting latency by ~86-88% (from ~340ms to ~46ms per 100 messages).
