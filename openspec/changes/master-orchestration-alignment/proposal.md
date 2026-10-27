@@ -12,7 +12,7 @@
 3. **Law 3: Work Log Traceability & State Lifecycle**
    - Ensure the `🟡 Starting` → `JudgeGuard verification` → `Execution` → `✅ Completed` lifecycle is strictly preserved in `WORK_LOG.md`.
 4. **Law 4: Code Cleanliness, Quality & Test Discipline**
-   - Enforce test suite passes (`pytest`, `npm run test:gate:kit`), build checks (`npm run build`), and secret protection (`npm run gate:secrets`).
+   - Run the Python suite from the repository root with `python3 -m pytest -q tests/`, and build the PWA with `npm --prefix src/mobile_app_pwa run build`. Secret scanning is not yet defined as a runnable repository command and remains an open follow-up.
 
 ## Scope & Tier
 - **Tier:** ENTERPRISE (Security Governance & Constitutional AI Safety)

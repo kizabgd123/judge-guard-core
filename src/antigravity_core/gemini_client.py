@@ -108,7 +108,7 @@ class GeminiClient:
             except Exception as e:
                 error_str = str(e)
                 if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                    logger.warning(f"⚠️ Quota Exceeded on current key: {error_str.splitlines()[0]}")
+                    logger.warning("Gemini quota exceeded on the current key")
                     if self._rotate_key():
                         logger.info("Retrying immediately with NEW key...")
                         continue
@@ -118,7 +118,7 @@ class GeminiClient:
                     time.sleep(sleep_time)
                     continue
 
-                logger.error(f"Gemini API Error: {e}")
+                logger.error("Gemini API request failed (%s)", type(e).__name__)
                 raise
 
         raise Exception("Max retries exceeded for Gemini API")
@@ -152,12 +152,15 @@ class GeminiClient:
                 logger.warning(f"Deterministic Judge: Semantic drift violation '{term}' detected.")
                 return False
 
-        # 3. Explicit Criteria negative constraints
-        if "forbidden" in criteria_lower or "zabranjeno" in criteria_lower:
-            negative_matches = re.findall(r"['\"]([^'\"]+)['\"]", criteria)
-            for pattern in negative_matches:
+        # 3. Quoted terms are constraints only inside an explicit section.
+        sections = re.finditer(
+            r"(?ims)^\s*#{1,6}\s*(?:negative constraints|zabranjena ograničenja)\s*:?\s*$\n(.*?)(?=^\s*#{1,6}\s|\Z)",
+            criteria,
+        )
+        for section in sections:
+            for pattern in re.findall(r"['\"]([^'\"]+)['\"]", section.group(1)):
                 if pattern.lower() in content_lower:
-                    logger.warning(f"Deterministic Judge: Content matches forbidden criteria pattern '{pattern}'.")
+                    logger.warning("Deterministic Judge: Content matches an explicit negative constraint.")
                     return False
 
         logger.info("Deterministic Judge: Content verified against security & essence criteria (PASSED).")
@@ -193,8 +196,8 @@ class GeminiClient:
                 raise ValueError("Empty response from Gemini")
             
             result = raw_result.strip().upper()
-            logger.info(f"Gemini Verdict: {result}")
-            return "PASSED" in result
+            logger.info("Gemini verdict received")
+            return result == "PASSED"
         except Exception as e:
-            logger.error(f"Gemini Judge Error: {e}. Falling back to deterministic rule judge.")
-            return self._deterministic_rule_judge(content, criteria)
+            logger.error("Gemini judge failed (%s); denying the action", type(e).__name__)
+            return False

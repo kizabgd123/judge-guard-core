@@ -85,8 +85,8 @@ class TestSafeCommands:
         result = run_hook(payload)
         assert result.returncode == 0, f"npm test blokiran: {result.stderr}"
 
-    def test_empty_stdin_passes(self):
-        """Prazan stdin mora proći bez greške."""
+    def test_empty_stdin_is_blocked(self):
+        """Prazan stdin ne sme zaobići sigurnosni hook."""
         result = subprocess.run(
             [sys.executable, HOOK_SCRIPT],
             input="",
@@ -94,10 +94,10 @@ class TestSafeCommands:
             text=True,
             timeout=10,
         )
-        assert result.returncode == 0, f"Prazan stdin blokiran: {result.stderr}"
+        assert result.returncode == 1, "Prazan stdin je zaobišao sigurnosni hook"
 
-    def test_invalid_json_passes(self):
-        """Neispravan JSON payload mora proći (ne blokiramo legitimne alate)."""
+    def test_invalid_json_is_blocked(self):
+        """Neispravan JSON ne sme zaobići sigurnosni hook."""
         result = subprocess.run(
             [sys.executable, HOOK_SCRIPT],
             input="not json at all",
@@ -105,7 +105,11 @@ class TestSafeCommands:
             text=True,
             timeout=10,
         )
-        assert result.returncode == 0, f"Neispravan JSON blokiran: {result.stderr}"
+        assert result.returncode == 1, "Neispravan JSON je zaobišao sigurnosni hook"
+
+    def test_unrecognized_payload_is_blocked(self):
+        result = run_hook({"tool_name": "run_command", "tool_input": {"other": "value"}})
+        assert result.returncode == 1, "Nepoznat format payload-a je zaobišao sigurnosni hook"
 
 
 class TestDangerousCommands:
@@ -150,6 +154,21 @@ class TestDangerousCommands:
         }
         result = run_hook(payload)
         assert result.returncode == 1, "DROP TABLE NIJE blokiran"
+
+    @pytest.mark.parametrize("command", [
+        "rm -rf /*",
+        "rm -r -f -- /",
+        "rm -rf ~/important/*",
+        "chmod -R 777 /srv/app",
+    ])
+    def test_root_and_recursive_permission_changes_blocked(self, command):
+        result = run_hook({"tool_name": "run_command", "tool_input": {"CommandLine": command}})
+        assert result.returncode == 1, f"Destructive command was not blocked: {command}"
+
+    @pytest.mark.parametrize("command", ["rm -rf ./build", "chmod -R 755 ./scripts"])
+    def test_scoped_cleanup_and_permission_changes_are_allowed(self, command):
+        result = run_hook({"tool_name": "run_command", "tool_input": {"CommandLine": command}})
+        assert result.returncode == 0, f"Scoped command was unexpectedly blocked: {command}"
 
 
 class TestAlternativePayloadFormats:

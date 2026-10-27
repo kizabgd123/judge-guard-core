@@ -119,6 +119,7 @@ class Auth0TokenVault:
         import requests
         headers = {"Authorization": f"Bearer {token}"}
         resp = requests.post(api_endpoint, json=payload, headers=headers, timeout=10)
+        resp.raise_for_status()
         return resp.json()
 
 

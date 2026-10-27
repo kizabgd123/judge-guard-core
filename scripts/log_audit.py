@@ -82,26 +82,34 @@ def extract_payload_info(payload: Any) -> Tuple[str, str, str, str]:
     Extract (tool_name, target, details, status) from diverse hook payload formats.
     """
     if not isinstance(payload, dict):
-        return ("unknown", "", sanitize_field(str(payload)), "unrecognized_format")
+        return ("unknown", "", "", "unparseable_payload")
 
     tool_name = payload.get("tool_name") or payload.get("tool") or payload.get("name") or "unknown"
     
     # Extract input arguments
-    tool_input = payload.get("tool_input")
-    if not isinstance(tool_input, dict):
-        tool_input = payload.get("toolCall", {}).get("args", {})
-    if not isinstance(tool_input, dict):
+    if "tool_input" in payload:
+        tool_input = payload.get("tool_input")
+        if not isinstance(tool_input, dict):
+            return (str(tool_name), "", "", "unparseable_payload")
+    elif "toolCall" in payload:
+        tool_call = payload.get("toolCall")
+        if not isinstance(tool_call, dict) or not isinstance(tool_call.get("args"), dict):
+            return (str(tool_name), "", "", "unparseable_payload")
+        tool_input = tool_call["args"]
+    else:
         tool_input = {}
 
-    # Target path or command
-    target = (
-        tool_input.get("TargetFile")
-        or tool_input.get("path")
-        or tool_input.get("AbsolutePath")
-        or tool_input.get("CommandLine")
-        or tool_input.get("command")
-        or ""
-    )
+    command = tool_input.get("CommandLine", tool_input.get("command"))
+    if command is not None and not isinstance(command, str):
+        return (str(tool_name), "", "", "unparseable_payload")
+    if isinstance(command, str):
+        digest = hashlib.sha256(command.encode("utf-8")).hexdigest()[:16]
+        target = f"command[length={len(command)} sha256={digest}]"
+    else:
+        path_value = tool_input.get("TargetFile") or tool_input.get("path") or tool_input.get("AbsolutePath") or ""
+        if path_value and not isinstance(path_value, str):
+            return (str(tool_name), "", "", "unparseable_payload")
+        target = repr(path_value) if path_value else ""
 
     # Details (parameters preview)
     details_items = []
@@ -111,8 +119,6 @@ def extract_payload_info(payload: Any) -> Tuple[str, str, str, str]:
         details_items.append(f"inst={tool_input['Instruction']}")
     elif "Description" in tool_input:
         details_items.append(f"desc={tool_input['Description']}")
-    if "CommandLine" in tool_input and target != tool_input["CommandLine"]:
-        details_items.append(f"cmd={tool_input['CommandLine']}")
     details = " ".join(details_items)
 
     # Output status
@@ -152,10 +158,12 @@ def main() -> int:
         try:
             payload = json.loads(raw)
         except (json.JSONDecodeError, ValueError):
-            payload = {"error": "unparseable_json", "raw_snippet": raw[:100]}
+            payload = {"error": "unparseable_payload"}
 
         secret = get_audit_secret()
         tool_name, target, details, status = extract_payload_info(payload)
+        if status == "unparseable_payload":
+            sys.stderr.write("[AUDIT] unparseable_payload\n")
         line = format_audit_entry(tool_name, target, details, status, secret)
 
         try:

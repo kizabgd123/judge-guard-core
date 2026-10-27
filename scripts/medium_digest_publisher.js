@@ -12,12 +12,10 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 
 function loadEnv() {
-  const envPaths = [
-    path.resolve(__dirname, '../.env'),
-    path.resolve('/home/kizajosmladjibacije/Desktop/codymaster/.env')
-  ];
+  const envPaths = [path.resolve(__dirname, '../.env')];
   for (const envPath of envPaths) {
     if (fs.existsSync(envPath)) {
       const lines = fs.readFileSync(envPath, 'utf8').split('\n');
@@ -110,13 +108,41 @@ async function updateNotionPageStatus(pageId, status) {
   });
 }
 
+async function getNotionPageMarkdown(pageId) {
+  const chunks = [];
+  let cursor = null;
+  do {
+    const query = cursor ? `?start_cursor=${encodeURIComponent(cursor)}&page_size=100` : '?page_size=100';
+    const result = await httpsRequest({
+      hostname: 'api.notion.com',
+      path: `/v1/blocks/${encodeURIComponent(pageId)}/children${query}`,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${NOTION_TOKEN}`,
+        'Notion-Version': '2022-06-28',
+        'Accept': 'application/json'
+      }
+    });
+    for (const block of result.results || []) {
+      if (block.type === 'code') {
+        chunks.push((block.code.rich_text || []).map(item => item.plain_text || item.text?.content || '').join(''));
+      }
+    }
+    cursor = result.has_more ? result.next_cursor : null;
+  } while (cursor);
+  return chunks.join('');
+}
+
 async function runPublisher(options = {}) {
-  const isPublic = options.public === true;
-  const publishStatus = isPublic ? 'public' : 'draft';
+  const publicRequested = options.public === true;
+  const publishStatus = 'draft';
 
   console.log('==================================================');
   console.log('📰 Medium Daily Digest Publisher');
   console.log(`Mode: ${publishStatus.toUpperCase()}`);
+  if (publicRequested) {
+    console.log('Public dispatch is disabled until an approved Notion record and JudgeGuard ticket are verified; continuing with draft staging only.');
+  }
   console.log('==================================================');
 
   const draftDir = '/tmp/medium_drafts';
@@ -124,57 +150,8 @@ async function runPublisher(options = {}) {
     fs.mkdirSync(draftDir, { recursive: true });
   }
 
-  const articleTitle = 'Medium Daily Digest: Production AI Architectures, Zero-Simulation Law & Deterministic Agents (2026 Edition)';
-  const articleContent = `# Medium Daily Digest: Production AI Architectures, Zero-Simulation Law & Deterministic Agents (2026 Edition)
-### How we eliminated context bloat, tamed autonomous multi-agent systems, and enforced unbreakable security gates in production.
-
-## Executive Summary
-In 2026, the era of treating LLMs as magical black boxes with multi-million token contexts has ended. Production engineering teams have realized that dumping 200,000 tokens of raw conversation history into an agent context window degrades reasoning accuracy by up to 42% and increases latency exponentially.
-
-At Antigravity & JudgeGuard Core, we run mission-critical autonomous agents under a strict **Zero-Simulation Law**. In this daily digest, we break down the four foundational pillars that allow multi-agent swarms to run safely in production without hallucination, context drift, or catastrophic code execution.
-
----
-
-## Pillar 1: The Antigravity Dual-Brain Architecture
-The fundamental flaw of early autonomous agents was forcing a single execution thread to simultaneously handle cognitive research, long-term memory synthesis, and low-level CLI execution.
-
-We resolved this by strictly separating the **Cognitive Brain** from the **Execution Runtime**:
-- **Zero-Token Synthesis:** Instead of bloating context with 50 PDF manuals, the Cognitive Brain (Google NotebookLM) processes them externally and feeds crisp, citation-grounded architectural directives over the Model Context Protocol (MCP).
-- **Sleep Cycles & Memory Distillation:** At session termination, background daemons run an Ebbinghaus-inspired decay algorithm: unreinforced memories decay after a 30-day TTL, while repeatedly verified insights promote into Tier 3 long-term memory (.cm/context.db via SQLite + FTS5).
-
----
-
-## Pillar 2: The Zero-Simulation Law
-In critical systems, mock verifications are an existential risk. Simulated deployments (e.g. \`deploy_to_prod() -> True\`) and dummy tokens breed silent failures.
-
-Under our workspace Master Constitution, the Zero-Simulation Law is non-negotiable:
-- **No Synthetic Test Bypasses:** Every integration gate must execute against authentic local state or real offline queues.
-- **Fail-Fast Integrity:** If credentials or external endpoints drop, the system halts immediately rather than fabricating pleasant pseudo-responses.
-
----
-
-## Pillar 3: JudgeGuard — The 3-Layer Execution Sentinel
-Before any file edit, git commit, database migration, or external API dispatch occurs, the proposed action must pass through the JudgeGuard Sentinel (\`judge_guard.py\`):
-- **Layer 00 (Hard Rules):** Blocks sudo, root deletions (\`rm -rf /\`), and permission escalation.
-- **Layer 0 (Work Log Traceability):** Enforces an active, non-stale \`🟡 Starting\` entry in \`WORK_LOG.md\` logged within the last 120 seconds.
-- **Layer 1 (Tool & Phase Discipline):** Prevents premature command execution during research phases.
-- **Layer 3 (Essence & Drift Check):** Evaluates semantic drift against the Golden Snapshot (blocking drift > 20%).
-
----
-
-## Pillar 4: Eliminating Prompt Injections at the Kernel Level
-Prompt injection attacks thrive when agents evaluate untrusted user content directly in privileged loops. We enforce two deterministic safeguards:
-1. **Write-Before-Query Validation:** Metadata validators authenticate and sanitize incoming web payloads before any prompt touches the LLM core.
-2. **List-Based Argument Passing:** We ban \`shell=True\` entirely across all subprocess invocations, passing structured arrays of strings to bypass the shell interpreter entirely.
-
----
-
-## Conclusion & Action Checklist
-1. Decouple your Cognitive Brain from your Execution Hands.
-2. Treat every agent planned action as an auditable transaction.
-3. Default all content automation to human-reviewed drafts before public release.
-`;
-
+  const articleContent = fs.readFileSync(path.join(__dirname, 'medium_daily_digest.md'), 'utf8');
+  const articleTitle = articleContent.split(/\r?\n/).find(line => line.startsWith('# '))?.slice(2) || 'Medium Daily Digest';
   const tags = ['Software Architecture', 'Artificial Intelligence', 'DevOps', 'Python', 'Cybersecurity'];
 
   const payload = {
@@ -195,6 +172,40 @@ Prompt injection attacks thrive when agents evaluate untrusted user content dire
 
   // 2. Publish or report token status
   if (MEDIUM_TOKEN) {
+    const notionPageId = process.env.NOTION_PAGE_ID;
+    if (!NOTION_TOKEN || !notionPageId) {
+      return {
+        success: false,
+        staged: true,
+        mode: 'local_staged',
+        draftPath,
+        error: 'Medium dispatch requires NOTION_API_KEY and NOTION_PAGE_ID so the staged review copy can be verified.'
+      };
+    }
+    let stagedDraft;
+    try {
+      stagedDraft = await getNotionPageMarkdown(notionPageId);
+    } catch (err) {
+      return { success: false, staged: true, draftPath, error: `Could not read Notion review draft: ${err.message}` };
+    }
+    if (stagedDraft !== articleContent) {
+      return { success: false, staged: true, draftPath, error: 'Notion review content does not match the local Medium draft.' };
+    }
+    const dispatchRecordPath = path.join(draftDir, 'medium_dispatch.json');
+    const contentHash = crypto.createHash('sha256').update(articleContent).digest('hex');
+    if (fs.existsSync(dispatchRecordPath)) {
+      const previous = JSON.parse(fs.readFileSync(dispatchRecordPath, 'utf8'));
+      if (previous.contentHash === contentHash) {
+        return {
+          success: false,
+          error: `A Medium draft dispatch is already recorded (${previous.status}); refusing to retry without reconciliation.`,
+          postId: previous.postId,
+          url: previous.url
+        };
+      }
+    }
+    const dispatchRecord = { status: 'dispatching', contentHash, notionPageId, startedAt: new Date().toISOString() };
+    fs.writeFileSync(dispatchRecordPath, JSON.stringify(dispatchRecord, null, 2), { mode: 0o600 });
     try {
       console.log('🔑 Authenticating with Medium API...');
       const userRes = await getMediumUser(MEDIUM_TOKEN);
@@ -204,15 +215,28 @@ Prompt injection attacks thrive when agents evaluate untrusted user content dire
       console.log(`🚀 Dispatching post to Medium (${publishStatus})...`);
       const postRes = await createMediumPost(MEDIUM_TOKEN, userId, payload);
       const postUrl = postRes.data?.url;
-      console.log(`🎉 Successfully published to Medium! URL: ${postUrl}`);
-      return { success: true, url: postUrl, mode: publishStatus };
+      Object.assign(dispatchRecord, {
+        status: 'created',
+        postId: postRes.data?.id,
+        url: postUrl,
+        completedAt: new Date().toISOString()
+      });
+      fs.writeFileSync(dispatchRecordPath, JSON.stringify(dispatchRecord, null, 2), { mode: 0o600 });
+      if (NOTION_TOKEN && notionPageId) {
+        await updateNotionPageStatus(notionPageId, 'In Progress');
+      }
+      console.log(`🎉 Medium draft created. URL: ${postUrl}`);
+      return { success: true, postId: postRes.data?.id, url: postUrl, mode: publishStatus };
     } catch (err) {
+      dispatchRecord.status = 'dispatch_unknown';
+      dispatchRecord.completedAt = new Date().toISOString();
+      fs.writeFileSync(dispatchRecordPath, JSON.stringify(dispatchRecord, null, 2), { mode: 0o600 });
       console.error(`❌ Medium API publication failed: ${err.message}`);
       return { success: false, error: err.message };
     }
   } else {
     console.log('ℹ️ MEDIUM_INTEGRATION_TOKEN is not configured in .env.');
-    console.log('🛡️ Safe Mode Verified: The complete draft has been staged in Notion and saved at /tmp/medium_drafts/.');
+    console.log('🛡️ Local draft saved at /tmp/medium_drafts/. No Notion request was made.');
     console.log('   To publish live, add MEDIUM_INTEGRATION_TOKEN to your .env or copy the staged markdown to medium.com/new-story.');
     return { success: true, staged: true, mode: 'local_staged', draftPath };
   }

@@ -12,6 +12,7 @@ description: "Obavezna verifikacija i materijalni dokaz pre potvrde uspeha. Zabr
 2. **Zabrana mock-ova (Zero-Simulation Law):** Svaki test koji koristi `MagicMock`, `patch`, ili simulirane odgovore za stvarne API pozive i bezbednosne kapije je **zabranjeno koristiti kao dokaz uspeha**. Dozvoljeni su jedino pravi unit testovi logike.
 
 3. **Pre-Action kapija:** Sve kritične operacije (pisanje datoteka, git commit, deploy) moraju proći JudgeGuard kapiju:
+
    ```bash
    echo "🟡 Starting [ACTION]" >> WORK_LOG.md
    python3 judge_guard.py "[ACTION]"
@@ -25,4 +26,4 @@ description: "Obavezna verifikacija i materijalni dokaz pre potvrde uspeha. Zabr
 
 5. **Hook blokade:** Komande koje idu kroz `run_command` alat prolaze kroz `scripts/verify_command_safety.py`. Ako hook vrati Exit Code 1, izvršenje je **fizički blokirano**.
 
-6. **MCP serveri:** `personalized-service-health` i `sequential-thinking` su konfigurisani i verifikovani. Za `personalized-service-health` — GCP projekat mora imati Service Health API odobren.
+6. **MCP serveri:** `personalized-service-health` i `sequential-thinking` su konfigurisani i verifikovani.

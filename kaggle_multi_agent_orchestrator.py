@@ -4,9 +4,8 @@ kaggle_multi_agent_orchestrator.py
 ==================================
 Command-line orchestrator for Kaggle Multi-Agent Collaboration.
 Implements the multi-agent system described by Kaggle #1 competitor Chris Deot:
-- Agent Forum: Multi-agent discussion board
+- Agent Forum: Multi-agent discussion board like kaggle have. 
 - Agent Mailbox: Direct agent-to-agent messaging with payloads and priorities
-- Agent Hierarchy: Manager-Employee task delegation tree
 - Round-Table: Consensus-driven experiment selection with weighted voting
 
 Authority: MASTER_ORCHESTRATION.md
@@ -55,8 +54,8 @@ from src.multi_agent import (
 
 def get_default_team():
     manager = KaggleManager("manager_chris", "Manager Chris")
-    researcher = KaggleResearcher("researcher_fable", "Researcher Fable")
-    engineer = KaggleEngineer("engineer_opus", "Engineer Opus")
+    researcher = KaggleResearcher("researcher_kizaa", "")
+    engineer = KaggleEngineer("engineer_odfsdf", "Engineer Opus")
     validator = KaggleValidator("validator_guard", "Validator Guard")
     reviewer = KaggleReviewer("reviewer_codex", "Reviewer Codex")
     observer = KaggleObserver("observer_pi", "Observer Pi")
@@ -117,8 +116,7 @@ def handle_demo(args):
     print("\n[STEP 2] Forum Discussion: Manager initiates research thread...")
     thread_id = forum.create_thread(
         agent=manager,
-        title="Strategy Session: SOTA Breakthrough beyond 0.604",
-        tags=["sota", "lora", "invariants"],
+        title=TitleGenerator.generate_title(prompt),
         pinned=True
     )
     print(f"  ✓ Thread created: {thread_id} — 'Strategy Session: SOTA Breakthrough beyond 0.604'")

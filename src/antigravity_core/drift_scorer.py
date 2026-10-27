@@ -19,6 +19,7 @@ Usage:
 import logging
 import re
 from typing import Optional
+from src.antigravity_core.gemini_client import GeminiClient
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class DriftScorer:
         "chmod -r 777",
     ]
 
-    def __init__(self, client=None):
+    def __init__(self, client: Optional[GeminiClient] = None) -> None:
         self._client = client  # lazy: set to None, resolved on first use
 
     @property

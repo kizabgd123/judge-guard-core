@@ -95,3 +95,23 @@ def test_judge_content_failed(mock_genai, monkeypatch):
     result = client.judge_content("content", "criteria")
 
     assert result is False
+
+def test_deterministic_judge_ignores_quoted_terms_outside_negative_section(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEYS", raising=False)
+    client = GeminiClient()
+
+    assert client._deterministic_rule_judge(
+        'The feature is called "special mode".',
+        'The word "special mode" is forbidden in this explanatory example.',
+    ) is True
+
+def test_deterministic_judge_enforces_quoted_terms_in_negative_section(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEYS", raising=False)
+    client = GeminiClient()
+
+    assert client._deterministic_rule_judge(
+        'Enable "special mode".',
+        '## Negative Constraints\n- Never use "special mode".\n## Other Criteria\nAllow normal actions.',
+    ) is False

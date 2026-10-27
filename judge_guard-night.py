@@ -17,27 +17,13 @@ import time
 import threading
 import json
 import re
+import tempfile
+from datetime import datetime
 from typing import Optional, Dict, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor
+from src.antigravity_core.policy import DRIFT_THRESHOLD, PROJECT_ESSENCE
 
 REJECTIONS_LOG_PATH = os.path.expanduser("~/.gemini/.judge_rejections.json")
-
-# --- LAYER 3 CONSTANT ---
-PROJECT_ESSENCE = """
-PROJECT ESSENCE (Golden Snapshot):
-The goal is to build an autonomous, self-improving AI agent system (Antigravity).
-Core Values:
-1. User Control: The user is the ultimate authority.
-2. Safety: No destructive actions without verification.
-3. Quality: High standards for code and documentation.
-4. Transparency: Streaming thoughts and actions to the user.
-5. Modularity: A clean, plugin-based architecture for Agents.
-6. Research First: Always validate assumptions with browser research before coding.
-
-SKILL MANIFEST:
-- mobile-vibe-coding: Enforce '.cursorrules' for PWA development (XML Architecture + Vibe Snippets).
-"""
-# ------------------------
 
 class JudgeGuard:
     """
@@ -45,16 +31,22 @@ class JudgeGuard:
     Verifies every critical step against the 'Standard of Truth'.
     """
     
-    def __init__(self, brain_path: Optional[str] = None, work_log_path: Optional[str] = None):
+    def __init__(
+        self,
+        brain_path: Optional[str] = None,
+        work_log_path: Optional[str] = None,
+        rejections_log_path: Optional[str] = None,
+    ):
         # ⚡ Bolt: Use a lock for thread-safe lazy initialization
         self._lock = threading.RLock()
-        self._setup_done = False
+        self._setup_done = True
         self._logger = None
         self._executor = None
 
         # Store initial args
         self._brain_path_arg = brain_path
         self._work_log_path_arg = work_log_path
+        self.rejections_log_path = os.path.expanduser(rejections_log_path or REJECTIONS_LOG_PATH)
         
         # Lazy properties
         self._brain_path = None
@@ -336,11 +328,17 @@ class JudgeGuard:
     def _record_rejection(self, action: str, reason: str, drift_score: float = 0.0):
         """Record rejected action in security history to detect adversarial evasion attempts."""
         try:
-            os.makedirs(os.path.dirname(REJECTIONS_LOG_PATH), exist_ok=True)
+            parent = os.path.dirname(self.rejections_log_path)
+            os.makedirs(parent, exist_ok=True)
             rejections = []
-            if os.path.exists(REJECTIONS_LOG_PATH):
-                with open(REJECTIONS_LOG_PATH, "r", encoding="utf-8") as f:
-                    rejections = json.load(f)
+            if os.path.exists(self.rejections_log_path):
+                try:
+                    with open(self.rejections_log_path, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                    if isinstance(loaded, list):
+                        rejections = loaded
+                except (OSError, json.JSONDecodeError):
+                    rejections = []
             rejections.append({
                 "action": action,
                 "timestamp": time.time(),
@@ -348,8 +346,16 @@ class JudgeGuard:
                 "drift_score": drift_score
             })
             rejections = rejections[-20:]
-            with open(REJECTIONS_LOG_PATH, "w", encoding="utf-8") as f:
-                json.dump(rejections, f, indent=2)
+            fd, temp_path = tempfile.mkstemp(prefix=".judge-rejections-", dir=parent)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(rejections, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(temp_path, self.rejections_log_path)
+            finally:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
         except Exception as e:
             self.logger.warning(f"Failed to record rejection: {e}")
 
@@ -399,10 +405,10 @@ class JudgeGuard:
         Detect if an agent was recently blocked on an action (within 180s)
         and is now attempting to bypass the block by submitting a sanitized action.
         """
-        if not os.path.exists(REJECTIONS_LOG_PATH):
+        if not os.path.exists(self.rejections_log_path):
             return False, ""
         try:
-            with open(REJECTIONS_LOG_PATH, "r", encoding="utf-8") as f:
+            with open(self.rejections_log_path, "r", encoding="utf-8") as f:
                 rejections = json.load(f)
             if not rejections:
                 return False, ""
@@ -434,29 +440,29 @@ class JudgeGuard:
             print("🛑 WORK_LOG.md not found. Update required before action.")
             return False
 
-        mtime = os.path.getmtime(self.work_log_path)
-        now = time.time()
-        age_seconds = now - mtime
-
-        if age_seconds >= 120:
-            self.logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
-            print("🛑 WORK_LOG.md not updated recently. Required format:")
-            print('   echo "🟡 Starting [ACTION]" >> WORK_LOG.md')
-            return False
-
         try:
             tail = self._get_work_log_tail(2000)
-            lines = [l.strip() for l in tail.splitlines() if l.strip()]
-
-            latest_starting = None
-            for line in reversed(lines):
-                if '🟡' in line or 'starting' in line.lower():
-                    latest_starting = line
-                    break
+            lines = [line.rstrip() for line in tail.splitlines()]
+            latest_starting = next((line for line in reversed(lines) if line.startswith("🟡")), None)
 
             if not latest_starting:
-                self.logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators.")
+                self.logger.warning("WORK_LOG.md does not contain a '🟡 Starting' entry.")
                 print("🛑 WORK_LOG.md does not contain an active '🟡 Starting' entry.")
+                return False
+
+            timestamp_match = re.search(r"\b(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)\b", latest_starting)
+            if not timestamp_match:
+                self.logger.warning("Latest WORK_LOG start entry has no timestamp.")
+                print("🛑 Latest WORK_LOG start entry must include an ISO timestamp.")
+                return False
+            try:
+                timestamp_text = timestamp_match.group(1).replace("Z", "+00:00")
+                started_at = datetime.fromisoformat(timestamp_text).timestamp()
+            except ValueError:
+                return False
+            age_seconds = time.time() - started_at
+            if age_seconds < 0 or age_seconds >= 120:
+                self.logger.warning("Latest WORK_LOG entry is stale or future-dated (%.1fs).", age_seconds)
                 return False
 
             clean_logged = re.sub(r'^[🟡\s*\-]*(?:starting:?\s*)', '', latest_starting, flags=re.IGNORECASE).strip()
@@ -464,6 +470,9 @@ class JudgeGuard:
 
             norm_logged = re.sub(r'[^\w\s]', '', clean_logged.lower()).strip()
             norm_action = re.sub(r'[^\w\s]', '', action.lower()).strip()
+
+            if not norm_logged or not norm_action:
+                return False
 
             logged_words = set(norm_logged.split())
             action_words = set(norm_action.split())
@@ -542,7 +551,7 @@ class JudgeGuard:
         return "\n".join(sections)
 
     # ------------------------------------------------------------------
-    # Self-Healing Loop
+    # Human-reviewed recovery
     # ------------------------------------------------------------------
 
     def retry_with_guidance(
@@ -551,93 +560,11 @@ class JudgeGuard:
         reason: str,
         max_retries: int = 2,
     ) -> dict:
-        """
-        Self-Healing Loop: given a rejected action and the rejection reason,
-        attempt to guide the actor toward a revised, compliant action.
-
-        This implements the Actor-Judge feedback cycle from AGENT_TAMING_GUIDE.md:
-            while attempt < max_retries:
-                result = actor.act(context)
-                if judge.verify(result): return result
-                context['feedback'] = judge.get_reason()
-
-        Args:
-            action: The original rejected action description.
-            reason: The human-readable rejection reason from JudgeGuard.
-            max_retries: Maximum revision attempts (default: 2).
-
-        Returns:
-            dict with keys:
-              - retry (bool): True if a viable revision was produced.
-              - revised_action (str): Suggested revised action (present when retry=True).
-              - reason (str): Explanation of the outcome.
-        """
+        """Require human direction after a JudgeGuard block; never rewrite a blocked action."""
         self._ensure_setup()
-
-        # Hard-blocked actions — no retry possible
-        if self._is_dangerous_command(action):
-            return {
-                "retry": False,
-                "reason": "Action is categorically blocked (Layer 00 — dangerous command). No revision possible.",
-            }
-
-        # Try to produce a guidance-based revision
-        manifest = self._get_ground_truth_manifest()
-        prompt = f"""You are a Self-Healing Agent Advisor.
-
-An action was REJECTED by JudgeGuard for the following reason:
-  REASON: {reason}
-
-ORIGINAL ACTION: {action}
-
-GROUND TRUTH MANIFEST (project constraints):
-{manifest[:2000]}
-
-TASK:
-Suggest a REVISED version of the action that:
-1. Achieves the same underlying goal
-2. Complies with the Ground Truth Manifest
-3. Has a drift score below 0.40
-
-Reply with ONLY the revised action text (1-2 sentences). If no compliant revision is possible, reply exactly: NO_REVISION_POSSIBLE
-"""
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                if not self.gemini or not getattr(self.gemini, "has_keys", False):
-                    # Offline: produce a heuristic guidance message
-                    heuristic = (
-                        f"[Heuristic guidance] Revise '{action}' to focus on "
-                        "agent safety, code quality, or system transparency — "
-                        "core project values — rather than the rejected goal."
-                    )
-                    return {
-                        "retry": True,
-                        "revised_action": heuristic,
-                        "reason": f"Offline heuristic guidance (attempt {attempt}/{max_retries}).",
-                    }
-
-                raw = self.gemini.generate_content(
-                    prompt,
-                    generation_config={"max_output_tokens": 120},
-                )
-
-                if not raw or "NO_REVISION_POSSIBLE" in raw.upper():
-                    continue  # try next attempt
-
-                revised = raw.strip()
-                return {
-                    "retry": True,
-                    "revised_action": revised,
-                    "reason": f"Self-healing guidance produced on attempt {attempt}/{max_retries}.",
-                }
-
-            except Exception as e:
-                self.logger.warning(f"Self-healing attempt {attempt} failed: {e}")
-
         return {
             "retry": False,
-            "reason": f"Self-healing exhausted {max_retries} attempts without a viable revision.",
+            "reason": "JudgeGuard blocked the action. Present the diagnostics and wait for explicit human instructions.",
         }
 
     def verify_action(self, current_action: str) -> bool:
@@ -748,7 +675,10 @@ Reply with ONLY the revised action text (1-2 sentences). If no compliant revisio
 
         if is_write:
             criteria_parts.append(f"\n2. PROJECT ESSENCE (Semantic Drift Check):\n{PROJECT_ESSENCE}")
-            criteria_parts.append("\nTASK FOR WRITE OPERATION:\n- Ensure action aligns with Project Essence (no >20% drift).\n- Ensure strict adherence to Immutable Laws.")
+            criteria_parts.append(
+                f"\nTASK FOR WRITE OPERATION:\n- Ensure action aligns with Project Essence "
+                f"(drift below {DRIFT_THRESHOLD:.0%}).\n- Ensure strict adherence to Immutable Laws."
+            )
         else:
             criteria_parts.append("\nTASK:\n- Ensure strict adherence to Immutable Laws.")
 
@@ -772,7 +702,7 @@ Reply with ONLY the revised action text (1-2 sentences). If no compliant revisio
         drift_score = result.get("drift_score", 0.0)
         reason = result.get("reason", "")
 
-        print(f"📊 Drift Score: {drift_score:.2f} / 1.00  (threshold: 0.40)")
+        print(f"📊 Drift Score: {drift_score:.2f} / 1.00  (threshold: {DRIFT_THRESHOLD:.2f})")
         self.logger.info(f"Drift Score: {drift_score:.4f} | Passed: {passed} | Reason: {reason}")
 
         if passed:
@@ -790,10 +720,6 @@ Reply with ONLY the revised action text (1-2 sentences). If no compliant revisio
                 os.environ["JUDGE_EXECUTION_TICKET"] = ticket_id
             except Exception as e:
                 self.logger.warning(f"⚠️ Failed to issue execution ticket: {e}")
-
-            # ⚡ Bolt: Cache verdict ONLY for read/safe operations
-            if not is_write and self.pipeline:
-                self.pipeline.cache_verdict(current_action, "PASSED")
 
             # ⚡ Bolt: Auto-sync to Notion if this is a research action (Fix: restored missing call)
             if self._is_research_action(current_action):

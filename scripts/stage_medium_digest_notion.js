@@ -9,12 +9,11 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const DIGEST_MARKDOWN = fs.readFileSync(path.join(__dirname, 'medium_daily_digest.md'), 'utf8');
+const DIGEST_TITLE = DIGEST_MARKDOWN.split(/\r?\n/).find(line => line.startsWith('# '))?.slice(2) || 'Medium Daily Digest';
 
 function loadEnv() {
-  const envPaths = [
-    path.resolve(__dirname, '../.env'),
-    path.resolve('/home/kizajosmladjibacije/Desktop/codymaster/.env')
-  ];
+  const envPaths = [path.resolve(__dirname, '../.env')];
   for (const envPath of envPaths) {
     if (fs.existsSync(envPath)) {
       const lines = fs.readFileSync(envPath, 'utf8').split('\n');
@@ -101,82 +100,19 @@ async function ensureMediumPlatformOption() {
 async function stageDigest() {
   await ensureMediumPlatformOption();
 
-  const title = 'Medium Daily Digest: Production AI Architectures, Zero-Simulation Law & Deterministic Agents (2026 Edition)';
-  const excerpt = 'How we eliminated context bloat, tamed autonomous multi-agent systems, and enforced unbreakable security gates in production using the Antigravity Dual-Brain and JudgeGuard.';
-
-  const children = [
-    {
+  const title = DIGEST_TITLE;
+  const excerpt = DIGEST_MARKDOWN.replace(/^# .*\r?\n/, '').slice(0, 900);
+  const children = [];
+  for (let offset = 0; offset < DIGEST_MARKDOWN.length; offset += 1800) {
+    children.push({
       object: 'block',
-      type: 'heading_1',
-      heading_1: {
-        rich_text: [{ type: 'text', text: { content: 'Medium Daily Digest (2026 Edition)' } }]
+      type: 'code',
+      code: {
+        rich_text: [{ type: 'text', text: { content: DIGEST_MARKDOWN.slice(offset, offset + 1800) } }],
+        language: 'markdown'
       }
-    },
-    {
-      object: 'block',
-      type: 'callout',
-      callout: {
-        icon: { emoji: '🛡️' },
-        rich_text: [{ type: 'text', text: { content: 'Status: In Review | Zero-Simulation Verified | Pre-Action Gate PASSED' } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'heading_2',
-      heading_2: {
-        rich_text: [{ type: 'text', text: { content: '1. The Antigravity Dual-Brain Architecture' } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [{ type: 'text', text: { content: 'Strictly decoupling the Cognitive Brain (Google NotebookLM) from the Execution Runtime (Antigravity/Docker). Zero-Token Synthesis allows server-side distillation of thousands of documentation pages without consuming agent context window tokens.' } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'heading_2',
-      heading_2: {
-        rich_text: [{ type: 'text', text: { content: '2. The Zero-Simulation Law & Deterministic Safety' } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [{ type: 'text', text: { content: 'Eliminating mock deployments, fake tokens, and synthetic test bypasses. Fail-fast mechanics immediately route to authentic offline queues rather than fabricating pleasant pseudo-responses.' } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'heading_2',
-      heading_2: {
-        rich_text: [{ type: 'text', text: { content: '3. JudgeGuard 3-Layer Execution Sentinel' } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [{ type: 'text', text: { content: 'Layer 00 (Security Hard Rules: sudo/rm -rf / blocks), Layer 0 (Work Log recency <120s in WORK_LOG.md), Layer 1 (Tool & Phase discipline), Layer 3 (Project Essence & <20% semantic drift evaluation).' } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'heading_2',
-      heading_2: {
-        rich_text: [{ type: 'text', text: { content: '4. Kernel-Level Prompt Injection Elimination' } }]
-      }
-    },
-    {
-      object: 'block',
-      type: 'paragraph',
-      paragraph: {
-        rich_text: [{ type: 'text', text: { content: 'Write-Before-Query input validation and strictly banning shell=True across all subprocess calls (using structured argument lists).' } }]
-      }
-    }
-  ];
+    });
+  }
 
   console.log(`📝 Inserting Medium Daily Digest into Notion database ${DATABASE_ID}...`);
   const response = await notionRequest('POST', '/pages', {

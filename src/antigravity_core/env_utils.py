@@ -1,10 +1,21 @@
 import os
+from typing import Optional
 
-def safe_load_dotenv(dotenv_path: str = ".env"):
+
+def safe_load_dotenv(dotenv_path: Optional[str] = ".env") -> None:
     """
     Safely load environment variables from a .env file.
     Tries python-dotenv first; if not installed or fails, falls back to a clean internal parser.
+
+    Args:
+        dotenv_path: Path to the environment file. Defaults to `.env`; relative paths
+            resolve against the current working directory.
+
+    Returns:
+        None.
     """
+    if dotenv_path is None:
+        dotenv_path = ".env"
     try:
         from dotenv import load_dotenv
         load_dotenv(dotenv_path)

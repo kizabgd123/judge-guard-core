@@ -6,11 +6,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 from src.antigravity_core.gemini_client import GeminiClient
+from src.antigravity_core.policy import DRIFT_THRESHOLD, PROJECT_ESSENCE
 
 # Drift threshold from AGENT_TAMING_GUIDE.md and Phase 2 decision matrix
-DRIFT_THRESHOLD = 0.40
-
-
 class BlockJudge:
     """
     Evaluates content using Real Gemini AI.
@@ -32,8 +30,8 @@ class BlockJudge:
         Structured verdict combining pass/fail, numeric drift score, and reason.
 
         Extends evaluate() with an explicit drift_score (0.0–1.0) produced by
-        DriftScorer. If drift_score > DRIFT_THRESHOLD (0.40), the verdict is
-        forced to failed regardless of the LLM verdict.
+        DriftScorer. If drift_score > DRIFT_THRESHOLD (0.20), the verdict is
+        forced to failed regardless of the LLM verdict when it exceeds 20%.
 
         Args:
             content: The action/content string to evaluate.
@@ -45,14 +43,18 @@ class BlockJudge:
               - reason (str): Human-readable explanation.
         """
         # --- Drift Score ---
-        drift_score = 0.0
+        drift_score = 1.0
+        scoring_succeeded = False
         try:
             from src.antigravity_core.drift_scorer import DriftScorer
-            from judge_guard import PROJECT_ESSENCE
             scorer = DriftScorer(client=self.client)
             drift_score = scorer.score(action=content, essence=PROJECT_ESSENCE)
-        except Exception as e:
-            logger.warning(f"BlockJudge: DriftScorer unavailable ({e}), defaulting drift_score=0.0")
+            scoring_succeeded = True
+        except Exception as exc:
+            logger.error("BlockJudge: DriftScorer failed (%s); denying action", type(exc).__name__)
+
+        if not scoring_succeeded:
+            return {"passed": False, "drift_score": drift_score, "reason": "Drift scoring unavailable."}
 
         # --- Hard drift rejection ---
         if drift_score > DRIFT_THRESHOLD:

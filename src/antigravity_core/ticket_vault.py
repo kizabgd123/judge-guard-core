@@ -21,6 +21,8 @@ import json
 import hmac
 import hashlib
 import uuid
+import tempfile
+import fcntl
 from typing import Optional, Dict, Any
 
 TICKETS_DIR = os.path.expanduser("~/.gemini/tickets")
@@ -28,12 +30,12 @@ SECRET_KEY_PATH = os.path.expanduser("~/.gemini/.judge_secret")
 DEFAULT_TTL_SECONDS = 60
 
 
-def _get_or_create_master_secret() -> bytes:
+def _get_or_create_master_secret(secret_key_path: str = SECRET_KEY_PATH) -> bytes:
     """Ensure a persistent, machine-local HMAC signing key exists."""
-    os.makedirs(os.path.dirname(SECRET_KEY_PATH), exist_ok=True)
-    if os.path.exists(SECRET_KEY_PATH):
+    os.makedirs(os.path.dirname(secret_key_path), mode=0o700, exist_ok=True)
+    if os.path.exists(secret_key_path):
         try:
-            with open(SECRET_KEY_PATH, "rb") as key_file:
+            with open(secret_key_path, "rb") as key_file:
                 raw_key = key_file.read().strip()
                 if raw_key:
                     return raw_key
@@ -42,10 +44,15 @@ def _get_or_create_master_secret() -> bytes:
 
     # Generate fresh 256-bit random key material for HMAC verification
     key_material = os.urandom(32).hex().encode("utf-8")
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    fd = os.open(SECRET_KEY_PATH, flags, 0o600)
-    with open(fd, "wb") as key_out:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(secret_key_path, flags, 0o600)
+    except FileExistsError:
+        return _get_or_create_master_secret(secret_key_path)
+    with os.fdopen(fd, "wb") as key_out:
         key_out.write(key_material)
+        key_out.flush()
+        os.fsync(key_out.fileno())
     return key_material
 
 
@@ -56,29 +63,23 @@ def _sign_payload(secret: bytes, payload_str: str) -> str:
 
 import re
 
-ACTIVE_TICKET_FILE = "/tmp/.active_judge_ticket.json"
-
 
 def _matches_scope(ticket_action: str, requested_scope: str) -> bool:
     """Check if ticket action authorized the requested execution scope."""
-    t_lower = ticket_action.lower()
+    t_words = set(re.findall(r"\w+", ticket_action.lower()))
     s_lower = requested_scope.lower().strip()
-    if s_lower in t_lower or t_lower in s_lower:
-        return True
-
     tokens_map = {
-        "social_push": {"social", "push", "post", "publish", "linkedin", "instagram", "orchestrat"},
-        "linkedin_publish": {"linkedin", "publish", "post", "social"},
-        "git_commit": {"git", "commit", "checkpoint"},
-        "deploy": {"deploy", "release", "ship", "production"},
+        "social_push": ({"social"}, {"push", "post", "publish"}, {"linkedin", "instagram"}),
+        "linkedin_publish": ({"linkedin"}, {"publish", "post"}),
+        "git_commit": ({"git"}, {"commit"}),
+        "deploy": ({"deploy"}, {"release", "ship"}, {"production", "prod"}),
+        "npm_publish": ({"npm"}, {"publish"}),
+        "package_install": ({"install"}, {"package", "dependency", "pip", "apt"}),
+        "remote_script": ({"curl", "wget", "download"}, {"script", "shell", "bash", "sh"}),
     }
     if s_lower in tokens_map:
-        expected_tokens = tokens_map[s_lower]
-        t_words = set(re.findall(r'\w+', t_lower))
-        if len(expected_tokens.intersection(t_words)) >= 1:
-            return True
-
-    return False
+        return all(group & t_words for group in tokens_map[s_lower])
+    return bool(s_lower) and " ".join(ticket_action.lower().split()) == " ".join(s_lower.split())
 
 
 class TicketVault:
@@ -87,10 +88,26 @@ class TicketVault:
     JudgeGuard execution tickets.
     """
 
-    def __init__(self, tickets_dir: str = TICKETS_DIR):
+    def __init__(self, tickets_dir: str = TICKETS_DIR, secret_key_path: str = SECRET_KEY_PATH):
         self.tickets_dir = os.path.expanduser(tickets_dir)
-        os.makedirs(self.tickets_dir, exist_ok=True)
-        self.secret = _get_or_create_master_secret()
+        os.makedirs(self.tickets_dir, mode=0o700, exist_ok=True)
+        os.chmod(self.tickets_dir, 0o700)
+        self.active_ticket_file = os.path.join(self.tickets_dir, ".active_ticket.json")
+        self.lock_file = os.path.join(self.tickets_dir, ".vault.lock")
+        self.secret = _get_or_create_master_secret(os.path.expanduser(secret_key_path))
+
+    def _write_json_atomic(self, file_path: str, data: Dict[str, Any]) -> None:
+        fd, temp_path = tempfile.mkstemp(prefix=".ticket-", dir=self.tickets_dir)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as output:
+                os.chmod(temp_path, 0o600)
+                json.dump(data, output, indent=2)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temp_path, file_path)
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
 
     def issue_ticket(self, action: str, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> Dict[str, Any]:
         """
@@ -117,18 +134,25 @@ class TicketVault:
         ticket_data["signature"] = _sign_payload(self.secret, sign_base)
 
         file_path = os.path.join(self.tickets_dir, f"{ticket_id}.json")
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(ticket_data, f, indent=2)
+        self._write_json_atomic(file_path, ticket_data)
 
         try:
-            with open(ACTIVE_TICKET_FILE, "w", encoding="utf-8") as f:
-                json.dump(ticket_data, f, indent=2)
+            self._write_json_atomic(self.active_ticket_file, ticket_data)
         except Exception:
             pass
 
         return ticket_data
 
     def verify_and_consume(self, action_scope: str, ticket_id: Optional[str] = None) -> bool:
+        """Serialize verification and consumption so tickets cannot be replayed concurrently."""
+        with open(self.lock_file, "a", encoding="utf-8") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            try:
+                return self._verify_and_consume_unlocked(action_scope, ticket_id)
+            finally:
+                fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+    def _verify_and_consume_unlocked(self, action_scope: str, ticket_id: Optional[str] = None) -> bool:
         """
         Verify that a valid, active ticket exists covering the requested action scope,
         and immediately consume it (mark as CONSUMED) to prevent replay.
@@ -140,7 +164,10 @@ class TicketVault:
         candidates = []
 
         if ticket_id:
-            ticket_file = os.path.join(self.tickets_dir, f"{ticket_id}.json")
+            try:
+                ticket_file = os.path.join(self.tickets_dir, f"{uuid.UUID(ticket_id)}.json")
+            except (ValueError, AttributeError):
+                return False
             if os.path.exists(ticket_file):
                 candidates.append(ticket_file)
         else:
@@ -152,8 +179,8 @@ class TicketVault:
                     candidates.append(ticket_file)
 
             # Check active ticket file in /tmp
-            if os.path.exists(ACTIVE_TICKET_FILE):
-                candidates.append(ACTIVE_TICKET_FILE)
+            if os.path.exists(self.active_ticket_file):
+                candidates.append(self.active_ticket_file)
 
             # Also check all recent ticket files
             try:
@@ -201,6 +228,14 @@ class TicketVault:
                         pass
                     continue
 
+                # The visible action must be covered by the signed hash; otherwise
+                # editing the JSON action could widen an otherwise valid ticket.
+                expected_action_hash = hashlib.sha256(
+                    data.get("action", "").strip().encode("utf-8")
+                ).hexdigest()
+                if not hmac.compare_digest(data.get("action_hash", ""), expected_action_hash):
+                    continue
+
                 # 4. Scope matching
                 ticket_action = data.get("action", "")
                 if not _matches_scope(ticket_action, action_scope):
@@ -210,17 +245,15 @@ class TicketVault:
                 data["status"] = "CONSUMED"
                 data["consumed_at"] = now
                 try:
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        json.dump(data, f, indent=2)
-                    # Also mark canonical ticket file if candidate was ACTIVE_TICKET_FILE
+                    self._write_json_atomic(file_path, data)
+                    # Also mark canonical ticket file if candidate was the active pointer
                     canonical = os.path.join(self.tickets_dir, f"{data['ticket_id']}.json")
                     if os.path.exists(canonical) and canonical != file_path:
-                        with open(canonical, "w", encoding="utf-8") as f:
-                            json.dump(data, f, indent=2)
-                    if file_path == ACTIVE_TICKET_FILE or os.path.exists(ACTIVE_TICKET_FILE):
-                        os.remove(ACTIVE_TICKET_FILE)
-                except Exception:
-                    pass
+                        self._write_json_atomic(canonical, data)
+                    if file_path == self.active_ticket_file or os.path.exists(self.active_ticket_file):
+                        os.remove(self.active_ticket_file)
+                except OSError:
+                    return False
 
                 return True
 
@@ -241,13 +274,17 @@ def get_ticket_vault() -> TicketVault:
     return _default_vault
 
 
-def require_ticket(action_scope: str, ticket_id: Optional[str] = None) -> bool:
+def require_ticket(
+    action_scope: str,
+    ticket_id: Optional[str] = None,
+    vault: Optional[TicketVault] = None,
+) -> bool:
     """
     Gatekeeper check: Call this at the start of any critical script or API call.
     Raises SecurityGateError if no valid ticket is found and consumed.
     """
-    vault = get_ticket_vault()
-    approved = vault.verify_and_consume(action_scope, ticket_id)
+    selected_vault = vault or get_ticket_vault()
+    approved = selected_vault.verify_and_consume(action_scope, ticket_id)
     if not approved:
         raise PermissionError(
             f"🛑 JudgeGuard Security Gate: No valid, active execution ticket found for action '{action_scope}'. "

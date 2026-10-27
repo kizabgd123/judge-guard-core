@@ -11,6 +11,7 @@ import os
 import sys
 import subprocess
 import logging
+import shlex
 from datetime import datetime
 from src.antigravity_core.env_utils import safe_load_dotenv
 
@@ -28,6 +29,9 @@ def log_step(step: int, status: str, details: str = ""):
         f.write(f"- **Step {step}:** {status} - {details}\n")
     logger.info(f"Step {step}: {status} - {details}")
 
+STEP_TIMEOUT_SECONDS = 900
+
+
 def run_step(step: int, name: str, command: str) -> bool:
     """
     Execute a real shell command without simulation bypasses.
@@ -41,7 +45,10 @@ def run_step(step: int, name: str, command: str) -> bool:
             with open("WORK_LOG.md", "a", encoding="utf-8") as wf:
                 wf.write(f"\n🟡 Starting Pre-Deployment Verification at {datetime.now().isoformat()}\n")
 
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            shlex.split(command), capture_output=True, text=True,
+            timeout=STEP_TIMEOUT_SECONDS,
+        )
 
         if result.returncode == 0:
             preview = result.stdout.strip().replace("\n", " ")[:60]
@@ -55,6 +62,9 @@ def run_step(step: int, name: str, command: str) -> bool:
             log_step(step, "🛑 FAILED", f"{name} failed: {err_msg}")
             return False
 
+    except subprocess.TimeoutExpired:
+        log_step(step, "🛑 TIMEOUT", f"{name} exceeded {STEP_TIMEOUT_SECONDS}s")
+        return False
     except Exception as e:
         log_step(step, "🛑 ERROR", f"System error during {name}: {str(e)}")
         return False
@@ -92,10 +102,12 @@ def main():
 
     # Real, authentic deployment verification steps (Zero-Mock)
     steps = [
-        (1, "Runtime Environment Check", "python3 --version && node -v && npm -v"),
-        (2, "Test Suite Verification", ".venv/bin/pytest -q tests/"),
-        (3, "Frontend Production Build", "npm --prefix src/mobile_app_pwa run build"),
-        (4, "JudgeGuard Pre-Deployment Gate", "python3 judge_guard.py 'Pre-Deployment Verification'"),
+        (1, "Python Runtime Check", f"{shlex.quote(sys.executable)} --version"),
+        (2, "Node Runtime Check", "node --version"),
+        (3, "npm Runtime Check", "npm --version"),
+        (4, "Test Suite Verification", f"{shlex.quote(sys.executable)} -m pytest -q tests/"),
+        (5, "Frontend Production Build", "npm --prefix src/mobile_app_pwa run build"),
+        (6, "JudgeGuard Pre-Deployment Gate", f"{shlex.quote(sys.executable)} judge_guard.py 'Pre-Deployment Verification'"),
     ]
 
     for step, name, cmd in steps:

@@ -7,7 +7,9 @@ NEMA MOCK-OVA — čita stvarni fajl sa diska i parsira stvarni YAML.
 """
 
 import os
+import re
 import pytest
+import tempfile
 
 RULES_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -41,14 +43,43 @@ def parse_frontmatter(filepath: str) -> dict:
     with open(filepath, encoding="utf-8") as f:
         content = f.read()
 
-    if not content.startswith("---"):
+    match = re.match(
+        r"\ufeff?---[ \t]*\r?\n(.*?)^---[ \t]*\r?$",
+        content,
+        re.DOTALL | re.MULTILINE,
+    )
+    if match is None:
         raise ValueError(f"Frontmatter nije pronađen u {filepath}")
+    try:
+        data = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Neispravan YAML u {filepath}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"Frontmatter nije mapa u {filepath}")
+    return data
 
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        raise ValueError(f"Neispravan frontmatter format u {filepath}")
 
-    return yaml.safe_load(parts[1])
+def test_parse_frontmatter_accepts_bom_and_crlf():
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="", suffix=".md") as f:
+        f.write("\ufeff---\r\ntrigger: always_on\r\n---\r\nBody\r\n")
+        f.flush()
+        assert parse_frontmatter(f.name) == {"trigger": "always_on"}
+
+
+def test_parse_frontmatter_rejects_yaml_non_mapping():
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".md") as f:
+        f.write("---\n- item\n---\n")
+        f.flush()
+        with pytest.raises(ValueError, match="nije mapa"):
+            parse_frontmatter(f.name)
+
+
+def test_parse_frontmatter_wraps_yaml_errors():
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".md") as f:
+        f.write("---\ntrigger: [unterminated\n---\n")
+        f.flush()
+        with pytest.raises(ValueError, match="Neispravan YAML"):
+            parse_frontmatter(f.name)
 
 
 class TestRulesFileExists:
@@ -150,11 +181,27 @@ class TestHooksFileValid:
             data = json.load(f)
 
         matchers = []
+        commands = []
         for guard in data.values():
             if isinstance(guard, dict) and "PreToolUse" in guard:
                 for entry in guard["PreToolUse"]:
                     matchers.append(entry.get("matcher", ""))
+                    commands.extend(hook.get("command", "") for hook in entry.get("hooks", []))
 
         assert "run_command" in matchers, (
             f"Nema 'run_command' matcher-a u PreToolUse. Dostupni: {matchers}"
         )
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for command in commands:
+            script = command.split()
+            assert len(script) >= 2 and script[0] == "python3", command
+            script_path = os.path.realpath(os.path.join(root, script[1]))
+            assert os.path.commonpath([os.path.join(root, "scripts"), script_path]) == os.path.join(root, "scripts")
+            assert os.path.isfile(script_path), f"Hook script missing: {script_path}"
+        run_commands = [
+            hook.get("command", "")
+            for guard in data.values() if isinstance(guard, dict)
+            for entry in guard.get("PreToolUse", []) if entry.get("matcher") == "run_command"
+            for hook in entry.get("hooks", [])
+        ]
+        assert any(command.endswith("scripts/verify_command_safety.py") for command in run_commands)

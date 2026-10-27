@@ -39,3 +39,4 @@ research.db
 !.cm/CONTINUITY.md
 !.cm/context-bus.json
 exports/
+.vite/
