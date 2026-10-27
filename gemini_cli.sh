@@ -18,9 +18,10 @@ RESULT=$?
 
 if [ $RESULT -eq 0 ]; then
     echo "✅ Action Approved by Gemini (JudgeGuard)"
+    echo -e "✅ Completed $ACTION" >> WORK_LOG.md
+    exit 0
 else
     echo "🛑 Action Rejected by Gemini (JudgeGuard)"
-    # Cleanup failed start entry if needed or mark as failed
     echo -e "🛑 Failed $ACTION" >> WORK_LOG.md
     exit 1
 fi

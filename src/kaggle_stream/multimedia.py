@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class MultimediaManager:
     """
     Handles Text-to-Audio (TTS) and Image Generation via Hugging Face Inference API.
-    Includes a MOCK MODE for demonstrations without API keys.
+    Zero-Mock policy: handles missing credentials safely without synthetic generation.
     """
     def __init__(self, hf_token: Optional[str] = None):
         self.hf_token = hf_token or os.getenv("HF_TOKEN")
@@ -40,7 +40,7 @@ class MultimediaManager:
                 logger.error(f"Failed to write cached audio: {e}")
 
         if not self.hf_token or self.hf_token == "dummy":
-            logger.info("MOCK: Skipping real Audio generation (HF_TOKEN missing).")
+            logger.info("MultimediaManager: Skipping Audio generation (HF_TOKEN missing or unconfigured).")
             return None
 
         API_URL = f"{self.api_base}/{self.tts_model}"
@@ -69,8 +69,7 @@ class MultimediaManager:
                 logger.error(f"Failed to write cached image: {e}")
 
         if not self.hf_token or self.hf_token == "dummy":
-            logger.info("MOCK: Skipping real Image generation (HF_TOKEN missing).")
-            # We could return a local placeholder if we had one, but None is safer
+            logger.info("MultimediaManager: Skipping Image generation (HF_TOKEN missing or unconfigured).")
             return None
 
         prompt = f"A high-quality 3D glossy icon of a {mood}, cute character, white background."

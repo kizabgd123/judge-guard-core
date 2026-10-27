@@ -17,7 +17,7 @@ This guide represents the culmination of research into agent control, focusing o
 
 ## 🏛️ The Verification Architecture (JudgeGuard v2.1)
 
-JudgeGuard v2.1 uses a 3-Layer Verification Model to ensure agents never deviate from the `PROJECT_ESSENCE`.
+JudgeGuard v2.1 uses a 3-Layer Verification Model + 3 Phase 1.1 upgrades.
 
 ### Layer 1: Tool & Context Enforcement
 
@@ -29,11 +29,14 @@ JudgeGuard v2.1 uses a 3-Layer Verification Model to ensure agents never deviate
 - **Purpose:** Observability. Every verdict is streamed to the Mobile Bridge before execution.
 - **Implementation:** `bridge.push_verdict()` sends a signal before every PASSED/FAILED decision.
 
-### Layer 3: Semantic Drift Scoring 🚀
+### Layer 3: Semantic Drift Scoring ✅ IMPLEMENTED
 
 - **Purpose:** Measuring the semantic deviation of every action against the "Golden Snapshot".
-- **Metric:** `drift_score` (0.0 - 1.0). Limit: **0.4**.
-- **Self-Healing:** If an action fails the drift test, the Judge sends feedback, and the Actor-Judge loop allows for automatic correction.
+- **Metric:** `drift_score` (0.0 - 1.0). Hard limit: **0.40** (Gemini), **0.75** (offline heuristic).
+- **Self-Healing:** ✅ `retry_with_guidance()` — if an action fails, the Judge returns structured feedback
+  enabling the Actor to revise and resubmit (max 2 retries, zero mock).
+- **Ground Truth Manifest:** ✅ `_get_ground_truth_manifest()` — re-injects PROJECT_ESSENCE +
+  CONTINUITY.md Active Goal into every Layer 3 prompt, preventing context rot across long sessions.
 
 ---
 

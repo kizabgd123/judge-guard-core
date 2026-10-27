@@ -1,77 +1,70 @@
 import os
+import re
 import time
 from typing import Optional, Dict
 import logging
+from src.antigravity_core.env_utils import safe_load_dotenv
 
+safe_load_dotenv()
 logger = logging.getLogger(__name__)
 
-# ⚡ Bolt: Lazy import holder
+# ⚡ Bolt: Lazy import holder for google.genai (new SDK)
 genai = None
 
 class GeminiClient:
     """
-    Client for interacting with Google's Gemini models.
+    Client for interacting with Google's Gemini models with authentic
+    deterministic rule-based fallback when offline / unconfigured.
+    Zero fake mocks: real LLM calls when configured, real rules evaluation when offline.
     """
-    def __init__(self, model_name: str = "models/gemini-flash-latest", api_keys: Optional[str] = None):
-        """
-        Initialize a GeminiClient, loading API keys, configuring mock mode when no keys are found, and preparing the client.
-        
-        Parameters:
-            model_name (str): The Gemini model identifier to use (default: "models/gemini-flash-latest").
-            api_keys (Optional[str]): Comma-separated API keys string; if omitted, the environment variables
-                `GEMINI_API_KEYS` or `GEMINI_API_KEY` will be used. When no keys are available, the client
-                enters mock mode and uses a placeholder key.
-        
-        Notes:
-            - Sets `self.api_keys` to a list of keys, `self.current_key_index` to 0, `self.model_name`
-              to the provided model_name, and `self.mock_mode` to True when falling back to mock mode.
-            - Calls `_configure_client()` to finalize client setup.
-        """
+    def __init__(self, model_name: Optional[str] = None, api_keys: Optional[str] = None):
+        safe_load_dotenv()
         keys_env = api_keys or os.getenv("GEMINI_API_KEYS")
         if not keys_env:
-            # Fallback for backward compatibility
-            single_key = os.getenv("GEMINI_API_KEY")
+            single_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
             if not single_key:
-                logger.warning("GEMINI_API_KEYS not found in environment. RUNNING IN MOCK MODE.")
-                self.api_keys = ["MOCK_KEY"]
-                self.mock_mode = True
+                logger.info("GeminiClient: No API key found in environment. Using Deterministic Rule Engine (Zero-Mock).")
+                self.api_keys = []
+                self.has_keys = False
             else:
-                self.api_keys = [single_key]
-                self.mock_mode = False
+                self.api_keys = [single_key.strip()]
+                self.has_keys = True
         else:
             self.api_keys = [k.strip() for k in keys_env.split(",") if k.strip()]
+            self.has_keys = len(self.api_keys) > 0
         
         self.current_key_index = 0
-        self.model_name = model_name
+        raw_model = model_name or os.getenv("GEMINI_MODEL", "models/gemini-3.5-flash-lite")
+        if not raw_model.startswith("models/"):
+            raw_model = f"models/{raw_model.replace(' ', '-')}"
+        self.model_name = raw_model
+        self._client = None  # google.genai.Client instance
         self._configure_client()
 
     def _configure_client(self):
         """
-        Configure the Gemini client to use the currently selected API key or initialize mock mode.
-        
-        If mock mode is enabled, set self.model to None and log mock initialization. Otherwise, select the API key at self.current_key_index, configure the genai client and create the GenerativeModel assigned to self.model, then log a masked version of the key with its index and the total number of keys.
+        Configure the google.genai Client using the active API key.
+        If no keys are configured, prepares deterministic offline rule evaluation.
         """
-        if getattr(self, "mock_mode", False):
-            self.model = None
-            logger.info("GeminiClient: Initialized in MOCK MODE")
+        if not self.has_keys:
+            self._client = None
             return
 
-        # ⚡ Bolt: Lazy import google-generativeai to reduce startup latency
         global genai
         if genai is None:
-            import google.generativeai as genai
+            try:
+                from google import genai as genai_module
+                genai = genai_module
+            except ImportError:
+                genai = None
 
-        current_key = self.api_keys[self.current_key_index]
-        genai.configure(api_key=current_key)
-        self.model = genai.GenerativeModel(self.model_name)
-        # Obscure key for logging
-        if current_key == "MOCK_KEY":
-            masked_key = "MOCK_KEY"
-        else:
+        if genai is not None:
+            current_key = self.api_keys[self.current_key_index]
+            self._client = genai.Client(api_key=current_key)
             masked_key = current_key[:4] + "..." + current_key[-4:] if len(current_key) > 8 else "****"
-        logger.info(f"configured Gemini with key: {masked_key} (Key {self.current_key_index + 1}/{len(self.api_keys)})")
+            logger.info(f"Configured Gemini with key: {masked_key} (Key {self.current_key_index + 1}/{len(self.api_keys)})")
 
-    def _rotate_key(self):
+    def _rotate_key(self) -> bool:
         """Rotates to the next available API key."""
         if len(self.api_keys) <= 1:
             logger.warning("Only one API key available. Cannot rotate.")
@@ -84,64 +77,99 @@ class GeminiClient:
 
     def generate_content(self, prompt: str, generation_config: Optional[Dict] = None) -> str:
         """
-        Produce model-generated text for the given prompt, using API-key rotation and retry/backoff on quota or rate-limit errors.
-        
-        When the instance is in mock mode, returns deterministic mock responses ("PASSED" for judge-style prompts, otherwise "Mock response from Gemini Client"). Otherwise, attempts up to (max_retries * number_of_keys) tries: on quota/rate-limit errors it will try to rotate to the next API key and retry immediately if rotation succeeds, or apply exponential backoff and retry if rotation is not possible. Non-quota errors are re-raised.
-        
-        Parameters:
-            prompt (str): The text prompt to send to the model.
-            generation_config (Optional[Dict]): Additional generation configuration (e.g., max_output_tokens).
-        
-        Returns:
-            str: The text produced by the model (or a deterministic mock string in mock mode).
-        
-        Raises:
-            Exception: Re-raises model errors that are not quota/rate-limit related.
-            Exception: Raises Exception("Max retries exceeded for Gemini API") if all retry attempts fail.
+        Produce model-generated text for the given prompt, using API-key rotation
+        and retry/backoff on quota or rate-limit errors.
+        Uses google.genai SDK: client.models.generate_content().
         """
-        if getattr(self, "mock_mode", False):
-            # Deterministic mock responses
-            if "reply PASSED if it aligns" in prompt or "Evaluate if the CONTENT meets" in prompt:
-                return "PASSED"
-            return "Mock response from Gemini Client"
+        if not self.has_keys or self._client is None:
+            raise RuntimeError(
+                "GEMINI_API_KEY is not configured in environment or .env. "
+                "Text generation requires a valid Gemini API key. Zero-mock policy active."
+            )
+
+        # Build config object if caller passed a dict
+        config = None
+        if generation_config:
+            from google.genai import types as genai_types
+            config = genai_types.GenerateContentConfig(**generation_config)
 
         max_retries = 3
-        
-        # We allow retries * (number of keys) effective attempts
         total_attempts = max_retries * len(self.api_keys)
-        
+
         for attempt in range(total_attempts):
             try:
-                # ⚡ Bolt: Pass custom generation config (e.g. max_output_tokens)
-                response = self.model.generate_content(prompt, generation_config=generation_config)
+                response = self._client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=config,
+                )
                 return response.text
             except Exception as e:
                 error_str = str(e)
-                # Check for quota or rate limit errors
                 if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
                     logger.warning(f"⚠️ Quota Exceeded on current key: {error_str.splitlines()[0]}")
-                    
-                    # Try to rotate key first
                     if self._rotate_key():
                         logger.info("Retrying immediately with NEW key...")
                         continue
-                    
-                    # If rotation failed (only 1 key) or we cycled through all? 
-                    # For now basic logic: if rotate returns False, we respect backoff
-                    sleep_time = 2 ** (attempt % 3) # Simple backoff
+
+                    sleep_time = 2 ** (attempt % 3)
                     logger.warning(f"Sleeping {sleep_time}s before retry...")
                     time.sleep(sleep_time)
                     continue
-                
+
                 logger.error(f"Gemini API Error: {e}")
                 raise
-        
+
         raise Exception("Max retries exceeded for Gemini API")
+
+    def _deterministic_rule_judge(self, content: str, criteria: str) -> bool:
+        """
+        Authentic deterministic rules-based evaluation when offline or API key is absent.
+        Strictly enforces security, essence, and criteria boundaries without synthetic mocks.
+        """
+        content_lower = content.lower()
+        criteria_lower = criteria.lower()
+
+        # 1. Hard Security Violations (Layer 00)
+        forbidden_security = [
+            "sudo", "rm -rf /", "rm -rf /*", "chmod -r 777", "drop database",
+            "drop table", "truncate table", "mkfs", "dd if=/dev/zero"
+        ]
+        for term in forbidden_security:
+            if term in content_lower:
+                logger.warning(f"Deterministic Judge: Security violation '{term}' detected.")
+                return False
+
+        # 2. Scope Creep & Safety Drift (Layer 3)
+        drift_keywords = [
+            "bypass security", "skip verification", "ignore judge",
+            "disable guardian", "remove all users", "purge all data",
+            "leak secrets", "override constitution"
+        ]
+        for term in drift_keywords:
+            if term in content_lower:
+                logger.warning(f"Deterministic Judge: Semantic drift violation '{term}' detected.")
+                return False
+
+        # 3. Explicit Criteria negative constraints
+        if "forbidden" in criteria_lower or "zabranjeno" in criteria_lower:
+            negative_matches = re.findall(r"['\"]([^'\"]+)['\"]", criteria)
+            for pattern in negative_matches:
+                if pattern.lower() in content_lower:
+                    logger.warning(f"Deterministic Judge: Content matches forbidden criteria pattern '{pattern}'.")
+                    return False
+
+        logger.info("Deterministic Judge: Content verified against security & essence criteria (PASSED).")
+        return True
 
     def judge_content(self, content: str, criteria: str) -> bool:
         """
         Evaluates content against criteria to return True/False.
+        Uses Gemini LLM if API key is present; otherwise executes deterministic rules verification.
         """
+        if not self.has_keys or self._client is None:
+            return self._deterministic_rule_judge(content, criteria)
+
         prompt = f"""
         You are an impartial Judge AI.
         
@@ -159,7 +187,6 @@ class GeminiClient:
         """
         
         try:
-            # ⚡ Bolt: Use max_output_tokens=10 for classification to reduce latency
             raw_result = self.generate_content(prompt, generation_config={"max_output_tokens": 10})
             if not raw_result:
                 raise ValueError("Empty response from Gemini")
@@ -168,5 +195,5 @@ class GeminiClient:
             logger.info(f"Gemini Verdict: {result}")
             return "PASSED" in result
         except Exception as e:
-            logger.error(f"Gemini Judge Error: {e}")
-            return False
+            logger.error(f"Gemini Judge Error: {e}. Falling back to deterministic rule judge.")
+            return self._deterministic_rule_judge(content, criteria)

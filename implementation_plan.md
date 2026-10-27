@@ -13,7 +13,7 @@ To transition the "Agent Taming" research from active investigation to a consoli
 
 ### Project Root
 
-#### [NEW] [README.md](file:///home/kizabgd/Desktop/33333333333333333333/README.md)
+#### [NEW] [README.md](file:///home/kizajosmladjibacije/judge/judge-guard-core/README.md)
 
 - **Purpose:** Central entry point for the workspace.
 - **Content:**
@@ -21,7 +21,7 @@ To transition the "Agent Taming" research from active investigation to a consoli
   - Quick Start (How to run `judge_guard`, `research_pipeline`).
   - Links to `AGENT_TAMING_GUIDE` and `WORK_LOG`.
 
-#### [NEW] [RESEARCH_SUMMARY.md](file:///home/kizabgd/Desktop/33333333333333333333/RESEARCH_SUMMARY.md)
+#### [NEW] [RESEARCH_SUMMARY.md](file:///home/kizajosmladjibacije/judge/judge-guard-core/RESEARCH_SUMMARY.md)
 
 - **Purpose:** Executive summary of Phases 0-3.
 - **Content:**
@@ -31,7 +31,7 @@ To transition the "Agent Taming" research from active investigation to a consoli
 
 ### Documentation
 
-#### [MODIFY] [AGENT_TAMING_GUIDE.md](file:///home/kizabgd/Desktop/33333333333333333333/AGENT_TAMING_GUIDE.md)
+#### [MODIFY] [AGENT_TAMING_GUIDE.md](file:///home/kizajosmladjibacije/judge/judge-guard-core/AGENT_TAMING_GUIDE.md)
 
 - **Changes:**
   - Minor semantic polish.

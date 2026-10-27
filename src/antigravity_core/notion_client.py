@@ -1,10 +1,10 @@
 import os
 import logging
 from typing import Dict, List, Any, Optional
-from dotenv import load_dotenv
+from src.antigravity_core.env_utils import safe_load_dotenv
 
 # Load environment variables
-load_dotenv()
+safe_load_dotenv()
 
 logger = logging.getLogger(__name__)
 

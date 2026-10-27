@@ -68,10 +68,10 @@ cd judge-guard-core
 pip install -r requirements.txt
 ```
 
-### 2. Configure (Optional for Mock Mode)
+### 2. Configure Environment
 ```bash
 cp .env.example .env
-# Edit .env with your Auth0 credentials (or leave MOCK_AUTH0=true for demo)
+# Edit .env with your GEMINI_API_KEY and credentials
 ```
 
 ### 3. Run the Demo

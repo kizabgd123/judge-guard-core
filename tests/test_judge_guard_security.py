@@ -62,8 +62,13 @@ class TestJudgeGuardSecurity(unittest.TestCase):
         mock_bridge_obj.push_verdict.assert_called()
 
     def test_safe_command(self):
-        # For safe commands, we need to mock deeper layers
-        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate', return_value=True),              patch.object(self.judge.gemini, 'judge_content', return_value=True):
+        # Update work log to match the safe command
+        with open(self.work_log_path, "w") as f:
+            f.write("🟡 Starting ls -la\n")
+
+        # verify_action calls evaluate_with_score (not evaluate), so mock that
+        with patch('src.antigravity_core.judge_flow.BlockJudge.evaluate_with_score',
+                   return_value={"passed": True, "drift_score": 0.05, "reason": "Approved"}):
 
             action = "ls -la"
             result = self.judge.verify_action(action)

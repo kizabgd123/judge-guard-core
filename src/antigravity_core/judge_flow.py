@@ -7,6 +7,10 @@ logger = logging.getLogger(__name__)
 
 from src.antigravity_core.gemini_client import GeminiClient
 
+# Drift threshold from AGENT_TAMING_GUIDE.md and Phase 2 decision matrix
+DRIFT_THRESHOLD = 0.40
+
+
 class BlockJudge:
     """
     Evaluates content using Real Gemini AI.
@@ -22,6 +26,56 @@ class BlockJudge:
         """
         logger.info(f"Judging context against criteria: {self.criteria}")
         return self.client.judge_content(content, self.criteria)
+
+    def evaluate_with_score(self, content: str) -> Dict[str, Any]:
+        """
+        Structured verdict combining pass/fail, numeric drift score, and reason.
+
+        Extends evaluate() with an explicit drift_score (0.0–1.0) produced by
+        DriftScorer. If drift_score > DRIFT_THRESHOLD (0.40), the verdict is
+        forced to failed regardless of the LLM verdict.
+
+        Args:
+            content: The action/content string to evaluate.
+
+        Returns:
+            dict with keys:
+              - passed (bool): True if action is approved.
+              - drift_score (float): 0.0 (aligned) → 1.0 (total drift).
+              - reason (str): Human-readable explanation.
+        """
+        # --- Drift Score ---
+        drift_score = 0.0
+        try:
+            from src.antigravity_core.drift_scorer import DriftScorer
+            from judge_guard import PROJECT_ESSENCE
+            scorer = DriftScorer(client=self.client)
+            drift_score = scorer.score(action=content, essence=PROJECT_ESSENCE)
+        except Exception as e:
+            logger.warning(f"BlockJudge: DriftScorer unavailable ({e}), defaulting drift_score=0.0")
+
+        # --- Hard drift rejection ---
+        if drift_score > DRIFT_THRESHOLD:
+            reason = (
+                f"Action exceeds drift threshold ({drift_score:.2f} > {DRIFT_THRESHOLD}). "
+                "Semantic content diverges too far from project essence."
+            )
+            logger.warning(f"BlockJudge: Drift rejection — {reason}")
+            return {"passed": False, "drift_score": drift_score, "reason": reason}
+
+        # --- Standard LLM/deterministic verdict ---
+        try:
+            passed = self.client.judge_content(content, self.criteria)
+        except Exception as e:
+            logger.error(f"BlockJudge: judge_content failed ({e}), defaulting to False")
+            passed = False
+
+        if passed:
+            reason = f"Action approved. Drift score: {drift_score:.2f} (within threshold)."
+        else:
+            reason = "Action failed criteria check (Immutable Laws or Project Essence)."
+
+        return {"passed": passed, "drift_score": drift_score, "reason": reason}
 
     def generate_report(self, content: str) -> str:
         """

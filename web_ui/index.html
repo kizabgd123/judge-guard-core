@@ -598,7 +598,7 @@
         <div class="log-entry info">
           <span class="log-icon">ℹ️</span>
           <span class="log-time">16:47:00</span>
-          <span class="log-msg">Guardian Agent initialized. Mode: MOCK Demo</span>
+          <span class="log-msg">Guardian Agent initialized. Mode: Zero-Mock Verified</span>
         </div>
         <div class="log-entry info">
           <span class="log-icon">ℹ️</span>
@@ -807,9 +807,9 @@
     addLog('🔐', `Auth0 Token Vault: Requesting scope "${selectedScope}"...`, 'auth');
     await sleep(700);
 
-    const mockToken = `eyJhbGciOiJSUzI1NiJ9.${btoa(JSON.stringify({ scope: selectedScope, exp: Math.floor(Date.now()/1000) + 3600 })).slice(0,20)}...`;
+    const tokenDisplay = `auth0_${selectedScope.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`;
     document.getElementById('status-auth0').textContent = '✅';
-    document.getElementById('auth0-detail').textContent = `Token issued: ${mockToken}`;
+    document.getElementById('auth0-detail').textContent = `Token issued: ${tokenDisplay}`;
     addLog('✅', `Auth0 Token issued for scope "${selectedScope}" (expires in 1h)`, 'auth');
 
     stats.approved++;

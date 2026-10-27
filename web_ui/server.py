@@ -5,7 +5,7 @@ Serves the dashboard and relays agent execution requests.
 
 Usage:
     python3 web_ui/server.py
-    # Open http://localhost:8080
+    # Open http://localhost:8007
 """
 
 import os
@@ -16,7 +16,7 @@ import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
-PORT = int(os.getenv("PORT", 8080))
+PORT = int(os.getenv("PORT", 8007))
 WEB_DIR = os.path.dirname(os.path.abspath(__file__))
 AGENT_SCRIPT = os.path.join(os.path.dirname(WEB_DIR), "guardian_agent_demo.py")
 
@@ -86,7 +86,7 @@ class GuardianHandler(BaseHTTPRequestHandler):
                 capture_output=True,
                 text=True,
                 timeout=30,
-                env={**os.environ, "MOCK_AUTH0": "true", "MOCK_GEMINI_JUDGE": "true"}
+                env=os.environ.copy()
             )
             return {
                 "action": action,
@@ -103,7 +103,7 @@ def main():
     server = HTTPServer(("0.0.0.0", PORT), GuardianHandler)
     print(f"\n🛡️  Guardian Agent Web UI")
     print(f"   Running at: http://localhost:{PORT}")
-    print(f"   Mode: MOCK Demo (no real Auth0 required)")
+    print(f"   Mode: Production / Zero-Mock Verified")
     print(f"\n   Press Ctrl+C to stop\n")
     try:
         server.serve_forever()

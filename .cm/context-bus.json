@@ -1,0 +1,12 @@
+{
+  "version": "5.0",
+  "project": "judge-guard-core",
+  "initialized": "2026-09-09T06:19:00+02:00",
+  "activeChain": "master-orchestration-alignment",
+  "steps": [
+    "cm-start",
+    "cm-planning"
+  ],
+  "lastSkill": "cm-quality-gate",
+  "phase": "completed"
+}

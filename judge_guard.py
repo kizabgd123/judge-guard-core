@@ -15,8 +15,12 @@ import os
 import sys
 import time
 import threading
-from typing import Optional
+import json
+import re
+from typing import Optional, Dict, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor
+
+REJECTIONS_LOG_PATH = os.path.expanduser("~/.gemini/.judge_rejections.json")
 
 # --- LAYER 3 CONSTANT ---
 PROJECT_ESSENCE = """
@@ -68,9 +72,9 @@ class JudgeGuard:
         if not self._setup_done:
             with self._lock:
                 if not self._setup_done:
-                    from dotenv import load_dotenv
+                    from src.antigravity_core.env_utils import safe_load_dotenv
                     import logging
-                    load_dotenv()
+                    safe_load_dotenv()
                     logging.basicConfig(level=logging.INFO)
                     self._logger = logging.getLogger(__name__)
                     self._setup_done = True
@@ -112,7 +116,12 @@ class JudgeGuard:
         if self._rules_path is None:
             with self._lock:
                 if self._rules_path is None:
-                    self._rules_path = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+                    primary = os.path.expanduser("~/.gemini/MASTER_ORCHESTRATION.md")
+                    if os.path.exists(primary):
+                        self._rules_path = primary
+                    else:
+                        local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "MASTER_ORCHESTRATION.md")
+                        self._rules_path = local_path if os.path.exists(local_path) else primary
         return self._rules_path
 
     @property
@@ -324,40 +333,312 @@ class JudgeGuard:
         except Exception as e:
             self.logger.error(f"⚠️ Notion background sync failed: {e}")
 
+    def _record_rejection(self, action: str, reason: str, drift_score: float = 0.0):
+        """Record rejected action in security history to detect adversarial evasion attempts."""
+        try:
+            os.makedirs(os.path.dirname(REJECTIONS_LOG_PATH), exist_ok=True)
+            rejections = []
+            if os.path.exists(REJECTIONS_LOG_PATH):
+                with open(REJECTIONS_LOG_PATH, "r", encoding="utf-8") as f:
+                    rejections = json.load(f)
+            rejections.append({
+                "action": action,
+                "timestamp": time.time(),
+                "reason": reason,
+                "drift_score": drift_score
+            })
+            rejections = rejections[-20:]
+            with open(REJECTIONS_LOG_PATH, "w", encoding="utf-8") as f:
+                json.dump(rejections, f, indent=2)
+        except Exception as e:
+            self.logger.warning(f"Failed to record rejection: {e}")
+
+    def _detect_constitutional_evasion(self, action: str) -> Tuple[bool, str]:
+        """
+        Detect if an action string is an evasive echo of constitutional boilerplate
+        or Golden Snapshot constants designed to circumvent semantic drift scoring.
+        """
+        action_clean = action.strip()
+        action_lower = action_clean.lower()
+
+        # 1. Exact or near-verbatim match of PROJECT_ESSENCE phrases
+        evasive_phrases = [
+            "autonomous self-improving ai agent system",
+            "golden snapshot",
+            "standard of truth",
+            "user control the user is the ultimate authority",
+            "safety no destructive actions without verification",
+            "clean plugin-based architecture for agents",
+            "clean, plugin-based architecture for agents",
+            "mobile-vibe-coding: enforce '.cursorrules'",
+        ]
+
+        norm_action = re.sub(r'[^\w\s]', ' ', action_lower)
+        for phrase in evasive_phrases:
+            norm_phrase = re.sub(r'[^\w\s]', ' ', phrase)
+            if norm_phrase in norm_action:
+                has_tech_spec = bool(re.search(r'(\.[\w]{1,4}\b|/|--|\bhttp\b|\bgit\b|\bpytest\b|\bnpm\b|\bpython\b|\btest_\b)', action_lower))
+                if not has_tech_spec:
+                    return True, f"Evasion Detected: Contains constitutional boilerplate ('{phrase}') without concrete operational specification."
+
+        # 2. Token overlap with PROJECT_ESSENCE
+        essence_words = set(re.findall(r'\b[a-z]{4,}\b', PROJECT_ESSENCE.lower()))
+        action_words = set(re.findall(r'\b[a-z]{4,}\b', action_lower))
+
+        if len(action_words) >= 6:
+            overlap = len(essence_words.intersection(action_words))
+            ratio = overlap / len(action_words)
+            has_tech_spec = bool(re.search(r'(\.[\w]{1,4}\b|/|--|\bhttp\b|\bgit\b|\bpytest\b|\bnpm\b|\bpython\b|\btest_\b)', action_lower))
+            if ratio >= 0.60 and not has_tech_spec:
+                return True, f"Evasion Detected: {ratio:.0%} word overlap with Golden Snapshot constants. Concrete operative action required."
+
+        return False, ""
+
+    def _check_adversarial_substitution(self, current_action: str) -> Tuple[bool, str]:
+        """
+        Detect if an agent was recently blocked on an action (within 180s)
+        and is now attempting to bypass the block by submitting a sanitized action.
+        """
+        if not os.path.exists(REJECTIONS_LOG_PATH):
+            return False, ""
+        try:
+            with open(REJECTIONS_LOG_PATH, "r", encoding="utf-8") as f:
+                rejections = json.load(f)
+            if not rejections:
+                return False, ""
+            last_rej = rejections[-1]
+            now = time.time()
+            age = now - last_rej.get("timestamp", 0)
+            if age < 180:
+                blocked_action = last_rej.get("action", "")
+                sensitive_words = ["deploy", "linkedin", "publish", "post", "social", "delete", "root", "database", "wipe"]
+                had_sensitive = any(w in blocked_action.lower() for w in sensitive_words)
+                curr_has_sensitive = any(w in current_action.lower() for w in sensitive_words)
+
+                if had_sensitive and not curr_has_sensitive:
+                    return True, (
+                        f"Adversarial Substitution Block: Action '{blocked_action[:40]}...' was blocked {age:.0f}s ago. "
+                        f"Submitting sanitized action '{current_action[:40]}...' without resolving the block is prohibited."
+                    )
+        except Exception:
+            pass
+        return False, ""
+
     def _check_work_log(self, action: str) -> bool:
-        """Check if WORK_LOG.md was recently updated (within last 120 seconds)."""
+        """
+        Check if WORK_LOG.md was recently updated (within last 120 seconds)
+        AND enforce strict parity between WORK_LOG.md intent and the action submitted.
+        """
         if not self.work_log_path or not os.path.exists(self.work_log_path):
             self.logger.error("🛑 WORK_LOG.md not found. Required for action verification.")
             print("🛑 WORK_LOG.md not found. Update required before action.")
             return False
-        
-        # Check last modification time
+
         mtime = os.path.getmtime(self.work_log_path)
         now = time.time()
         age_seconds = now - mtime
-        
-        # Read last few lines to check if action was logged
-        try:
-            # ⚡ Bolt: Use cached tail retrieval to eliminate duplicate reads
-            last_lines = self._get_work_log_tail(1000).lower()
 
-            # Check if this action or 'starting' is in recent log
-            # We allow up to 120 seconds for slower API calls or manual logging
-            if '🟡' in last_lines or 'starting' in last_lines:
-                if age_seconds < 120:
-                    return True
-                else:
-                    self.logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
-            else:
-                self.logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators in the last 1000 chars.")
+        if age_seconds >= 120:
+            self.logger.warning(f"WORK_LOG.md is stale ({age_seconds:.1f}s old). Action must be logged recently.")
+            print("🛑 WORK_LOG.md not updated recently. Required format:")
+            print('   echo "🟡 Starting [ACTION]" >> WORK_LOG.md')
+            return False
+
+        try:
+            tail = self._get_work_log_tail(2000)
+            lines = [l.strip() for l in tail.splitlines() if l.strip()]
+
+            latest_starting = None
+            for line in reversed(lines):
+                if '🟡' in line or 'starting' in line.lower():
+                    latest_starting = line
+                    break
+
+            if not latest_starting:
+                self.logger.warning("WORK_LOG.md does not contain '🟡' or 'Starting' indicators.")
+                print("🛑 WORK_LOG.md does not contain an active '🟡 Starting' entry.")
+                return False
+
+            clean_logged = re.sub(r'^[🟡\s*\-]*(?:starting:?\s*)', '', latest_starting, flags=re.IGNORECASE).strip()
+            clean_logged = re.sub(r'\s+at\s+\d{4}-\d{2}-\d{2}[T\s].*$', '', clean_logged, flags=re.IGNORECASE).strip()
+
+            norm_logged = re.sub(r'[^\w\s]', '', clean_logged.lower()).strip()
+            norm_action = re.sub(r'[^\w\s]', '', action.lower()).strip()
+
+            logged_words = set(norm_logged.split())
+            action_words = set(norm_action.split())
+
+            is_match = False
+            if norm_logged in norm_action or norm_action in norm_logged:
+                is_match = True
+            elif logged_words and action_words:
+                overlap = len(logged_words.intersection(action_words))
+                min_len = min(len(logged_words), len(action_words))
+                if min_len > 0 and (overlap / min_len >= 0.50):
+                    is_match = True
+
+            if not is_match:
+                msg = (
+                    f"🛑 JudgeGuard: WORK_LOG PARITY VIOLATION!\n"
+                    f"   Logged in WORK_LOG.md: '{clean_logged}'\n"
+                    f"   Submitted for verification: '{action}'\n"
+                    f"   Action description must match the active WORK_LOG entry."
+                )
+                self.logger.error(msg)
+                print(msg)
+                return False
+
+            return True
 
         except Exception as e:
             self.logger.error(f"⚠️ Error reading WORK_LOG.md: {e}")
             return False
-        
-        print("🛑 WORK_LOG.md not updated recently. Required format:")
-        print('   echo "🟡 Starting [ACTION]" >> WORK_LOG.md')
-        return False
+
+    # ------------------------------------------------------------------
+    # Ground Truth Manifest — prevents context rot in long sessions
+    # ------------------------------------------------------------------
+
+    def _get_ground_truth_manifest(self) -> str:
+        """
+        Build a Ground Truth Manifest by combining the PROJECT_ESSENCE constant
+        with the latest CONTINUITY.md state.
+
+        This manifest is injected into every Layer 3 prompt to ensure that the
+        rules of engagement are always present even in long, context-eroding sessions.
+
+        Returns:
+            str: Combined manifest text (always non-empty — falls back to
+                 PROJECT_ESSENCE alone if CONTINUITY.md is unreadable).
+        """
+        sections = ["=== PROJECT ESSENCE (Golden Snapshot) ===", PROJECT_ESSENCE]
+
+        # Attempt to pull the active goal from CONTINUITY.md
+        continuity_paths = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), ".cm", "CONTINUITY.md"),
+            os.path.join(os.path.expanduser("~"), "judge", "judge-guard-core", ".cm", "CONTINUITY.md"),
+        ]
+        for path in continuity_paths:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    # Extract only the Active Goal + Key Decisions sections (token-light)
+                    relevant = []
+                    capture = False
+                    for line in content.splitlines():
+                        if line.startswith("## Active Goal") or line.startswith("## Key Decisions"):
+                            capture = True
+                        elif line.startswith("## ") and capture:
+                            capture = False
+                        if capture:
+                            relevant.append(line)
+                    if relevant:
+                        sections.append("\n=== ACTIVE CONTINUITY (Working Memory) ===")
+                        sections.append("\n".join(relevant[:30]))  # cap at 30 lines
+                    break
+                except Exception as e:
+                    self.logger.warning(f"Ground Truth Manifest: Could not read CONTINUITY.md: {e}")
+
+        return "\n".join(sections)
+
+    # ------------------------------------------------------------------
+    # Self-Healing Loop
+    # ------------------------------------------------------------------
+
+    def retry_with_guidance(
+        self,
+        action: str,
+        reason: str,
+        max_retries: int = 2,
+    ) -> dict:
+        """
+        Self-Healing Loop: given a rejected action and the rejection reason,
+        attempt to guide the actor toward a revised, compliant action.
+
+        This implements the Actor-Judge feedback cycle from AGENT_TAMING_GUIDE.md:
+            while attempt < max_retries:
+                result = actor.act(context)
+                if judge.verify(result): return result
+                context['feedback'] = judge.get_reason()
+
+        Args:
+            action: The original rejected action description.
+            reason: The human-readable rejection reason from JudgeGuard.
+            max_retries: Maximum revision attempts (default: 2).
+
+        Returns:
+            dict with keys:
+              - retry (bool): True if a viable revision was produced.
+              - revised_action (str): Suggested revised action (present when retry=True).
+              - reason (str): Explanation of the outcome.
+        """
+        self._ensure_setup()
+
+        # Hard-blocked actions — no retry possible
+        if self._is_dangerous_command(action):
+            return {
+                "retry": False,
+                "reason": "Action is categorically blocked (Layer 00 — dangerous command). No revision possible.",
+            }
+
+        # Try to produce a guidance-based revision
+        manifest = self._get_ground_truth_manifest()
+        prompt = f"""You are a Self-Healing Agent Advisor.
+
+An action was REJECTED by JudgeGuard for the following reason:
+  REASON: {reason}
+
+ORIGINAL ACTION: {action}
+
+GROUND TRUTH MANIFEST (project constraints):
+{manifest[:2000]}
+
+TASK:
+Suggest a REVISED version of the action that:
+1. Achieves the same underlying goal
+2. Complies with the Ground Truth Manifest
+3. Has a drift score below 0.40
+
+Reply with ONLY the revised action text (1-2 sentences). If no compliant revision is possible, reply exactly: NO_REVISION_POSSIBLE
+"""
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                if not self.gemini or not getattr(self.gemini, "has_keys", False):
+                    # Offline: produce a heuristic guidance message
+                    heuristic = (
+                        f"[Heuristic guidance] Revise '{action}' to focus on "
+                        "agent safety, code quality, or system transparency — "
+                        "core project values — rather than the rejected goal."
+                    )
+                    return {
+                        "retry": True,
+                        "revised_action": heuristic,
+                        "reason": f"Offline heuristic guidance (attempt {attempt}/{max_retries}).",
+                    }
+
+                raw = self.gemini.generate_content(
+                    prompt,
+                    generation_config={"max_output_tokens": 120},
+                )
+
+                if not raw or "NO_REVISION_POSSIBLE" in raw.upper():
+                    continue  # try next attempt
+
+                revised = raw.strip()
+                return {
+                    "retry": True,
+                    "revised_action": revised,
+                    "reason": f"Self-healing guidance produced on attempt {attempt}/{max_retries}.",
+                }
+
+            except Exception as e:
+                self.logger.warning(f"Self-healing attempt {attempt} failed: {e}")
+
+        return {
+            "retry": False,
+            "reason": f"Self-healing exhausted {max_retries} attempts without a viable revision.",
+        }
 
     def verify_action(self, current_action: str) -> bool:
         """
@@ -386,29 +667,42 @@ class JudgeGuard:
         if self._is_dangerous_command(current_action):
             msg = "Security Violation: Action contains forbidden dangerous commands (sudo/root deletion)."
             self.logger.error(f"Layer 00 Block: {msg}")
+            self._record_rejection(current_action, msg)
             if bridge_available:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
             print(f"🛑 JudgeGuard: {msg}")
             return False
 
-        # --- LAYER 0: Work Log Enforcement (NEW) ---
+        # --- LAYER 0.01: Constitutional Evasion & Echo Detection ---
+        is_evasive, evasion_msg = self._detect_constitutional_evasion(current_action)
+        if is_evasive:
+            self.logger.error(f"Layer 0.01 Block: {evasion_msg}")
+            self._record_rejection(current_action, evasion_msg)
+            if bridge_available:
+                bridge.push_verdict(current_action, "BLOCKED", evasion_msg)
+            print(f"🛑 JudgeGuard: {evasion_msg}")
+            return False
+
+        # --- LAYER 0.02: Adversarial Substitution Detection ---
+        is_sub, sub_msg = self._check_adversarial_substitution(current_action)
+        if is_sub:
+            self.logger.error(f"Layer 0.02 Block: {sub_msg}")
+            self._record_rejection(current_action, sub_msg)
+            if bridge_available:
+                bridge.push_verdict(current_action, "BLOCKED", sub_msg)
+            print(f"🛑 JudgeGuard: {sub_msg}")
+            return False
+
+        # --- LAYER 0: Work Log Enforcement & Strict Parity ---
         # ⚡ Bolt: Fast-fail before expensive context loading/LLM calls
         if not self._check_work_log(current_action):
+            self._record_rejection(current_action, "Work log parity or freshness check failed.")
             return False
 
         # --- LAYER 0.1: Verdict Caching (⚡ Bolt) ---
-        # Skip redundant LLM calls if this action was already approved.
-        if self.pipeline:
-            cached_verdict = self.pipeline.get_cached_verdict(current_action)
-            if cached_verdict == "PASSED":
-                print(f"⚡ Bolt: Reusing cached approval for '{current_action}'")
-                if bridge_available:
-                    bridge.push_verdict(current_action, "PASSED", "Approved (Cached)")
-
-                # ⚡ Bolt: Still trigger Notion sync for research actions
-                if self._is_research_action(current_action):
-                    self._sync_to_notion(current_action)
-                return True
+        # Caching is disabled for all actions to prevent bypass via stale approvals.
+        # This ensures every action is freshly evaluated against the latest policies.
+        # (If needed in the future, caching can be reintroduced with strict cryptographic binding.)
 
         # Ensure we have the heavy dependencies before proceeding to AI layers
         if not self.gemini:
@@ -432,6 +726,7 @@ class JudgeGuard:
         if is_research_phase and is_shell_command:
             msg = "Violation: You must use the Browser Agent for research tasks (Phase 0-1)."
             self.logger.warning(f"Layer 1 Block: {msg}")
+            self._record_rejection(current_action, msg)
             if bridge_available:
                 bridge.push_verdict(current_action, "BLOCKED", msg)
             print(f"🛑 JudgeGuard: {msg}")
@@ -464,16 +759,40 @@ class JudgeGuard:
         
         # ⚡ Bolt: Single Gemini call for both Essence and Standard rules
         from src.antigravity_core.judge_flow import BlockJudge
+
+        # Inject Ground Truth Manifest into criteria for context-rot prevention
+        ground_truth = self._get_ground_truth_manifest()
+        criteria_parts.append(f"\n5. GROUND TRUTH MANIFEST (always-active rules):\n{ground_truth[:1500]}")
+        criteria = "\n".join(criteria_parts)
+
         judge = BlockJudge(criteria, client=self.gemini)
-        passed = judge.evaluate(f"ACTION: {current_action}")
-        
+        result = judge.evaluate_with_score(f"ACTION: {current_action}")
+
+        passed = result["passed"]
+        drift_score = result.get("drift_score", 0.0)
+        reason = result.get("reason", "")
+
+        print(f"📊 Drift Score: {drift_score:.2f} / 1.00  (threshold: 0.40)")
+        self.logger.info(f"Drift Score: {drift_score:.4f} | Passed: {passed} | Reason: {reason}")
+
         if passed:
             print(f"✅ JudgeGuard: Action '{current_action}' APPROVED.")
             if bridge_available:
                 bridge.push_verdict(current_action, "PASSED", "Approved (Unified Verification)")
-            
-            # ⚡ Bolt: Cache the verdict for future speed
-            if self.pipeline:
+
+            # 🎫 Layer 4: Issue Cryptographic Single-Use Execution Ticket
+            try:
+                from src.antigravity_core.ticket_vault import get_ticket_vault
+                vault = get_ticket_vault()
+                ticket = vault.issue_ticket(current_action, ttl_seconds=60)
+                ticket_id = ticket.get("ticket_id")
+                print(f"🎫 JudgeGuard: Execution Ticket issued -> {ticket_id} (TTL: 60s)")
+                os.environ["JUDGE_EXECUTION_TICKET"] = ticket_id
+            except Exception as e:
+                self.logger.warning(f"⚠️ Failed to issue execution ticket: {e}")
+
+            # ⚡ Bolt: Cache verdict ONLY for read/safe operations
+            if not is_write and self.pipeline:
                 self.pipeline.cache_verdict(current_action, "PASSED")
 
             # ⚡ Bolt: Auto-sync to Notion if this is a research action (Fix: restored missing call)
@@ -482,7 +801,8 @@ class JudgeGuard:
             
             return True
         else:
-            msg = "Violation detected (Master Orchestration or Project Essence)."
+            msg = f"Violation detected (Master Orchestration or Project Essence). Drift: {drift_score:.2f}"
+            self._record_rejection(current_action, msg, drift_score)
             print(f"🛑 JudgeGuard: {msg}")
             if bridge_available:
                 bridge.push_verdict(current_action, "BLOCKED", msg)

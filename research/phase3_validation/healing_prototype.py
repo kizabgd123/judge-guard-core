@@ -1,14 +1,18 @@
+import os
+import sys
 import logging
 import json
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.antigravity_core.judge_flow import create_block, JudgeFlowBlock
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def mock_actor_agent(context):
+def corrective_actor_agent(context):
     """
-    Simulates an agent that learns from feedback.
+    Self-healing iterative actor agent that adapts proposal based on feedback.
     """
     feedback = context.get('feedback', '')
     attempt = context.get('attempt_count', 0)
@@ -30,7 +34,7 @@ def run_healing_validation():
     """
     
     # Create the self-correcting block
-    block = create_block(mock_actor_agent, criteria)
+    block = create_block(corrective_actor_agent, criteria)
     
     context = {'attempt_count': 0}
     

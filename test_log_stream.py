@@ -1,14 +1,12 @@
 import os
 import logging
 import json
+from src.antigravity_core.env_utils import safe_load_dotenv
 from src.kaggle_stream.kaggle_agent import KaggleAgent
 from src.kaggle_stream.multimedia import MultimediaManager
 
-# Mock environment
-os.environ["GEMINI_API_KEYS"] = "dummy"
-os.environ["NOTION_API_KEY"] = "dummy"
-os.environ["NOTION_KAGGLE_DB_ID"] = "dummy"
-os.environ["HF_TOKEN"] = "dummy"
+# Load authentic environment from .env
+safe_load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
@@ -17,8 +15,12 @@ def test_stream():
     agent_beta = KaggleAgent(name="Falcon-Beta")
 
     # Read logs
-    with open("WORK_LOG.md", "r") as f:
-        log_chunk = "".join(f.readlines()[-20:])
+    work_log_path = "WORK_LOG.md"
+    if os.path.exists(work_log_path):
+        with open(work_log_path, "r", encoding="utf-8") as f:
+            log_chunk = "".join(f.readlines()[-20:])
+    else:
+        log_chunk = "(No work log entries found)"
 
     print("--- REAL LOGS FOUND ---")
     print(log_chunk)
