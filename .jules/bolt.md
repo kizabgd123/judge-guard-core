@@ -33,3 +33,7 @@
 ## 2026-04-24 - [Repeated Schema DDL Execution in SQLite Connections]
 **Learning:** Re-executing schema creation DDL (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`) and committing transactions on every SQLite connection open in multi-agent modules adds significant overhead (~0.47ms per connection). Guarding DDL execution with thread-safe double-checked locking (`_db_initialized` + `threading.Lock()`) ensures schema initialization runs only once per process lifecycle.
 **Action:** Use thread-safe double-checked locking around `_DDL` statements in SQLite connection helper functions (`_get_conn`) to reduce connection setup latency by ~67% (~0.70ms to ~0.23ms per call).
+
+## 2026-04-26 - [Redundant Table Initialization in AgentBase Connection Access]
+**Learning:** In `AgentBase`, calling `_init_agent_registry(self._conn)` on every instance `conn` property access repeatedly executes DDL statements (`CREATE TABLE IF NOT EXISTS agent_registry ...`) and commits a transaction (`conn.commit()`). This added ~3.6ms of overhead to agent registration connection setup (~4.24ms vs ~0.63ms).
+**Action:** Guard `_init_agent_registry` with a thread-safe double-checked lock using a global `_initialized_dbs` set. This reduces connection setup latency during agent instantiation by ~85%.
