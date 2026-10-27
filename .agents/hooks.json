@@ -15,7 +15,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "write_file",
+        "matcher": "write_to_file",
         "hooks": [
           {
             "type": "command",
@@ -25,7 +25,27 @@
         ]
       },
       {
-        "matcher": "write_to_file",
+        "matcher": "replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/log_audit.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "multi_replace_file_content",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/log_audit.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "run_command",
         "hooks": [
           {
             "type": "command",

@@ -38,3 +38,4 @@ research.db
 # Keep .cm/CONTINUITY.md and .cm/context-bus.json tracked
 !.cm/CONTINUITY.md
 !.cm/context-bus.json
+exports/

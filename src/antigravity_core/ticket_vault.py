@@ -29,23 +29,24 @@ DEFAULT_TTL_SECONDS = 60
 
 
 def _get_or_create_master_secret() -> bytes:
-    """Ensure a persistent, machine-local master secret exists for HMAC signing."""
+    """Ensure a persistent, machine-local HMAC signing key exists."""
     os.makedirs(os.path.dirname(SECRET_KEY_PATH), exist_ok=True)
     if os.path.exists(SECRET_KEY_PATH):
         try:
-            with open(SECRET_KEY_PATH, "rb") as f:
-                secret = f.read().strip()
-                if secret:
-                    return secret
+            with open(SECRET_KEY_PATH, "rb") as key_file:
+                raw_key = key_file.read().strip()
+                if raw_key:
+                    return raw_key
         except Exception:
             pass
 
-    # Generate a fresh 256-bit cryptographically secure random secret
-    secret = os.urandom(32).hex().encode("utf-8")
-    with open(SECRET_KEY_PATH, "wb") as f:
-        f.write(secret)
-    os.chmod(SECRET_KEY_PATH, 0o600)
-    return secret
+    # Generate fresh 256-bit random key material for HMAC verification
+    key_material = os.urandom(32).hex().encode("utf-8")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    fd = os.open(SECRET_KEY_PATH, flags, 0o600)
+    with open(fd, "wb") as key_out:
+        key_out.write(key_material)
+    return key_material
 
 
 def _sign_payload(secret: bytes, payload_str: str) -> str:
