@@ -61,8 +61,9 @@ class GeminiClient:
         if genai is not None:
             current_key = self.api_keys[self.current_key_index]
             self._client = genai.Client(api_key=current_key)
-            masked_key = current_key[:4] + "..." + current_key[-4:] if len(current_key) > 8 else "****"
-            logger.info(f"Configured Gemini with key: {masked_key} (Key {self.current_key_index + 1}/{len(self.api_keys)})")
+            logger.info(
+                f"Configured Gemini client (Key {self.current_key_index + 1}/{len(self.api_keys)})"
+            )
 
     def _rotate_key(self) -> bool:
         """Rotates to the next available API key."""
