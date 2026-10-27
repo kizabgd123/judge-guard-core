@@ -1,0 +1,16 @@
+{
+  "schema": "plan@1",
+  "goal": "Prepare and verify Medium Daily Digest before publishing, establish end-to-end automation architecture",
+  "decisions": [
+    "Enforce human-in-the-loop verification by defaulting publishStatus to 'draft'",
+    "Ground all technical claims in authentic NotebookLM knowledge items via nlm CLI",
+    "Integrate Medium into Notion database 'Agent Taming Research Pipeline'",
+    "Enforce JudgeGuard pre-action gate before executing publishing"
+  ],
+  "first_tasks": [
+    "Phase 1: Synthesize Medium Daily Digest draft from NotebookLM ground truth",
+    "Phase 2: Stage article in Notion with Platform: Medium",
+    "Phase 3: Verify draft layout and await explicit user approval before publishing"
+  ],
+  "openspec_path": "openspec/changes/medium-daily-digest/"
+}

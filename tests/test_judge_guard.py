@@ -4,8 +4,8 @@ import os
 import sys
 
 # Mock dependencies to avoid import errors in some environments
-sys.modules['google'] = MagicMock()
-sys.modules['google.generativeai'] = MagicMock()
+# Note: mock google.genai (new SDK) not the old google.generativeai
+sys.modules['google.genai'] = MagicMock()
 sys.modules['requests'] = MagicMock()
 sys.modules['dotenv'] = MagicMock()
 
@@ -32,22 +32,22 @@ class TestJudgeGuard(unittest.TestCase):
         # Patch dependencies for the JudgeGuard instance
         self.judge = JudgeGuard(work_log_path=self.work_log_path)
 
-    @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate')
+    @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate_with_score')
     @patch('src.antigravity_core.gemini_client.GeminiClient')
-    def test_verify_action_pass(self, mock_gemini, mock_evaluate):
-        # Mock the BlockJudge to return True (PASSED)
-        mock_evaluate.return_value = True
-        
+    def test_verify_action_pass(self, mock_gemini, mock_evaluate_with_score):
+        # Mock evaluate_with_score (what verify_action actually calls) to return PASSED
+        mock_evaluate_with_score.return_value = {"passed": True, "drift_score": 0.1, "reason": "Approved"}
+
         # We need to make sure _check_work_log passes
         verdict = self.judge.verify_action("Valid Action")
         self.assertTrue(verdict)
 
-    @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate')
+    @patch('src.antigravity_core.judge_flow.BlockJudge.evaluate_with_score')
     @patch('src.antigravity_core.gemini_client.GeminiClient')
-    def test_verify_action_block(self, mock_gemini, mock_evaluate):
-        # Mock the BlockJudge to return False (BLOCKED)
-        mock_evaluate.return_value = False
-        
+    def test_verify_action_block(self, mock_gemini, mock_evaluate_with_score):
+        # Mock evaluate_with_score to return BLOCKED
+        mock_evaluate_with_score.return_value = {"passed": False, "drift_score": 0.9, "reason": "Malicious action"}
+
         verdict = self.judge.verify_action("Malicious Action")
         self.assertFalse(verdict)
 

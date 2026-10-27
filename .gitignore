@@ -26,3 +26,17 @@ research.db
 .claude/
 .jules/
 .agent/
+
+# Social orchestrator output (transient)
+/tmp/social_posts*
+/tmp/social_posts_archive/
+
+# CodyMaster working memory (session-local)
+.cm/context.db
+.cm/memory/*.json
+
+# Keep .cm/CONTINUITY.md and .cm/context-bus.json tracked
+!.cm/CONTINUITY.md
+!.cm/context-bus.json
+exports/
+.vite/

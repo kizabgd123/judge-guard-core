@@ -4,9 +4,9 @@ import json
 import threading
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
+from src.antigravity_core.env_utils import safe_load_dotenv
 # Setup
-load_dotenv()
+safe_load_dotenv()
 logger = logging.getLogger(__name__)
 
 class GuardianAgent:
