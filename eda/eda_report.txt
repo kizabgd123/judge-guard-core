@@ -1,0 +1,47 @@
+=== KAGGLE PLAYGROUND SERIES S6E10 - EDA REPORT ===
+
+Train Shape: (699635, 23) (699,635 rows, 23 cols)
+Test Shape:  (299844, 22) (299,844 rows, 22 cols)
+Sample Sub Shape: (299844, 2)
+
+--- TARGET DISTRIBUTION ('satisfaction') ---
+  False: 389,296 (55.64%)
+  True: 310,339 (44.36%)
+
+--- MISSING VALUES (TRAIN vs TEST) ---
+  Arrival Delay in Minutes: Train 292 (0.04%) | Test 130 (0.04%)
+
+--- CATEGORICAL FEATURES ---
+  Gender (2 unique): ['Female', 'Male']
+  Customer Type (2 unique): ['Loyal Customer', 'disloyal Customer']
+  Type of Travel (2 unique): ['Personal Travel', 'Business travel']
+  Class (3 unique): ['Eco', 'Business', 'Eco Plus']
+
+--- SURVEY FEATURES (0 to 5 ratings) ---
+  Count of survey features: 12
+  Features: ['Inflight wifi service', 'Departure/Arrival time convenient', 'Ease of Online booking', 'Gate location', 'Food and drink', 'Online boarding', 'Seat comfort', 'Inflight entertainment', 'On-board service', 'Leg room service', 'Checkin service', 'Cleanliness']
+
+--- NUMERICAL FEATURES SUMMARY ---
+  Age: min=7, mean=39.00, median=40.0, max=85, std=13.80
+  Flight Distance: min=67, mean=1353.78, median=954.0, max=4983, std=954.42
+  Departure Delay in Minutes: min=0, mean=1.18, median=0.0, max=489, std=5.98
+  Arrival Delay in Minutes: min=0.0, mean=1.13, median=0.0, max=491.0, std=5.75
+
+--- TOP CORRELATIONS WITH TARGET (satisfaction) ---
+  Online boarding                    : +0.5596
+  Inflight entertainment             : +0.4308
+  Seat comfort                       : +0.4015
+  Flight Distance                    : +0.3700
+  On-board service                   : +0.3466
+  Cleanliness                        : +0.3389
+  Leg room service                   : +0.3301
+  Inflight wifi service              : +0.2913
+  Baggage handling                   : +0.2581
+  Checkin service                    : +0.2498
+  Food and drink                     : +0.2181
+  Age                                : +0.2027
+  Ease of Online booking             : +0.1909
+  Gate location                      : +0.0228
+  Departure Delay in Minutes         : -0.0358
+  Departure/Arrival time convenient  : -0.0492
+  Arrival Delay in Minutes           : -0.0516
