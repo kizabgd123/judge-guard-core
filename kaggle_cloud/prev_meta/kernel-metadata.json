@@ -1,0 +1,25 @@
+{
+  "id": "kiza123123/s6e10-authentic-solution-pipeline",
+  "id_no": 140841157,
+  "title": "S6E10 Authentic Solution Pipeline",
+  "code_file": "s6e10-authentic-solution-pipeline.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": false,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "keywords": [
+    "gpu"
+  ],
+  "dataset_sources": [
+    "cdeotte/s6e10-tfm-oof-and-test-predictions"
+  ],
+  "kernel_sources": [],
+  "competition_sources": [
+    "playground-series-s6e10"
+  ],
+  "model_sources": [],
+  "docker_image": "gcr.io/kaggle-private-byod/python@sha256:9a6bcfda6d03b2cd9aa347ee8c1bae62043328ed0f4afe9bda014e4f8bbf9435",
+  "machine_shape": "NvidiaTeslaT4"
+}
