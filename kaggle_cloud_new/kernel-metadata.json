@@ -1,0 +1,17 @@
+{
+  "id": "kiza123123/s6e10-route-id-tri-gbdt-master",
+  "title": "S6E10 Route-ID Tri-GBDT Master Pipeline",
+  "code_file": "s6e10_route_id_master.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "true",
+  "enable_tpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [
+    "playground-series-s6e10"
+  ],
+  "kernel_sources": [],
+  "model_sources": []
+}
