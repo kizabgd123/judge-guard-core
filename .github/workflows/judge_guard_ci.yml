@@ -1,0 +1,71 @@
+name: JudgeGuard CI & Autonomous Reflex Healer
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  judge_guard_verification:
+    name: JudgeGuard Constitutional Gate & Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest
+
+      - name: Pre-Flight Gate Verification (with Autonomous Reflex Healer)
+        id: preflight_gate
+        run: |
+          echo "🟡 Starting CI Pre-Action Verification" >> WORK_LOG.md
+          if ! python3 judge_guard.py "Start CI Pre-Action Verification"; then
+            echo "⚡ Pre-flight gate blocked. Activating Reflex Healer..."
+            python3 scripts/judge_reflex_healer.py "Start CI Pre-Action Verification" --ci
+          else
+            echo "✅ Direct JudgeGuard Pre-Flight PASSED."
+          fi
+
+      - name: Execute Pytest Suite (Law 4 Enforcement)
+        id: pytest_run
+        run: |
+          pytest tests/ -v
+
+      - name: Post-Action Verification Gate
+        id: postaction_gate
+        if: success()
+        run: |
+          echo "✅ Completed CI Pre-Action Verification" >> WORK_LOG.md
+          python3 judge_guard.py "Verify CI Pre-Action Verification Complete"
+          echo "🎫 Post-Action Verification Passed with Execution Ticket."
+
+      - name: Publish Transparent Step Summary
+        if: always()
+        run: |
+          echo "## 🛡️ JudgeGuard CI Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pre-Flight Gate Status:** ${{ steps.preflight_gate.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pytest Test Suite:** ${{ steps.pytest_run.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Post-Action Gate Status:** ${{ steps.postaction_gate.outcome }}" >> $GITHUB_STEP_SUMMARY
+          if [ -f guard_alert.json ]; then
+            echo "### ⚠️ Guard Alert Logged" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat guard_alert.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
