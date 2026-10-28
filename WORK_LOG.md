@@ -27,3 +27,5 @@
 ✅ Completed Task 1: Implement feature engineering engine and tests
 🟡 Starting Task 1: Feature Engineering Engine implementation and unit tests
 ✅ Completed Task 1: Feature Engineering Engine implementation and unit tests
+🟡 Starting Task 2: Cross-Validation and Metric Engine implementation and unit tests
+✅ Completed Task 2: Cross-Validation and Metric Engine implementation and unit tests
