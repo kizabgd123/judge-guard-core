@@ -112,3 +112,5 @@
 ✅ Completed Implement Panoptic Quality metric and validation harness
 🟡 Starting Implement Google Antigravity SDK research and observability agents
 ✅ Completed Implement Google Antigravity SDK research and observability agents
+🟡 Starting Implement CPU-only Kaggle kernel package with enable_gpu false
+✅ Completed Implement CPU-only Kaggle kernel package with enable_gpu false

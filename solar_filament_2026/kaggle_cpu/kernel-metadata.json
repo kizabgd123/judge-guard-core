@@ -1,0 +1,23 @@
+{
+  "id": "kiza123123/solar-filament-2026-cpu-pipeline",
+  "title": "Solar Filament 2026 CPU Pipeline",
+  "code_file": "inference_cpu.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": [
+    "cpu",
+    "computer-vision",
+    "segmentation",
+    "solar-physics"
+  ],
+  "dataset_sources": [],
+  "kernel_sources": [],
+  "competition_sources": [
+    "filament-segmentation-2026"
+  ],
+  "model_sources": []
+}
