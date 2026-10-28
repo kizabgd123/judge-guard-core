@@ -13,7 +13,7 @@ def reduce_mem_usage(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
     start_mem = df.memory_usage().sum() / 1024**2
     for col in df.columns:
         col_type = df[col].dtype
-        if col_type != object and not pd.api.types.is_categorical_dtype(df[col]):
+        if col_type != object and not isinstance(col_type, pd.CategoricalDtype):
             c_min = df[col].min()
             c_max = df[col].max()
             if str(col_type)[:3] == 'int':
