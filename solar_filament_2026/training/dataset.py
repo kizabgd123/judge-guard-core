@@ -59,13 +59,14 @@ class SolarFilamentDataset(Dataset):
         return img_tensor, mask_tensor
 
 
-def create_mock_training_dataset(num_samples: int = 16, seed: int = 42) -> SolarFilamentDataset:
+def create_mock_training_dataset(num_samples: int = 16, image_size: int = 256, seed: int = 42) -> SolarFilamentDataset:
     """Generate synthetic dataset for quick training verification."""
     samples = []
     for i in range(num_samples):
-        disk, filaments = create_synthetic_solar_disk(shape=(256, 256), num_filaments=3, seed=seed + i)
-        combined_mask = np.zeros((256, 256), dtype=bool)
+        disk, filaments = create_synthetic_solar_disk(shape=(image_size, image_size), num_filaments=3, seed=seed + i)
+        combined_mask = np.zeros((image_size, image_size), dtype=bool)
         for f in filaments:
             combined_mask |= f
         samples.append((disk, combined_mask))
-    return SolarFilamentDataset(samples, augment=True, patch_size=256)
+    return SolarFilamentDataset(samples, augment=True, patch_size=image_size)
+
