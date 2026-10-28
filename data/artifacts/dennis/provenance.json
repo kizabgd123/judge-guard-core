@@ -1,0 +1,54 @@
+{
+  "s6e9-best.csv": {
+    "receipt": 56323579,
+    "competition": "playground-series-s6e9",
+    "official_public_score": 0.94556,
+    "note": "Exact completed account prediction artifact. Original training pipeline is unavailable in this publication.",
+    "sha256": "9752b1d2c7ff5b8ddd4da23aab50b0cb4c9a5208b0cc7fbd29b2db4da898d631"
+  },
+  "s6e10-best.csv": {
+    "receipt": 57692287,
+    "competition": "playground-series-s6e10",
+    "official_public_score": 0.96213,
+    "note": "50/50 average-rank blend of Mayank V2 and Orange V2.",
+    "sha256": "5fe59f6f099e4639d581afc60ce263d2583b07dc2110b55e6ab0add989966fc1"
+  },
+  "house-best.csv": {
+    "receipt": 57692386,
+    "competition": "house-prices-advanced-regression-techniques",
+    "official_public_score": 0.11426,
+    "note": "50/50 geometric blend of previous account best and Ageh V35.",
+    "sha256": "b73aace31b511eb48fa56c59b18c40abca1bcc2486dcfeb2fd588df84c9bf153"
+  },
+  "gemma-best.zip": {
+    "receipt": 57595743,
+    "competition": "gemma-4-developer-agent",
+    "official_public_score": 0.18,
+    "source": "flexonafft/gemma-4-budget-aware-coding-agent-v2",
+    "source_version": 10,
+    "script_version_id": 357955943,
+    "note": "Exact archived package; own official 0.18 is distinct from the source badge 0.22.",
+    "sha256": "6ff73d104725cc31deadd18787f3f55e5ce534889cec82387e3b280637d34887"
+  },
+  "s6-mayank.csv": {
+    "source": "mayankraaz/s6e10-summit-composer-0-96210",
+    "source_version": 2,
+    "sha256": "0c6d65f427725bd57ed2885826c451f6eb0952a983bd62ab8a397763b60475c0"
+  },
+  "s6-orange.csv": {
+    "source": "ou20040313/s6e10-orange-lab-0-96213-the-1-test",
+    "source_version": 2,
+    "sha256": "23b643135b75e8952134c13046928d8d40bdb05c29fa69916966b648cac049e8"
+  },
+  "hp-account.csv": {
+    "receipt": 56295370,
+    "official_public_score": 0.11599,
+    "note": "Previous account best predictions used as a frozen blending input; original training pipeline is not included.",
+    "sha256": "d9b010162c54b63f45d27953af524191ee3aa70b3d330249859d6b6af1e635b6"
+  },
+  "hp-ageh.csv": {
+    "source": "agehsbarg/top-10-0-10943-stacking-mice-and-brutal-force",
+    "source_version": 35,
+    "sha256": "f4842401abad11ca8e51f19e99573e96603356227d089b22875d143d5e264370"
+  }
+}

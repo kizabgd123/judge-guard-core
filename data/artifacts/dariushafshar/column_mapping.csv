@@ -1,0 +1,25 @@
+source_column,column_here,change
+,id,"added: -(k + 1) for the k-th source row, counting from 0"
+Age,Age,unchanged
+Flight Distance,Flight Distance,unchanged
+Inflight wifi service,Inflight wifi service,unchanged
+Departure/Arrival time convenient,Departure/Arrival time convenient,unchanged
+Ease of Online booking,Ease of Online booking,unchanged
+Gate location,Gate location,unchanged
+Food and drink,Food and drink,unchanged
+Online boarding,Online boarding,unchanged
+Seat comfort,Seat comfort,unchanged
+Inflight entertainment,Inflight entertainment,unchanged
+On-board service,On-board service,unchanged
+Leg room service,Leg room service,unchanged
+Baggage handling,Baggage handling,unchanged
+Checkin service,Checkin service,unchanged
+Cleanliness,Cleanliness,unchanged
+Departure Delay in Minutes,Departure Delay in Minutes,unchanged
+Arrival Delay in Minutes,Arrival Delay in Minutes,unchanged
+Gender,Gender,unchanged
+Customer Type,Customer Type,unchanged
+Type of Travel,Type of Travel,unchanged
+Class,Class,unchanged
+satisfaction,satisfaction,unchanged
+,is_original,added: 1 on every row here (set 0 on train.csv/test.csv)
