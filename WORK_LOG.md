@@ -19,3 +19,5 @@
 🟡 Starting Create competition architecture specification document
 ✅ Completed Add submission helper script, exploratory notebook, and README documentation
 ✅ Completed Create competition architecture specification document
+🟡 Starting Refine training path handling and baseline warnings filter
+✅ Completed Refine training path handling and baseline warnings filter

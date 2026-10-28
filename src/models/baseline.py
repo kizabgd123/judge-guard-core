@@ -3,6 +3,7 @@ Cross-validated model training module.
 Supports LightGBM, XGBoost, and CatBoost with Stratified K-Fold CV and ROC-AUC evaluation.
 """
 
+import warnings
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, Tuple, List, Optional
@@ -13,6 +14,8 @@ import xgboost as xgb
 import catboost as cb
 
 from src.config import cfg
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 def get_model(model_name: str, params: Optional[Dict[str, Any]] = None):
     """Instantiates a model with default or custom hyper-parameters."""
