@@ -29,3 +29,5 @@
 ✅ Completed Task 1: Feature Engineering Engine implementation and unit tests
 🟡 Starting Task 2: Cross-Validation and Metric Engine implementation and unit tests
 ✅ Completed Task 2: Cross-Validation and Metric Engine implementation and unit tests
+🟡 Starting Task 3: LightGBM 5-Fold Model Trainer implementation and unit tests
+✅ Completed Task 3: LightGBM 5-Fold Model Trainer implementation and unit tests
