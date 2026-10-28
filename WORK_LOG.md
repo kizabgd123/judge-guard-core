@@ -18,3 +18,4 @@
 🟡 Starting Add submission helper script, exploratory notebook, and README documentation
 🟡 Starting Create competition architecture specification document
 ✅ Completed Add submission helper script, exploratory notebook, and README documentation
+✅ Completed Create competition architecture specification document
