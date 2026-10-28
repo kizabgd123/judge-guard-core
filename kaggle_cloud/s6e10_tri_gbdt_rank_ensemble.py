@@ -42,14 +42,22 @@ SURVEY_FEATURES = [
 ]
 
 def find_data_paths():
-    candidates = [
-        Path("/kaggle/input/playground-series-s6e10"),
-        Path("./data/raw"),
-        Path("../data/raw")
-    ]
-    for c in candidates:
-        if (c / "train.csv").exists():
-            return c / "train.csv", c / "test.csv", c / "sample_submission.csv"
+    # 1. Recursive search in /kaggle/input
+    if os.path.exists("/kaggle/input"):
+        for root, dirs, files in os.walk("/kaggle/input"):
+            if "train.csv" in files:
+                p = Path(root)
+                print(f"📂 Found competition dataset at: {p}")
+                return p / "train.csv", p / "test.csv", p / "sample_submission.csv"
+
+    # 2. Local fallback paths
+    for p in [Path("data/raw"), Path("../data/raw"), Path(".")]:
+        if (p / "train.csv").exists():
+            print(f"📂 Found competition dataset at: {p.resolve()}")
+            return p / "train.csv", p / "test.csv", p / "sample_submission.csv"
+
+    if os.path.exists("/kaggle/input"):
+        print("Available in /kaggle/input:", list(os.walk("/kaggle/input")))
     raise FileNotFoundError("Could not locate train.csv and test.csv")
 
 def generate_features(train_df: pd.DataFrame, test_df: pd.DataFrame):

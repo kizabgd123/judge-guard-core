@@ -44,3 +44,5 @@
 🟡 Starting Execute full 5-fold competitive training pipeline and generate submission
 🟡 Starting Setup and push GPU training pipeline to Kaggle Cloud Kernels
 ✅ Completed Setup and push GPU training pipeline to Kaggle Cloud Kernels
+🟡 Starting Update Kaggle Cloud kernel with dynamic input discovery
+✅ Completed Update Kaggle Cloud kernel with dynamic input discovery
