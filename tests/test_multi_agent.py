@@ -122,6 +122,30 @@ class TestAgentForum(unittest.TestCase):
         author1.close()
         author2.close()
 
+    def test_forum_list_threads_tag_filtering_beyond_limit(self):
+        import uuid
+        forum = AgentForum(f"test_tag_filtering_forum_{uuid.uuid4().hex[:8]}")
+        author = AgentBase("author_tag", "Author Tag", AgentRole.RESEARCHER)
+
+        # Create 25 threads with 'other_tag'
+        for i in range(25):
+            forum.create_thread(author, f"Other Thread {i}", tags=["other_tag"])
+
+        # Create 5 older threads with 'target_tag'
+        target_thread_ids = []
+        for i in range(5):
+            t_id = forum.create_thread(author, f"Target Thread {i}", tags=["target_tag"])
+            target_thread_ids.append(t_id)
+
+        # Querying list_threads with limit=10 and tags=['target_tag']
+        # Must return the matching threads even though they are outside the top 10 un-filtered limit.
+        filtered = forum.list_threads(limit=10, tags=["target_tag"])
+        self.assertEqual(len(filtered), 5)
+        for t in filtered:
+            self.assertIn("target_tag", t.tags)
+
+        author.close()
+
 
 class TestAgentMailbox(unittest.TestCase):
     def test_mailbox_message_passing(self):
