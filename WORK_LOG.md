@@ -15,3 +15,6 @@
 ✅ Completed Implement model training, ensembling, and CLI execution pipeline
 🟡 Starting Implement and run comprehensive test suite
 ✅ Completed Implement and run comprehensive test suite
+🟡 Starting Add submission helper script, exploratory notebook, and README documentation
+🟡 Starting Create competition architecture specification document
+✅ Completed Add submission helper script, exploratory notebook, and README documentation
