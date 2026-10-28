@@ -75,3 +75,7 @@
 ✅ Completed Recreate experiment history and add source to NotebookLM
 🟡 Starting Create and Push Enhanced Route Tri-GBDT Kernel v3
 ✅ Completed Create and Push Enhanced Route Tri-GBDT Kernel v3
+🟡 Starting Push new training run to Kaggle cloud kernel
+✅ Completed Push new training run to Kaggle cloud kernel
+🟡 Starting Create agents-cli spec for JudgeGuard GitHub workflow
+✅ Completed Create agents-cli spec for JudgeGuard GitHub workflow
