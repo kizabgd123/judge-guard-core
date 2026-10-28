@@ -8,3 +8,5 @@
 ✅ Completed Download competition dataset via Kaggle CLI
 🟡 Starting Implement Exploratory Data Analysis script and run EDA
 ✅ Completed Implement Exploratory Data Analysis script and run EDA
+🟡 Starting Implement configuration, data loader, and preprocessing modules
+✅ Completed Create requirements and virtual environment
