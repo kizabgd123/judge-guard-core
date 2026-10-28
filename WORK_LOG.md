@@ -79,3 +79,5 @@
 ✅ Completed Push new training run to Kaggle cloud kernel
 🟡 Starting Create agents-cli spec for JudgeGuard GitHub workflow
 ✅ Completed Create agents-cli spec for JudgeGuard GitHub workflow
+🟡 Starting Create Trinity Constitution Rules Knowledge Base
+✅ Completed Create Trinity Constitution Rules Knowledge Base

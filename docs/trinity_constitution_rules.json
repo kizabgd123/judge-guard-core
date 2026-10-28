@@ -1,0 +1,76 @@
+{
+  "project": "ANTIGRAVITY-OS & JudgeGuard",
+  "constitution_source": "Trinity Protocol Ecosystem Constitution (NotebookLM)",
+  "version": "3.15-STABLE",
+  "laws": {
+    "law_1": {
+      "title": "Zero-Simulation & Zero-Mock Policy",
+      "rule": "No mock production security gates, authentication tokens, API responses, or system commands. Genuine deterministic local evaluation or authentic offline queue fallback."
+    },
+    "law_2": {
+      "title": "Mandatory JudgeGuard Pre-Action Verification Gate",
+      "rule": "Before executing any critical operation (file writes, database schema migrations, code generation, dependency changes, deployments, or git commits), the action MUST pass through judge_guard.py."
+    },
+    "law_3": {
+      "title": "Work Log Traceability & State Lifecycle",
+      "rule": "Every critical operation must strictly follow: 🟡 Starting -> judge_guard.py pass -> Action -> ✅ Completed -> judge_guard.py verify -> checkpoint commit."
+    },
+    "law_4": {
+      "title": "Code Cleanliness, Quality & Test Discipline",
+      "rule": "All code must pass test gates (pytest) and build checks before merge."
+    },
+    "law_5": {
+      "title": "Anti-Circumvention, Anti-Echo & Cryptographic Execution Ticket Law",
+      "rule": "Zero evasion. Work log parity enforcement. Mandatory single-use HMAC-SHA256 Execution Ticket consumption. Immediate turn halt on block without ungrounded retries."
+    }
+  },
+  "process_guard_rules": {
+    "section_46": {
+      "title": "Dynamic JSON Alerts (ProcessGuard Evolution)",
+      "description": "Rigid halts without feedback prevent the agent from reflexive learning. The system must emit structured JSON alerts (guard_alert.json) containing severity, context, logic_hint, and actionable_fallback."
+    },
+    "section_48": {
+      "title": "Actionable Opaque Payload Encapsulation",
+      "schema": {
+        "required_fields": ["domain_context", "tactic_id", "severity", "actionable_fallback", "logic_hint"],
+        "severities": ["INFO", "WARNING", "VETO", "HALT"]
+      }
+    },
+    "section_49": {
+      "title": "Timeout & Degradation Recovery",
+      "description": "Graceful degradation and dynamic bounded retry to resolve transient environment or parity drift without human intervention."
+    }
+  },
+  "failure_recovery_matrix": {
+    "SECURITY_HARD_RULE": {
+      "severity": "HALT",
+      "recoverable": false,
+      "actionable_fallback": "halt_immediately",
+      "logic_hint": "Dangerous command or unauthorized root operation detected. Self-healing prohibited; manual review required."
+    },
+    "WORK_LOG_STALE": {
+      "severity": "WARNING",
+      "recoverable": true,
+      "actionable_fallback": "refresh_work_log_timestamp",
+      "logic_hint": "WORK_LOG.md modification time exceeds 120s. Touch/append fresh heartbeat to restore freshness."
+    },
+    "PARITY_VIOLATION": {
+      "severity": "WARNING",
+      "recoverable": true,
+      "actionable_fallback": "reconcile_starting_entry",
+      "logic_hint": "Action submitted to judge_guard does not match the active '🟡 Starting' entry in WORK_LOG.md. Align action string with active log state."
+    },
+    "NO_LIFECYCLE_ENTRIES": {
+      "severity": "VETO",
+      "recoverable": true,
+      "actionable_fallback": "initialize_lifecycle_entry",
+      "logic_hint": "No starting entries found in WORK_LOG.md. Append required '🟡 Starting <ACTION>' entry."
+    },
+    "TEST_SUITE_FAILURE": {
+      "severity": "VETO",
+      "recoverable": false,
+      "actionable_fallback": "inspect_test_trace_and_halt",
+      "logic_hint": "Unit or integration tests failed. Diagnostics captured; code fix required."
+    }
+  }
+}
