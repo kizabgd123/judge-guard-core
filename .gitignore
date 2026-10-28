@@ -1,0 +1,44 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Data and large files (keep directory structure with .gitkeep)
+data/raw/*.csv
+data/raw/*.zip
+data/processed/*.parquet
+data/processed/*.csv
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Models and checkpoints
+models/*.joblib
+models/*.pkl
+models/*.pt
+models/*.onnx
+catboost_info/
+wandb/
+
+# Submissions (keep folder)
+submissions/*.csv
+!submissions/.gitkeep
+
+# Jupyter
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
