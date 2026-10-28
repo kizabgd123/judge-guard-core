@@ -33,3 +33,7 @@
 ## 2026-04-24 - [Repeated Schema DDL Execution in SQLite Connections]
 **Learning:** Re-executing schema creation DDL (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`) and committing transactions on every SQLite connection open in multi-agent modules adds significant overhead (~0.47ms per connection). Guarding DDL execution with thread-safe double-checked locking (`_db_initialized` + `threading.Lock()`) ensures schema initialization runs only once per process lifecycle.
 **Action:** Use thread-safe double-checked locking around `_DDL` statements in SQLite connection helper functions (`_get_conn`) to reduce connection setup latency by ~67% (~0.70ms to ~0.23ms per call).
+
+## 2026-04-28 - [Push JSON Tag Filtering to SQLite in AgentForum]
+**Learning:** Filtering JSON array columns in Python after `LIMIT` execution in SQLite causes incorrect truncation when non-matching rows consume the SQL limit. Using `json_each(t.tags)` with an `EXISTS` subquery pushes array filtering down to SQLite's C engine, guaranteeing both correctness and bypassing Python row fetching and JSON deserialization for non-matching records.
+**Action:** Use `WHERE EXISTS (SELECT 1 FROM json_each(col) WHERE value IN (...))` in SQLite queries for JSON array filtering before `LIMIT`.
