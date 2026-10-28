@@ -1,5 +1,5 @@
 {
-  "id": "kiza123123/s6e10-hetero-gbdt-mlp-ensemble",
+  "id": "kiza123123/s6e10-heterogeneous-tri-gbdt-and-mlp-ensemble",
   "title": "S6E10 Heterogeneous Tri-GBDT and MLP Ensemble",
   "code_file": "s6e10_hetero_ensemble.ipynb",
   "language": "python",

@@ -58,3 +58,6 @@
 ✅ Completed Submit Route-ID Tri-GBDT Master prediction to Kaggle competition
 🟡 Starting Create and Push Heterogeneous Tri-GBDT and MLP Master Notebook to Kaggle
 ✅ Completed Create and Push Heterogeneous Tri-GBDT and MLP Master Notebook to Kaggle
+🟡 Starting Fix and re-push heterogeneous notebook bugs
+🟡 Starting Fix and re-push heterogeneous notebook bugs
+✅ Completed Fix and re-push heterogeneous notebook bugs
