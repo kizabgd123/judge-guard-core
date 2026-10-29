@@ -53,7 +53,7 @@ jobs:
         if: success()
         run: |
           echo "✅ Completed CI Pre-Action Verification" >> WORK_LOG.md
-          python3 judge_guard.py "Verify CI Pre-Action Verification Complete"
+          python3 judge_guard.py "Verify CI Pre-Action Verification Complete" --evidence tests/test_agent_integrity.py
           echo "🎫 Post-Action Verification Passed with Execution Ticket."
 
       - name: Publish Transparent Step Summary

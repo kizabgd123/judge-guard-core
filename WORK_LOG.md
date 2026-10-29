@@ -168,3 +168,5 @@
 ✅ Completed Implement unit and integration tests for Agent Integrity and Evidence Gating
 🟡 Starting Checkpoint normalized metric verification and constitution rules
 ✅ Completed Checkpoint normalized metric verification and constitution rules
+🟡 Starting Update CI workflow post-action verification with mandatory evidence flag
+✅ Completed Update CI workflow post-action verification with mandatory evidence flag
