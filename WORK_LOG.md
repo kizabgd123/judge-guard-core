@@ -172,3 +172,5 @@
 ✅ Completed Update CI workflow post-action verification with mandatory evidence flag
 🟡 Starting Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin
 ✅ Completed Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin
+🟡 Starting Add torch importorskip and requirements for training tests
+✅ Completed Add torch importorskip and requirements for training tests

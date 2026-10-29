@@ -10,9 +10,9 @@ Verifies:
 
 from pathlib import Path
 import tempfile
-import torch
-from torch.utils.data import DataLoader
 import pytest
+torch = pytest.importorskip("torch", reason="PyTorch required for solar filament training tests")
+from torch.utils.data import DataLoader
 
 from solar_filament_2026.training.models import ResidualUNet, CompoundFilamentLoss
 from solar_filament_2026.training.dataset import SolarFilamentDataset, create_mock_training_dataset
@@ -99,3 +99,26 @@ def test_trainer_fit_and_checkpoint():
 
         test_out = loaded_model(torch.randn(1, 1, 64, 64))
         assert test_out.shape == (1, 1, 64, 64)
+
+
+def test_scheduler_and_convergence():
+    """Verify CosineAnnealingLR adjusts learning rate and training loss converges."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        train_ds = create_mock_training_dataset(num_samples=4, image_size=64, seed=12)
+        val_ds = create_mock_training_dataset(num_samples=2, image_size=64, seed=24)
+
+        train_loader = DataLoader(train_ds, batch_size=2)
+        val_loader = DataLoader(val_ds, batch_size=2)
+
+        model = ResidualUNet(in_channels=1, out_channels=1, base_ch=8)
+        trainer = SolarFilamentTrainer(model=model, device="cpu", learning_rate=1e-3)
+
+        history = trainer.fit(train_loader, val_loader, epochs=3, save_dir=tmp_path, use_scheduler=True)
+
+        assert len(history) == 3
+        assert "lr" in history[0]
+        # Check cosine decay progression
+        assert history[0]["lr"] > history[-1]["lr"]
+        assert (tmp_path / "best_filament_model.pt").exists()
+

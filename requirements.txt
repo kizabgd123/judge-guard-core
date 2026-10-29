@@ -11,6 +11,7 @@ lightgbm>=4.3.0
 xgboost>=2.0.0
 catboost>=1.2.0
 optuna>=3.6.0
+torch>=2.0.0
 
 # Visualization & Progress
 matplotlib>=3.8.0

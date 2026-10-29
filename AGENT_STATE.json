@@ -14,10 +14,11 @@
     "Implement unit and integration tests for Agent Integrity and Evidence Gating",
     "Checkpoint normalized metric verification and constitution rules",
     "Update CI workflow post-action verification with mandatory evidence flag",
-    "Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin"
+    "Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin",
+    "Add torch importorskip and requirements for training tests"
   ],
-  "last_action": "Verify Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin Complete",
-  "last_ticket": "TKT-1793280915-b22ee65a-91d38676",
-  "last_updated": "2026-10-29T13:35:15Z",
+  "last_action": "Verify Add torch importorskip and requirements for training tests Complete",
+  "last_ticket": "TKT-1793281055-3be8579d-38a699ca",
+  "last_updated": "2026-10-29T13:37:35Z",
   "drift_status": "ALIGNED"
 }
