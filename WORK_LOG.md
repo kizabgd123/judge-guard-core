@@ -164,3 +164,5 @@
 ✅ Completed Implement Reflex Healer classifications and update Trinity Constitution Rules
 🟡 Starting Update JudgeGuard Reflex Healer with evidence passthrough support
 ✅ Completed Update JudgeGuard Reflex Healer with evidence passthrough support
+🟡 Starting Implement unit and integration tests for Agent Integrity and Evidence Gating
+✅ Completed Implement unit and integration tests for Agent Integrity and Evidence Gating
