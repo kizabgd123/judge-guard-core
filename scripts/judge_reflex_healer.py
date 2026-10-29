@@ -56,6 +56,24 @@ def load_constitution_rules() -> Dict[str, Any]:
                 "recoverable": True,
                 "actionable_fallback": "initialize_lifecycle_entry",
                 "logic_hint": "Missing lifecycle entry. Initializing starting entry."
+            },
+            "EVIDENCE_GATING_VIOLATION": {
+                "severity": "HALT",
+                "recoverable": False,
+                "actionable_fallback": "provide_raw_disk_evidence",
+                "logic_hint": "Claimed evidence file or test artifact is missing on disk. Ground verification requires real files before acceptance."
+            },
+            "STATE_ANCHOR_VIOLATION": {
+                "severity": "WARNING",
+                "recoverable": True,
+                "actionable_fallback": "restore_state_anchor_context",
+                "logic_hint": "AGENT_STATE.json is missing or corrupted. Restore context anchor and core invariants before proceeding."
+            },
+            "METRIC_PARITY_VIOLATION": {
+                "severity": "HALT",
+                "recoverable": False,
+                "actionable_fallback": "reconcile_with_raw_evaluation_json",
+                "logic_hint": "Discrepancy detected between written text and raw JSON metrics. Hallucinated numbers strictly forbidden. Reconcile with ground truth."
             }
         }
     }
@@ -72,6 +90,12 @@ def classify_guard_failure(output: str) -> str:
         return "PARITY_VIOLATION"
     if "no lifecycle entries" in out_lower:
         return "NO_LIFECYCLE_ENTRIES"
+    if "evidence gate block" in out_lower or "evidence gating block" in out_lower or "claimed artifact" in out_lower or "evidence file" in out_lower:
+        return "EVIDENCE_GATING_VIOLATION"
+    if "state anchor block" in out_lower:
+        return "STATE_ANCHOR_VIOLATION"
+    if "metric parity gate block" in out_lower or "metric fabrication violation" in out_lower or "metric mismatch" in out_lower:
+        return "METRIC_PARITY_VIOLATION"
     return "UNKNOWN_ERROR"
 
 
@@ -156,14 +180,18 @@ def heal_work_log_parity(action: str) -> bool:
         return False
 
 
-def run_judge_guard(action: str) -> Tuple[int, str]:
-    """Invokes judge_guard.py with the specified action."""
+def run_judge_guard(action: str, extra_args: Optional[list] = None) -> Tuple[int, str]:
+    """Invokes judge_guard.py with the specified action and optional extra arguments."""
     guard_path = os.path.join(os.getcwd(), "judge_guard.py")
     if not os.path.exists(guard_path):
         return 1, "judge_guard.py not found in working directory."
     
+    cmd = [sys.executable, guard_path, action]
+    if extra_args:
+        cmd.extend(extra_args)
+
     proc = subprocess.run(
-        [sys.executable, guard_path, action],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True
@@ -171,14 +199,14 @@ def run_judge_guard(action: str) -> Tuple[int, str]:
     return proc.returncode, proc.stdout
 
 
-def verify_with_reflex(action: str, max_retries: int = 1) -> Tuple[bool, Optional[Dict[str, Any]]]:
+def verify_with_reflex(action: str, max_retries: int = 1, extra_args: Optional[list] = None) -> Tuple[bool, Optional[Dict[str, Any]]]:
     """
     Executes judge_guard with a bounded (max 1 retry) reflexive self-healing loop.
     Enforces Law 5.4: Immediate turn halt on non-recoverable block without infinite loops.
     """
     attempt = 0
     while attempt <= max_retries:
-        code, output = run_judge_guard(action)
+        code, output = run_judge_guard(action, extra_args=extra_args)
         if code == 0:
             print(f"✅ JudgeGuard verification PASSED for: '{action}'")
             return True, None
@@ -261,14 +289,15 @@ def write_step_summary(status: str, action: str, alert: Optional[Dict[str, Any]]
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 scripts/judge_reflex_healer.py '<action>' [--ci]")
+        print("Usage: python3 scripts/judge_reflex_healer.py '<action>' [--evidence <path>] [--ci]")
         sys.exit(1)
 
     action = sys.argv[1].strip()
     is_ci = "--ci" in sys.argv
+    extra_args = [arg for arg in sys.argv[2:] if arg != "--ci"]
 
     print(f"🚀 Starting JudgeGuard Reflex Healer for action: '{action}'")
-    passed, alert = verify_with_reflex(action, max_retries=1)
+    passed, alert = verify_with_reflex(action, max_retries=1, extra_args=extra_args)
 
     if passed:
         outcome = "REFLEX_HEALED" if alert else "PASSED"
