@@ -122,6 +122,30 @@ class TestAgentForum(unittest.TestCase):
         author1.close()
         author2.close()
 
+    def test_list_threads_tag_filtering(self):
+        import uuid
+        forum_name = f"test_tag_forum_{uuid.uuid4().hex[:8]}"
+        forum = AgentForum(forum_name)
+        author = AgentBase(f"author_tag_{uuid.uuid4().hex[:6]}", "Author Tag", AgentRole.RESEARCHER)
+
+        # Create 5 non-matching threads
+        for i in range(5):
+            forum.create_thread(author, f"Other Thread {i}", tags=["general"])
+
+        # Create 2 matching threads
+        target_id1 = forum.create_thread(author, "Target Thread 1", tags=["target_tag"])
+        target_id2 = forum.create_thread(author, "Target Thread 2", tags=["target_tag", "extra"])
+
+        # Request limit=5 with tags=["target_tag"]
+        results = forum.list_threads(limit=5, tags=["target_tag"])
+
+        self.assertEqual(len(results), 2)
+        result_ids = {t.thread_id for t in results}
+        self.assertIn(target_id1, result_ids)
+        self.assertIn(target_id2, result_ids)
+
+        author.close()
+
 
 class TestAgentMailbox(unittest.TestCase):
     def test_mailbox_message_passing(self):
