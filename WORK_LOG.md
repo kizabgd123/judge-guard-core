@@ -174,3 +174,5 @@
 ✅ Completed Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin
 🟡 Starting Add torch importorskip and requirements for training tests
 ✅ Completed Add torch importorskip and requirements for training tests
+🟡 Starting Push torch importorskip fix to GitHub remote origin
+✅ Completed Push torch importorskip fix to GitHub remote origin
