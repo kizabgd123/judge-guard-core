@@ -13,10 +13,11 @@
     "Update JudgeGuard Reflex Healer with evidence passthrough support",
     "Implement unit and integration tests for Agent Integrity and Evidence Gating",
     "Checkpoint normalized metric verification and constitution rules",
-    "Update CI workflow post-action verification with mandatory evidence flag"
+    "Update CI workflow post-action verification with mandatory evidence flag",
+    "Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin"
   ],
-  "last_action": "Verify Update CI workflow post-action verification with mandatory evidence flag Complete",
-  "last_ticket": "TKT-1793280776-e15c4db7-b306714e",
-  "last_updated": "2026-10-29T13:32:56Z",
+  "last_action": "Verify Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin Complete",
+  "last_ticket": "TKT-1793280915-b22ee65a-91d38676",
+  "last_updated": "2026-10-29T13:35:15Z",
   "drift_status": "ALIGNED"
 }

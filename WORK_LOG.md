@@ -170,3 +170,5 @@
 ✅ Completed Checkpoint normalized metric verification and constitution rules
 🟡 Starting Update CI workflow post-action verification with mandatory evidence flag
 ✅ Completed Update CI workflow post-action verification with mandatory evidence flag
+🟡 Starting Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin
+✅ Completed Push JudgeGuard v2.5 Evidence-Gating and State Anchor to GitHub remote origin
