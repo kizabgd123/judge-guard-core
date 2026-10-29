@@ -11,10 +11,11 @@
   "verified_subtasks": [
     "Implement Evidence-Gating, State Anchor, and Metric Parity Gates in JudgeGuard",
     "Update JudgeGuard Reflex Healer with evidence passthrough support",
-    "Implement unit and integration tests for Agent Integrity and Evidence Gating"
+    "Implement unit and integration tests for Agent Integrity and Evidence Gating",
+    "Checkpoint normalized metric verification and constitution rules"
   ],
-  "last_action": "Verify Implement unit and integration tests for Agent Integrity and Evidence Gating Complete",
-  "last_ticket": "TKT-1793280701-429f2203-e45a9872",
-  "last_updated": "2026-10-29T13:31:41Z",
+  "last_action": "Verify Checkpoint normalized metric verification and constitution rules Complete",
+  "last_ticket": "TKT-1793280749-a7f33fb0-536f5018",
+  "last_updated": "2026-10-29T13:32:29Z",
   "drift_status": "ALIGNED"
 }

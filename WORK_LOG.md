@@ -166,3 +166,5 @@
 ✅ Completed Update JudgeGuard Reflex Healer with evidence passthrough support
 🟡 Starting Implement unit and integration tests for Agent Integrity and Evidence Gating
 ✅ Completed Implement unit and integration tests for Agent Integrity and Evidence Gating
+🟡 Starting Checkpoint normalized metric verification and constitution rules
+✅ Completed Checkpoint normalized metric verification and constitution rules
