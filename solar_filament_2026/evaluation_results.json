@@ -1,0 +1,202 @@
+{
+  "hardware": {
+    "cuda_available": false,
+    "device": "cpu",
+    "torch_threads": 6,
+    "zero_gpu_compliant": true
+  },
+  "checkpoint": "/home/kizajosmladjibacije/KAggleerko/solar_filament_2026/models/best_filament_model.pt",
+  "total_test_samples": 6,
+  "summary_metrics": {
+    "mean_panoptic_quality (PQ)": 0.0,
+    "mean_segmentation_quality (SQ)": 0.0,
+    "mean_recognition_quality (RQ)": 0.0,
+    "mean_full_disk_dice": 0.0076,
+    "mean_matched_dice": 0.0,
+    "total_tp": 0,
+    "total_fp": 6,
+    "total_fn": 18
+  },
+  "per_sample_metrics": [
+    {
+      "sample_id": "TEST_GONG_B_01",
+      "station": "B (Big)",
+      "gt_instances_count": 2,
+      "pred_instances_count": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 2,
+      "sq": 0.0,
+      "rq": 0.0,
+      "pq": 0.0,
+      "matched_dice": 0.0,
+      "full_disk_dice": 0.0065,
+      "infer_time_ms": 621.47,
+      "post_time_ms": 11.76
+    },
+    {
+      "sample_id": "TEST_GONG_C_02",
+      "station": "C (Cerro)",
+      "gt_instances_count": 3,
+      "pred_instances_count": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 3,
+      "sq": 0.0,
+      "rq": 0.0,
+      "pq": 0.0,
+      "matched_dice": 0.0,
+      "full_disk_dice": 0.0068,
+      "infer_time_ms": 620.17,
+      "post_time_ms": 9.11
+    },
+    {
+      "sample_id": "TEST_GONG_L_03",
+      "station": "L (Learmonth)",
+      "gt_instances_count": 4,
+      "pred_instances_count": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 4,
+      "sq": 0.0,
+      "rq": 0.0,
+      "pq": 0.0,
+      "matched_dice": 0.0,
+      "full_disk_dice": 0.0098,
+      "infer_time_ms": 595.44,
+      "post_time_ms": 8.87
+    },
+    {
+      "sample_id": "TEST_GONG_M_04",
+      "station": "M (Mauna)",
+      "gt_instances_count": 2,
+      "pred_instances_count": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 2,
+      "sq": 0.0,
+      "rq": 0.0,
+      "pq": 0.0,
+      "matched_dice": 0.0,
+      "full_disk_dice": 0.0033,
+      "infer_time_ms": 576.37,
+      "post_time_ms": 8.98
+    },
+    {
+      "sample_id": "TEST_GONG_T_05",
+      "station": "T (Observatorio)",
+      "gt_instances_count": 3,
+      "pred_instances_count": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 3,
+      "sq": 0.0,
+      "rq": 0.0,
+      "pq": 0.0,
+      "matched_dice": 0.0,
+      "full_disk_dice": 0.009,
+      "infer_time_ms": 570.47,
+      "post_time_ms": 7.89
+    },
+    {
+      "sample_id": "TEST_GONG_U_06",
+      "station": "U (Udaipur)",
+      "gt_instances_count": 4,
+      "pred_instances_count": 1,
+      "tp": 0,
+      "fp": 1,
+      "fn": 4,
+      "sq": 0.0,
+      "rq": 0.0,
+      "pq": 0.0,
+      "matched_dice": 0.0,
+      "full_disk_dice": 0.0101,
+      "infer_time_ms": 612.99,
+      "post_time_ms": 9.98
+    }
+  ],
+  "cross_validation": {
+    "num_folds": 5,
+    "total_samples": 60,
+    "leak_detected": false,
+    "is_leak_free": true,
+    "folds": [
+      {
+        "fold": 1,
+        "train_samples": 48,
+        "val_samples": 12,
+        "unique_val_dates": 2,
+        "val_stations_covered": [
+          "B",
+          "C",
+          "L",
+          "M",
+          "T",
+          "U"
+        ],
+        "leak_free": true
+      },
+      {
+        "fold": 2,
+        "train_samples": 48,
+        "val_samples": 12,
+        "unique_val_dates": 2,
+        "val_stations_covered": [
+          "B",
+          "C",
+          "L",
+          "M",
+          "T",
+          "U"
+        ],
+        "leak_free": true
+      },
+      {
+        "fold": 3,
+        "train_samples": 48,
+        "val_samples": 12,
+        "unique_val_dates": 2,
+        "val_stations_covered": [
+          "B",
+          "C",
+          "L",
+          "M",
+          "T",
+          "U"
+        ],
+        "leak_free": true
+      },
+      {
+        "fold": 4,
+        "train_samples": 48,
+        "val_samples": 12,
+        "unique_val_dates": 2,
+        "val_stations_covered": [
+          "B",
+          "C",
+          "L",
+          "M",
+          "T",
+          "U"
+        ],
+        "leak_free": true
+      },
+      {
+        "fold": 5,
+        "train_samples": 48,
+        "val_samples": 12,
+        "unique_val_dates": 2,
+        "val_stations_covered": [
+          "B",
+          "C",
+          "L",
+          "M",
+          "T",
+          "U"
+        ],
+        "leak_free": true
+      }
+    ]
+  },
+  "execution_time_seconds": 3.71
+}

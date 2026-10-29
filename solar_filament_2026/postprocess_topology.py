@@ -124,6 +124,7 @@ def voronoi_partition_instances(
     
     Uses distance-transform ridge detection to seed Voronoi cells, preventing
     catastrophic over-merging while pruning sub-threshold fibril noise.
+    Prevents spine fragmentation by analyzing constriction necks per component.
     """
     binary = prob_map >= prob_threshold
     if not np.any(binary):
@@ -132,70 +133,54 @@ def voronoi_partition_instances(
     # Step 1: Bridge micro-fractures along spine
     closed = morphological_close_hairline(binary, kernel_size=morph_kernel)
 
-    # Step 2: Distance transform inside high-confidence regions
-    dist = distance_transform_edt(closed)
-
-    # Step 3: Find local maxima (seeds for instances)
-    # Only keep peaks above seed threshold probability
-    valid_seed_region = (prob_map >= seed_threshold) & (dist > 2.0)
-    
-    if not np.any(valid_seed_region):
-        # Fallback to connected components if no high-confidence peaks
-        num_comp, labels = count_connected_components(closed)
-        instances = []
-        for c in range(1, num_comp + 1):
-            mask = (labels == c)
-            if np.sum(mask) >= min_area:
-                instances.append(mask)
-        return instances
-
-    # Local maximum filter for peak finding
-    size = 2 * min_distance + 1
-    local_max = maximum_filter(dist, size=size) == dist
-    peaks = local_max & valid_seed_region & closed
-
-    # Label seeds
-    seed_count, seed_labels = count_connected_components(peaks)
-    if seed_count <= 1:
-        # Single instance or flat region
-        num_comp, labels = count_connected_components(closed)
-        instances = []
-        for c in range(1, num_comp + 1):
-            mask = (labels == c)
-            if np.sum(mask) >= min_area:
-                instances.append(mask)
-        return instances
-
-    # Step 4: Propagate seeds to fill foreground mask via Voronoi distance
-    # For each foreground pixel, find closest seed
-    if cv2 is not None:
-        # Fast watershed propagation
-        markers = seed_labels.astype(np.int32)
-        # Background = 0, unknown/foreground = 0, markers > 0
-        img_3ch = cv2.cvtColor((prob_map * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-        markers[~closed] = 0
-        markers[closed & (seed_labels == 0)] = 0
-        
-        # Invert distance for watershed
-        dist_uint8 = cv2.normalize(dist, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-        dist_3ch = cv2.cvtColor(255 - dist_uint8, cv2.COLOR_GRAY2BGR)
-        
-        cv2.watershed(dist_3ch, markers)
-        unique_labels = np.unique(markers)
-        
-        instances = []
-        for lbl in unique_labels:
-            if lbl > 0:
-                mask = (markers == lbl) & closed
-                if np.sum(mask) >= min_area:
-                    instances.append(mask)
-        return instances
-
-    # Fallback to connected components
+    # Step 2: Extract initial connected components
     num_comp, labels = count_connected_components(closed)
-    instances = []
+    if num_comp == 0:
+        return []
+
+    instances: List[np.ndarray] = []
+    min_seed_sz = max(3, min_area // 20)
+
     for c in range(1, num_comp + 1):
-        mask = (labels == c)
-        if np.sum(mask) >= min_area:
-            instances.append(mask)
+        comp = (labels == c)
+        comp_area = int(np.sum(comp))
+        if comp_area < min_area:
+            continue
+
+        # Check if component contains multiple touching filaments separated by a bottleneck
+        dist = distance_transform_edt(comp)
+        max_d = float(dist.max())
+        split_found = False
+
+        if max_d >= 3.0 and cv2 is not None:
+            # Check progressive seed thresholds along distance ridge
+            for thresh_ratio in [0.45, 0.55, 0.65]:
+                d_thresh = max_d * thresh_ratio
+                seeds_mask = comp & (prob_map >= seed_threshold) & (dist >= d_thresh)
+                n_seeds, s_labels = count_connected_components(seeds_mask)
+
+                valid_seed_indices = [
+                    s for s in range(1, n_seeds + 1) if np.sum(s_labels == s) >= min_seed_sz
+                ]
+
+                if len(valid_seed_indices) >= 2:
+                    # Multi-core junction detected: perform Voronoi watershed partition
+                    markers = np.zeros(comp.shape, dtype=np.int32)
+                    for idx_s, s_val in enumerate(valid_seed_indices, start=1):
+                        markers[s_labels == s_val] = idx_s
+
+                    dist_uint8 = cv2.normalize(dist, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+                    dist_3ch = cv2.cvtColor(255 - dist_uint8, cv2.COLOR_GRAY2BGR)
+                    cv2.watershed(dist_3ch, markers)
+
+                    for idx_s in range(1, len(valid_seed_indices) + 1):
+                        sub_inst = (markers == idx_s) & comp
+                        if np.sum(sub_inst) >= min_area:
+                            instances.append(sub_inst)
+                    split_found = True
+                    break
+
+        if not split_found:
+            instances.append(comp)
+
     return instances

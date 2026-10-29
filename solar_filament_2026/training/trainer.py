@@ -97,37 +97,56 @@ class SolarFilamentTrainer:
         val_loader: DataLoader,
         epochs: int = 3,
         save_dir: Optional[Path] = None,
+        use_scheduler: bool = True,
     ) -> List[Dict[str, float]]:
         """Run full training loop and return history."""
         save_path = save_dir or (Path(os.getcwd()) / "solar_filament_2026" / "models")
         save_path.mkdir(parents=True, exist_ok=True)
 
+        scheduler = None
+        if use_scheduler and epochs > 1:
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=epochs, eta_min=1e-5
+            )
+
         history = []
-        best_iou = 0.0
+        best_loss = float("inf")
+        best_iou = -1.0
 
         for epoch in range(1, epochs + 1):
             t0 = time.time()
             train_loss = self.train_epoch(train_loader)
             val_metrics = self.validate_epoch(val_loader)
+            if scheduler is not None:
+                scheduler.step()
             elapsed = time.time() - t0
 
+            current_lr = self.optimizer.param_groups[0]["lr"]
             record = {
                 "epoch": epoch,
                 "train_loss": round(train_loss, 4),
                 "val_loss": round(val_metrics["val_loss"], 4),
                 "val_iou": round(val_metrics["val_iou"], 4),
+                "lr": round(current_lr, 6),
                 "time_s": round(elapsed, 2),
             }
             history.append(record)
 
             logger.info(
                 f"Epoch [{epoch}/{epochs}] - Train Loss: {train_loss:.4f} | "
-                f"Val Loss: {val_metrics['val_loss']:.4f} | Val IoU: {val_metrics['val_iou']:.4f} ({elapsed:.1f}s)"
+                f"Val Loss: {val_metrics['val_loss']:.4f} | Val IoU: {val_metrics['val_iou']:.4f} | LR: {current_lr:.6f} ({elapsed:.1f}s)"
             )
 
-            # Checkpoint best model
+            # Checkpoint best model if val loss or val IoU improves
+            improved = False
+            if val_metrics["val_loss"] < best_loss:
+                best_loss = val_metrics["val_loss"]
+                improved = True
             if val_metrics["val_iou"] > best_iou:
                 best_iou = val_metrics["val_iou"]
+                improved = True
+
+            if improved:
                 torch.save(self.model.state_dict(), save_path / "best_filament_model.pt")
 
         return history

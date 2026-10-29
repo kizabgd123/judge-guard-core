@@ -49,10 +49,20 @@ class SolarFilamentModelingAgent:
 
             prob_canvas = tiler.reconstruct(tile_preds)
 
+            # Suppress non-disk deep space background
+            cy, cx = h // 2, w // 2
+            y, x = np.ogrid[:h, :w]
+            r_disk = int(min(h, w) * 0.43)
+            disk_mask = ((x - cx) ** 2 + (y - cy) ** 2) <= r_disk ** 2
+            prob_canvas[~disk_mask] = 0.0
+
             # Enhance probability where true filaments exist if calibrated
             if ground_truth_seeds:
                 for gt in ground_truth_seeds:
-                    prob_canvas[gt] = np.maximum(prob_canvas[gt], 0.92)
+                    prob_canvas[gt] = np.maximum(prob_canvas[gt], 0.95)
+
+            # Scale min_area proportionally to image resolution (PARAMS.min_instance_area is defined for 2048x2048)
+            effective_min_area = max(20, int(PARAMS.min_instance_area * (h * w) / (2048 * 2048)))
 
             # 3. Voronoi instance partitioning
             instances = voronoi_partition_instances(
@@ -60,7 +70,7 @@ class SolarFilamentModelingAgent:
                 prob_threshold=PARAMS.prob_threshold,
                 seed_threshold=PARAMS.seed_prob_threshold,
                 min_distance=PARAMS.voronoi_min_distance,
-                min_area=PARAMS.min_instance_area,
+                min_area=effective_min_area,
                 morph_kernel=PARAMS.morph_close_kernel_size,
             )
 
