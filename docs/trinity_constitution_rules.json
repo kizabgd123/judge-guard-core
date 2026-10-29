@@ -71,6 +71,24 @@
       "recoverable": false,
       "actionable_fallback": "inspect_test_trace_and_halt",
       "logic_hint": "Unit or integration tests failed. Diagnostics captured; code fix required."
+    },
+    "EVIDENCE_GATING_VIOLATION": {
+      "severity": "HALT",
+      "recoverable": false,
+      "actionable_fallback": "provide_raw_disk_evidence",
+      "logic_hint": "Claimed evidence file or test artifact is missing on disk. Ground verification requires real files before acceptance."
+    },
+    "STATE_ANCHOR_VIOLATION": {
+      "severity": "WARNING",
+      "recoverable": true,
+      "actionable_fallback": "restore_state_anchor_context",
+      "logic_hint": "AGENT_STATE.json is missing or corrupted. Restore context anchor and core invariants before proceeding."
+    },
+    "METRIC_PARITY_VIOLATION": {
+      "severity": "HALT",
+      "recoverable": false,
+      "actionable_fallback": "reconcile_with_raw_evaluation_json",
+      "logic_hint": "Discrepancy detected between written text and raw JSON metrics. Hallucinated numbers strictly forbidden. Reconcile with ground truth."
     }
   }
 }

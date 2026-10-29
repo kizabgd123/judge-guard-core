@@ -24,8 +24,8 @@ from typing import Optional, Dict, Any, List
 
 TICKET_SECRET = b"antigravity-judge-guard-secret-key-2026"
 TICKET_VAULT_PATH = os.path.expanduser("~/.gemini/.judge_tickets.json")
-AGENT_STATE_PATH = os.path.join(os.getcwd(), "AGENT_STATE.json")
-WORK_LOG_PATH = os.path.join(os.getcwd(), "WORK_LOG.md")
+AGENT_STATE_PATH = os.environ.get("JUDGE_AGENT_STATE_PATH", os.path.join(os.getcwd(), "AGENT_STATE.json"))
+WORK_LOG_PATH = os.environ.get("JUDGE_WORK_LOG_PATH", os.path.join(os.getcwd(), "WORK_LOG.md"))
 
 INVARIANTS = [
     "Law 1: Zero-Simulation & Zero-Mock Policy (Absolute)",
@@ -148,19 +148,24 @@ def cross_verify_metrics(evidence_path: str) -> bool:
 
     block_text = "".join(reversed(last_block))
 
-    # Search for patterns like: MetricName: 0.1234 or MetricName = 0.1234
-    metric_patterns = re.findall(r"([A-Za-z0-9_\-\s]+)\s*[:=]\s*([0-9]+\.[0-9]+)", block_text)
+    # Search for patterns like: MetricName: 0.1234 or MetricName = 16
+    metric_patterns = re.findall(r"([A-Za-z0-9_\-\s\(\)]+)\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)", block_text)
     for raw_name, raw_val in metric_patterns:
         clean_name = raw_name.strip().lower()
+        norm_asserted = re.sub(r'[^a-z0-9]', '', clean_name)
+        if not norm_asserted or norm_asserted in ["epoch", "step", "attempt"]:
+            continue
         val_in_log = float(raw_val)
 
         # Match against flat metrics if the name resembles any metric key
         for m_key, m_val in flat_metrics.items():
-            if m_key in clean_name or clean_name in m_key:
-                # Compare values with tolerance
+            norm_key = re.sub(r'[^a-z0-9]', '', m_key)
+            if not norm_key:
+                continue
+            if (len(norm_key) >= 2 and norm_key in norm_asserted) or (len(norm_asserted) >= 2 and norm_asserted in norm_key):
                 if abs(val_in_log - m_val) > 0.005:
                     print(f"🛑 Evidence Gating Block: Metric Fabrication Violation!")
-                    print(f"   WORK_LOG.md asserted '{raw_name.strip()}: {val_in_log}'")
+                    print(f"   WORK_LOG asserted '{raw_name.strip()}: {val_in_log}'")
                     print(f"   Raw evidence '{evidence_path}' contains '{m_key}: {m_val}'")
                     print(f"   Zero-Simulation Policy violated. Values must match ground truth.")
                     return False
