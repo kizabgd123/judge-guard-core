@@ -186,6 +186,33 @@ class TestAgentMailbox(unittest.TestCase):
         receiver.close()
         cc_agent.close()
 
+    def test_mailbox_broadcast_delivery(self):
+        import uuid
+        mailbox = AgentMailbox()
+        sender = AgentBase(f"bcast_sender_{uuid.uuid4().hex[:6]}", "Bcast Sender", AgentRole.MANAGER)
+        recipients = [
+            (f"bcast_rcpt_1_{uuid.uuid4().hex[:6]}", "Rcpt 1"),
+            (f"bcast_rcpt_2_{uuid.uuid4().hex[:6]}", "Rcpt 2"),
+            (f"bcast_rcpt_3_{uuid.uuid4().hex[:6]}", "Rcpt 3"),
+        ]
+
+        msg_ids = mailbox.broadcast(
+            sender=sender,
+            agent_ids=recipients,
+            subject="Broadcast Notice",
+            body="System update in progress",
+            priority=MessagePriority.HIGH,
+        )
+
+        self.assertEqual(len(msg_ids), 3)
+        for aid, aname in recipients:
+            rcpt_agent = AgentBase(aid, aname, AgentRole.ENGINEER)
+            inbox = mailbox.inbox(rcpt_agent, unread_only=True)
+            self.assertTrue(any(m.subject == "Broadcast Notice" for m in inbox))
+            rcpt_agent.close()
+
+        sender.close()
+
 
 class TestAgentHierarchy(unittest.TestCase):
     def test_hierarchy_lifecycle(self):
