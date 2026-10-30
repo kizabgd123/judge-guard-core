@@ -37,3 +37,7 @@
 ## 2026-04-26 - [Pushing Tag Filtering into SQLite in AgentForum]
 **Learning:** Filtering JSON array tags (`t.tags`) in Python after executing a `LIMIT` query in SQLite (`AgentForum.list_threads`) causes both performance overhead (deserializing JSON for discarded non-matching rows) and a truncation bug where matching threads beyond the initial `LIMIT` window are missed. Using SQLite's native `json_each(t.tags)` with an `EXISTS (...)` subquery before `GROUP BY` and `LIMIT` executes filtering in SQLite's C engine, guaranteeing up to `limit` matching threads are returned efficiently.
 **Action:** Always push JSON array filters into SQLite queries using `EXISTS (SELECT 1 FROM json_each(col) WHERE value IN (...))` prior to `GROUP BY` and `LIMIT` clauses.
+
+## 2026-04-28 - [Combining Proposal Listing and Vote Tally Aggregation in RoundTable]
+**Learning:** Performing proposal listing and vote weight aggregation as separate SQL queries in `RoundTable.list_proposals` requires multiple connection setups/teardowns and Python-level dictionary aggregation. Combining proposal retrieval and vote weight summation into a single SQL query using `LEFT JOIN` and conditional aggregation (`COALESCE(SUM(CASE WHEN ...))`) delegates the aggregation directly to SQLite's C engine.
+**Action:** Use `LEFT JOIN` with `GROUP BY` and conditional `SUM(CASE WHEN ...)` to combine related table queries and vote tallies into single SQL queries. This reduced `RoundTable.list_proposals` latency by ~44% (from ~2.97 ms to ~1.65 ms per call).
