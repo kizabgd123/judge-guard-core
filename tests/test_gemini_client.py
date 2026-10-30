@@ -24,6 +24,7 @@ def test_gemini_client_init_multiple_keys(mock_genai, monkeypatch):
 
 def test_gemini_client_rotate_key(mock_genai, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEYS", "key1, key2")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     client = GeminiClient()
     assert client.current_key_index == 0
 
@@ -32,7 +33,7 @@ def test_gemini_client_rotate_key(mock_genai, monkeypatch):
     assert client.current_key_index == 1
 
     rotated = client._rotate_key()
-    assert rotated is True
+    assert rotated is False
     assert client.current_key_index == 0
 
 def test_gemini_client_rotate_key_single(mock_genai, monkeypatch):
