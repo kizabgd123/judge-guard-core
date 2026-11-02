@@ -279,6 +279,47 @@ class TestRoundTableVoting(unittest.TestCase):
         res1.close()
         res2.close()
 
+    def test_list_proposals_aggregation(self):
+        roundtable = RoundTable("test_comp_agg")
+        manager = KaggleManager("mgr_agg", "Manager Agg")
+        res = KaggleResearcher("res_agg", "Researcher Agg")
+        eng = KaggleEngineer("eng_agg", "Engineer Agg")
+
+        session_id = roundtable.create_session(manager, "Consensus Tally Aggregation")
+
+        # 1. Proposal with multiple votes (YES, NO, ABSTAIN)
+        p1 = roundtable.propose(res, session_id, "Proposal 1", "desc 1")
+        # 2. Proposal with no votes
+        p2 = roundtable.propose(eng, session_id, "Proposal 2", "desc 2")
+
+        roundtable.vote(manager, session_id, p1, VoteChoice.YES)      # weight = 2.0 (manager)
+        roundtable.vote(res, session_id, p1, VoteChoice.NO)           # weight = 1.0
+        roundtable.vote(eng, session_id, p1, VoteChoice.ABSTAIN)      # weight = 1.0
+
+        proposals = roundtable.list_proposals(session_id)
+        self.assertEqual(len(proposals), 2)
+
+        prop1 = next(p for p in proposals if p.proposal_id == p1)
+        self.assertEqual(prop1.yes_weight, 2.0)
+        self.assertEqual(prop1.no_weight, 1.0)
+        self.assertEqual(prop1.abstain_weight, 1.0)
+        self.assertEqual(prop1.net_score, 1.0)
+
+        prop2 = next(p for p in proposals if p.proposal_id == p2)
+        self.assertEqual(prop2.yes_weight, 0.0)
+        self.assertEqual(prop2.no_weight, 0.0)
+        self.assertEqual(prop2.abstain_weight, 0.0)
+        self.assertEqual(prop2.net_score, 0.0)
+
+        # Test backward-compatibility of _attach_vote_tallies
+        attached = roundtable._attach_vote_tallies([prop1, prop2], session_id)
+        self.assertEqual(attached[0].yes_weight, 2.0)
+        self.assertEqual(attached[1].yes_weight, 0.0)
+
+        manager.close()
+        res.close()
+        eng.close()
+
 
 class TestSessionHandoff(unittest.TestCase):
     def test_record_discovery_and_cumulative_briefing(self):
