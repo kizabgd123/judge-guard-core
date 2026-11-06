@@ -301,15 +301,27 @@ class RoundTable:
         return proposal_id
 
     def list_proposals(self, session_id: str) -> List[Proposal]:
-        """Lists all proposals for a session."""
+        """Lists all proposals for a session along with aggregated vote tallies."""
+        # ⚡ Bolt: Consolidate proposal retrieval and vote weight aggregation into a single
+        # SQL query using LEFT JOIN and conditional aggregation. This avoids an extra SQLite
+        # connection setup/teardown and executes the vote tally summation in SQLite's C engine.
         conn = self._conn()
-        rows = conn.execute(
-            "SELECT * FROM roundtable_proposals WHERE session_id=? ORDER BY created_at ASC",
-            (session_id,)
-        ).fetchall()
+        sql = """
+            SELECT
+                p.*,
+                COALESCE(SUM(CASE WHEN v.choice = 'YES' THEN v.weight END), 0.0) AS yes_weight,
+                COALESCE(SUM(CASE WHEN v.choice = 'NO' THEN v.weight END), 0.0) AS no_weight,
+                COALESCE(SUM(CASE WHEN v.choice = 'ABSTAIN' THEN v.weight END), 0.0) AS abstain_weight
+            FROM roundtable_proposals p
+            LEFT JOIN roundtable_votes v
+                ON v.session_id = p.session_id AND v.proposal_id = p.proposal_id
+            WHERE p.session_id = ?
+            GROUP BY p.proposal_id
+            ORDER BY p.created_at ASC
+        """
+        rows = conn.execute(sql, (session_id,)).fetchall()
         conn.close()
-        proposals = [self._row_to_proposal(r) for r in rows]
-        return self._attach_vote_tallies(proposals, session_id)
+        return [self._row_to_proposal(r) for r in rows]
 
     # ------------------------------------------------------------------
     # Voting
@@ -437,6 +449,10 @@ class RoundTable:
     # ------------------------------------------------------------------
 
     def _row_to_proposal(self, r: sqlite3.Row) -> Proposal:
+        keys = r.keys() if hasattr(r, "keys") else []
+        yes_weight = float(r["yes_weight"]) if "yes_weight" in keys else 0.0
+        no_weight = float(r["no_weight"]) if "no_weight" in keys else 0.0
+        abstain_weight = float(r["abstain_weight"]) if "abstain_weight" in keys else 0.0
         return Proposal(
             proposal_id=r["proposal_id"],
             session_id=r["session_id"],
@@ -449,6 +465,9 @@ class RoundTable:
             created_at=r["created_at"],
             score_target=r["score_target"],
             metadata=json.loads(r["metadata"] or "{}"),
+            yes_weight=yes_weight,
+            no_weight=no_weight,
+            abstain_weight=abstain_weight,
         )
 
     def _attach_vote_tallies(
