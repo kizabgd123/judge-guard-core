@@ -313,7 +313,8 @@ class RoundTable:
                 COALESCE(SUM(CASE WHEN v.choice = 'NO' THEN v.weight END), 0.0) AS no_weight,
                 COALESCE(SUM(CASE WHEN v.choice = 'ABSTAIN' THEN v.weight END), 0.0) AS abstain_weight
             FROM roundtable_proposals p
-            LEFT JOIN roundtable_votes v ON v.proposal_id = p.proposal_id
+            LEFT JOIN roundtable_votes v
+                ON v.session_id = p.session_id AND v.proposal_id = p.proposal_id
             WHERE p.session_id = ?
             GROUP BY p.proposal_id
             ORDER BY p.created_at ASC
